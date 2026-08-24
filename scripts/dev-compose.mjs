@@ -22,6 +22,7 @@ export function buildLocalEnv(
     "OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto",
     "OIDC_CLIENT_ID=pluto-web",
     "OIDC_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback",
+    "SITE_URL=http://127.0.0.1:3000",
     "WEB_PORT=3000",
     "",
   ].join("\n");
@@ -65,6 +66,7 @@ export function validateLocalEnv(content) {
     "OIDC_INTERNAL_ISSUER",
     "OIDC_CLIENT_ID",
     "OIDC_REDIRECT_URI",
+    "SITE_URL",
   ]) {
     if (!values.get(key)) {
       throw new Error(`.env is missing ${key}; remove it and rerun npm run dev:docker, or set it explicitly.`);
@@ -123,6 +125,7 @@ export async function ensureLocalEnv(envPath, createPassword = () => randomBytes
     if (!hasKey("OIDC_REDIRECT_URI")) {
       additions.push("OIDC_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback");
     }
+    if (!hasKey("SITE_URL")) additions.push("SITE_URL=http://127.0.0.1:3000");
     if (additions.length === 0) return "existing";
     await writeFile(envPath, `${existing.trimEnd()}\n${additions.join("\n")}\n`, {
       encoding: "utf8",

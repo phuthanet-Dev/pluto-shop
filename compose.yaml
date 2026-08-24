@@ -130,6 +130,7 @@ services:
       OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/pluto
       OIDC_CLIENT_ID: pluto-web
       OIDC_REDIRECT_URI: http://127.0.0.1:3000/api/auth/callback
+      SITE_URL: http://127.0.0.1:3000
       AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?Run npm run dev:docker to create .env}
       NEXT_TELEMETRY_DISABLED: "1"
       PORT: 3000

@@ -19,6 +19,10 @@ export function safeCallbackPath(value: string | null | undefined): string {
   return value;
 }
 
+export function publicAppRedirect(callbackPath: string, publicOrigin: string): string {
+  return new URL(safeCallbackPath(callbackPath), publicOrigin).toString();
+}
+
 export function hasAdminRole(session: { roles?: string[] } | null | undefined): boolean {
   return Array.isArray(session?.roles) && session.roles.includes("ADMIN");
 }

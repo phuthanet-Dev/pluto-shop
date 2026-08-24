@@ -7,7 +7,12 @@ import {
   jwtDecrypt,
   jwtVerify,
 } from "jose";
-import { realmRoles, safeCallbackPath, type AuthSession } from "@/lib/auth";
+import {
+  publicAppRedirect,
+  realmRoles,
+  safeCallbackPath,
+  type AuthSession,
+} from "@/lib/auth";
 
 const DEFAULT_ISSUER = "http://127.0.0.1:8081/realms/pluto";
 const SESSION_COOKIE = "pluto_session";
@@ -39,6 +44,10 @@ function internalIssuer(): string {
 
 function clientId(): string {
   return process.env.OIDC_CLIENT_ID ?? "pluto-web";
+}
+
+function publicAppOrigin(): string {
+  return process.env.SITE_URL ?? "http://127.0.0.1:3000";
 }
 
 function sessionSecret(): Uint8Array | null {
@@ -219,7 +228,7 @@ export async function finishLogin(request: Request): Promise<Response> {
       .setIssuedAt()
       .setExpirationTime("8h")
       .encrypt(secret);
-    const response = NextResponse.redirect(new URL(callback, request.url));
+    const response = NextResponse.redirect(publicAppRedirect(callback, publicAppOrigin()));
     response.cookies.set(SESSION_COOKIE, encrypted, baseCookieOptions(8 * 60 * 60));
     for (const name of [STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
       response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
@@ -253,8 +262,8 @@ export async function getSession(): Promise<AuthSession | null> {
   }
 }
 
-export function clearSession(request: Request): Response {
-  const response = NextResponse.redirect(new URL("/th", request.url));
+export function clearSession(): Response {
+  const response = NextResponse.redirect(publicAppRedirect("/th", publicAppOrigin()));
   response.cookies.set(SESSION_COOKIE, "", { ...baseCookieOptions(0), maxAge: 0 });
   return response;
 }
