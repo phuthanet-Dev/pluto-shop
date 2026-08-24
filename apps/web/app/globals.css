@@ -278,13 +278,6 @@ button:disabled {
   opacity: 0.88;
 }
 
-.cart-trigger:hover .cart-icon,
-.cart-trigger:focus-visible .cart-icon,
-.cart-button:not(:disabled):hover .cart-icon,
-.cart-button:not(:disabled):focus-visible .cart-icon {
-  background-image: url("/icons/icons8-cart.gif");
-}
-
 .cart-count {
   display: grid;
   min-width: 20px;
@@ -1549,13 +1542,6 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cart-trigger:hover .cart-icon,
-  .cart-trigger:focus-visible .cart-icon,
-  .cart-button:not(:disabled):hover .cart-icon,
-  .cart-button:not(:disabled):focus-visible .cart-icon {
-    background-image: url("/icons/icons8-shopping-cart.png");
-  }
-
   *,
   *::before,
   *::after {
