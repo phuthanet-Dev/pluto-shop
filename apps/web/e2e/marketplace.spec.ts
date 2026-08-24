@@ -39,6 +39,35 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(page.locator(".card-meta .in-stock")).toHaveCount(36);
   });
 
+  test("keeps detail artwork inside its grid column", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/en");
+    await expectFullCatalog(page);
+
+    await page.locator(".detail-button").first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    const layout = await dialog.evaluate((element) => {
+      const artwork = element.querySelector<HTMLElement>(
+        ".dialog-art-column .product-art",
+      );
+      const copy = element.querySelector<HTMLElement>(".dialog-copy-column");
+      if (!artwork || !copy) throw new Error("Missing detail dialog columns");
+      const artworkBox = artwork.getBoundingClientRect();
+      const copyBox = copy.getBoundingClientRect();
+      return {
+        artworkRight: artworkBox.right,
+        copyLeft: copyBox.left,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      };
+    });
+
+    expect(layout.artworkRight).toBeLessThanOrEqual(layout.copyLeft + 1);
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+  });
+
   test("real search and price filters change the API result count", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/en");
