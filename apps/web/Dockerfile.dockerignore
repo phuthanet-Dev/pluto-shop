@@ -1,0 +1,12 @@
+**
+!package.json
+!package-lock.json
+!apps/
+!apps/web/
+!apps/web/**
+apps/web/.next
+apps/web/node_modules
+apps/web/playwright-report
+apps/web/test-results
+apps/web/coverage
+apps/web/.env*

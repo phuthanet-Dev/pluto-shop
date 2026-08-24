@@ -1,0 +1,23 @@
+{
+  "name": "pluto-shop",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@12.0.2",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @pluto-shop/web",
+    "dev:docker": "node scripts/dev-compose.mjs",
+    "lint": "npm run lint --workspace @pluto-shop/web",
+    "typecheck": "npm run typecheck --workspace @pluto-shop/web",
+    "test": "npm run test --workspace @pluto-shop/web",
+    "test:root": "node --test scripts/dev-compose.test.mjs",
+    "test:catalog": "node scripts/verify-catalog.mjs",
+    "test:e2e": "npm run test:e2e --workspace @pluto-shop/web",
+    "build": "npm run build --workspace @pluto-shop/web"
+  }
+}

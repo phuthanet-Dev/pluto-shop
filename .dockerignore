@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+*.log
+node_modules
+**/node_modules
+**/.next
+**/coverage
+**/playwright-report
+**/test-results
+**/target
+apps/api
+infra
+scripts
+README.md
