@@ -29,7 +29,7 @@ import {
   getFilterHref,
   parseFilters,
 } from "@/lib/url-filters";
-import { useFavoritesStore } from "@/stores/favorites";
+import { useCartStore } from "@/stores/cart";
 
 type MarketplaceProps = {
   locale: Locale;
@@ -62,14 +62,15 @@ const copyByLocale = {
     maxPriceHint: "ระบุราคาเป็นบาท",
     inStock: "เฉพาะสินค้าที่มี",
     apply: "ใช้ตัวกรอง",
-    library: "คลังของฉัน",
-    libraryDescription: "สินทรัพย์สร้างสรรค์ที่คุณบันทึกไว้",
-    libraryLoading: "กำลังโหลดคลัง",
-    libraryError: "ไม่สามารถโหลดคลังได้",
-    closeLibrary: "ปิดคลัง",
-    downloadsNext: "ดาวน์โหลดพร้อมใช้งานในเฟสถัดไป",
-    noSaved: "ยังไม่มีสินทรัพย์ที่บันทึกไว้",
+    cart: "รถเข็น",
+    cartDescription: "สินค้าที่คุณเลือกไว้",
+    cartLoading: "กำลังโหลดรถเข็น",
+    cartError: "ไม่สามารถโหลดรถเข็นได้",
+    closeCart: "ปิดรถเข็น",
+    cartEmpty: "รถเข็นยังว่างอยู่",
+    removeFromCart: (name: string) => `นำ ${name} ออกจากรถเข็น`,
     addToCart: "เพิ่มลงรถเข็น",
+    inCart: "อยู่ในรถเข็น",
     closeFilters: "ปิดตัวกรอง",
     closeDetails: "ปิดรายละเอียด",
     emptyTitle: "ไม่พบสินทรัพย์ที่ตรงกัน",
@@ -102,14 +103,15 @@ const copyByLocale = {
     maxPriceHint: "Enter a price in baht",
     inStock: "In stock only",
     apply: "Apply filters",
-    library: "My Library",
-    libraryDescription: "Creative assets you have saved.",
-    libraryLoading: "Loading library",
-    libraryError: "Could not load library",
-    closeLibrary: "Close library",
-    downloadsNext: "Downloads arrive in the next phase",
-    noSaved: "No saved assets yet.",
+    cart: "Cart",
+    cartDescription: "Creative assets you have selected.",
+    cartLoading: "Loading cart",
+    cartError: "Could not load cart",
+    closeCart: "Close cart",
+    cartEmpty: "Your cart is empty.",
+    removeFromCart: (name: string) => `Remove ${name} from cart`,
     addToCart: "Add to cart",
+    inCart: "In cart",
     closeFilters: "Close filters",
     closeDetails: "Close details",
     emptyTitle: "No assets match",
@@ -183,10 +185,12 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
   );
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
-  const favoriteIds = useFavoritesStore((state) => state.favoriteIds);
-  const hasHydratedFavorites = useFavoritesStore((state) => state.hasHydrated);
+  const cartIds = useCartStore((state) => state.cartIds);
+  const hasHydratedCart = useCartStore((state) => state.hasHydrated);
+  const addToCart = useCartStore((state) => state.addToCart);
+  const removeFromCart = useCartStore((state) => state.removeFromCart);
 
   const {
     clearErrors,
@@ -216,7 +220,7 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
   }, [locale]);
 
   useEffect(() => {
-    void useFavoritesStore.persist.rehydrate();
+    void useCartStore.persist.rehydrate();
   }, []);
 
   useEffect(() => {
@@ -255,10 +259,10 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
     queryKey: ["products", activeFilters],
     queryFn: ({ signal }) => fetchProducts(activeFilters, signal, fetcher),
   });
-  const libraryProducts = useQuery({
-    queryKey: ["products", "library", "unfiltered"],
+  const cartProducts = useQuery({
+    queryKey: ["products", "cart", "unfiltered"],
     queryFn: ({ signal }) => fetchProducts(emptyFilters, signal, fetcher),
-    enabled: libraryOpen && hasHydratedFavorites && favoriteIds.length > 0,
+    enabled: cartOpen && hasHydratedCart && cartIds.length > 0,
   });
 
   const applyFilters = handleSubmit((values) => {
@@ -306,10 +310,12 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
     );
   }
 
-  const savedProducts =
-    libraryProducts.data?.items.filter((product) =>
-      favoriteIds.includes(product.id),
+  const cartProductsInView =
+    cartProducts.data?.items.filter((product) =>
+      cartIds.includes(product.id),
     ) ?? [];
+  const selectedProductInCart =
+    selectedProduct !== null && cartIds.includes(selectedProduct.id);
   const hasFilters =
     Boolean(activeFilters.q) ||
     activeFilters.maxPriceMinor !== undefined ||
@@ -376,61 +382,61 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
             >
               {copy.localeShort}
             </Link>
-            <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
+            <Dialog open={cartOpen} onOpenChange={setCartOpen}>
               <DialogTrigger asChild>
                 <button
-                  className="library-trigger"
+                  className="cart-trigger"
                   type="button"
-                  aria-label={copy.library}
+                  aria-label={copy.cart}
                 >
-                  <span aria-hidden="true">◇</span>
-                  <span className="library-label">{copy.library}</span>
-                  {hasHydratedFavorites ? (
-                    <span className="library-count">{favoriteIds.length}</span>
+                  <span aria-hidden="true">🛒</span>
+                  <span className="cart-label">{copy.cart}</span>
+                  {hasHydratedCart ? (
+                    <span className="cart-count">{cartIds.length}</span>
                   ) : null}
                 </button>
               </DialogTrigger>
-              <DialogContent className="library-drawer">
+              <DialogContent className="cart-drawer">
                 <div className="drawer-header">
                   <div>
                     <p className="eyebrow">Pluto Shop</p>
-                    <DialogTitle>{copy.library}</DialogTitle>
+                    <DialogTitle>{copy.cart}</DialogTitle>
                     <DialogDescription>
-                      {copy.libraryDescription}
+                      {copy.cartDescription}
                     </DialogDescription>
                   </div>
                   <DialogClose asChild>
                     <button
                       className="icon-button"
                       type="button"
-                      aria-label={copy.closeLibrary}
+                      aria-label={copy.closeCart}
                     >
                       <span aria-hidden="true">×</span>
                     </button>
                   </DialogClose>
                 </div>
                 <div className="drawer-body">
-                  {libraryProducts.isPending && favoriteIds.length > 0 ? (
-                    <div role="status" aria-label={copy.libraryLoading}>
-                      <span className="library-loading-line" />
-                      <span className="library-loading-line" />
+                  {cartProducts.isPending && cartIds.length > 0 ? (
+                    <div role="status" aria-label={copy.cartLoading}>
+                      <span className="cart-loading-line" />
+                      <span className="cart-loading-line" />
                     </div>
                   ) : null}
-                  {libraryProducts.isError ? (
-                    <div role="alert" aria-label={copy.libraryError}>
-                      <p>{copy.libraryError}</p>
+                  {cartProducts.isError ? (
+                    <div role="alert" aria-label={copy.cartError}>
+                      <p>{copy.cartError}</p>
                       <button
                         className="secondary-button"
                         type="button"
-                        onClick={() => void libraryProducts.refetch()}
+                        onClick={() => void cartProducts.refetch()}
                       >
                         {copy.retry}
                       </button>
                     </div>
                   ) : null}
-                  {savedProducts.length ? (
-                    <ul className="library-list">
-                      {savedProducts.map((product) => (
+                  {cartProductsInView.length ? (
+                    <ul className="cart-list">
+                      {cartProductsInView.map((product) => (
                         <li key={product.id}>
                           <ProductArt product={product} />
                           <div>
@@ -438,22 +444,22 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
                             <span>{formatThb(product.priceMinor, locale)}</span>
                           </div>
                           <button
-                            className="download-button"
+                            className="cart-remove-button"
                             type="button"
-                            disabled
-                            aria-label={copy.downloadsNext}
+                            aria-label={copy.removeFromCart(productName(product, locale))}
+                            onClick={() => removeFromCart(product.id)}
                           >
-                            {locale === "th" ? "เฟสถัดไป" : "Phase next"}
+                            <span aria-hidden="true">×</span>
                           </button>
                         </li>
                       ))}
                     </ul>
                   ) : null}
-                  {favoriteIds.length === 0 ||
-                  (!libraryProducts.isPending &&
-                    !libraryProducts.isError &&
-                    savedProducts.length === 0) ? (
-                    <p className="empty-library">{copy.noSaved}</p>
+                  {cartIds.length === 0 ||
+                  (!cartProducts.isPending &&
+                    !cartProducts.isError &&
+                    cartProductsInView.length === 0) ? (
+                    <p className="empty-cart">{copy.cartEmpty}</p>
                   ) : null}
                 </div>
               </DialogContent>
@@ -777,11 +783,12 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
               <button
                 className="primary-button cart-button"
                 type="button"
-                disabled
-                aria-label={copy.addToCart}
+                disabled={selectedProduct.stockQuantity <= 0 || selectedProductInCart}
+                aria-label={selectedProductInCart ? copy.inCart : copy.addToCart}
+                onClick={() => addToCart(selectedProduct.id)}
               >
                 <span aria-hidden="true">🛒</span>
-                {copy.addToCart}
+                {selectedProductInCart ? copy.inCart : copy.addToCart}
               </button>
             </div>
           </DialogContent>

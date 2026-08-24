@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Marketplace } from "@/components/marketplace";
-import { useFavoritesStore } from "@/stores/favorites";
+import { useCartStore } from "@/stores/cart";
 import { productResponse } from "./fixtures";
 
 let search = new URLSearchParams();
@@ -24,21 +24,21 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 const fetcher = vi.fn<typeof fetch>();
 
-describe("favorites, library, and product details", () => {
+describe("cart and product details", () => {
   beforeEach(() => {
     search = new URLSearchParams();
     fetcher.mockReset();
     fetcher.mockImplementation(async () =>
       new Response(JSON.stringify(productResponse), { status: 200 }),
     );
-    useFavoritesStore.setState({ favoriteIds: [], hasHydrated: false });
-    useFavoritesStore.persist.clearStorage();
+    useCartStore.setState({ cartIds: [], hasHydrated: false });
+    useCartStore.persist.clearStorage();
   });
 
-  it("hydrates a saved favorite and shows it in an accessible library drawer", async () => {
+  it("hydrates a persisted cart and shows it in an accessible cart drawer", async () => {
     window.localStorage.setItem(
-      "pluto-shop-favorites",
-      JSON.stringify({ state: { favoriteIds: [1] }, version: 0 }),
+      "pluto-shop-cart",
+      JSON.stringify({ state: { cartIds: [1] }, version: 0 }),
     );
     const user = userEvent.setup();
 
@@ -46,38 +46,32 @@ describe("favorites, library, and product details", () => {
 
     await screen.findByText("Pluto Glyph Set");
     expect(screen.queryByRole("button", { name: /favorite/i })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "My Library" }));
+    await user.click(screen.getByRole("button", { name: "Cart" }));
 
-    const drawer = screen.getByRole("dialog", { name: "My Library" });
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
     expect(
       await within(drawer).findByText("Pluto Glyph Set"),
     ).toBeInTheDocument();
     expect(
-      within(drawer).getByRole("button", {
-        name: "Downloads arrive in the next phase",
-      }),
-    ).toBeDisabled();
+      within(drawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" }),
+    ).toBeInTheDocument();
 
-    await user.click(
-      within(drawer).getByRole("button", { name: "Close library" }),
-    );
+    await user.click(within(drawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" }));
     await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "My Library" }),
-      ).not.toBeInTheDocument(),
+      expect(within(drawer).getByText("Your cart is empty.")).toBeInTheDocument(),
     );
   });
 
-  it("shows the empty library message immediately when there are no favorites", async () => {
+  it("shows the empty cart message immediately when there are no items", async () => {
     const user = userEvent.setup();
 
     render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
     await screen.findByText("Pluto Glyph Set");
 
-    await user.click(screen.getByRole("button", { name: "My Library" }));
+    await user.click(screen.getByRole("button", { name: "Cart" }));
 
-    const drawer = screen.getByRole("dialog", { name: "My Library" });
-    expect(within(drawer).getByText("No saved assets yet.")).toBeInTheDocument();
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    expect(within(drawer).getByText("Your cart is empty.")).toBeInTheDocument();
   });
 
   it("does not show the bundle type label on product cards", async () => {
@@ -115,24 +109,29 @@ describe("favorites, library, and product details", () => {
     expect(within(dialog).queryByText("SINGLE")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Icons for creative work")).toBeInTheDocument();
     expect(within(dialog).getByText(/THB\s+1,299\.00/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Add to cart" }));
+    expect(within(dialog).getByRole("button", { name: "In cart" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Pluto Glyph Set" })).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Cart" }));
     expect(
-      within(dialog).getByRole("button", { name: "Add to cart" }),
-    ).toBeDisabled();
+      within(screen.getByRole("dialog", { name: "Cart" })).getByText("Pluto Glyph Set"),
+    ).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Pluto Glyph Set" }),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByRole("dialog", { name: "Cart" })).not.toBeInTheDocument(),
     );
-    expect(detailButton).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Cart" })).toHaveFocus();
   });
 
-  it("resolves saved IDs from the unfiltered API when active filters hide them", async () => {
+  it("resolves cart IDs from the unfiltered API when active filters hide them", async () => {
     search = new URLSearchParams("q=motion");
     window.localStorage.setItem(
-      "pluto-shop-favorites",
-      JSON.stringify({ state: { favoriteIds: [1] }, version: 0 }),
+      "pluto-shop-cart",
+      JSON.stringify({ state: { cartIds: [1] }, version: 0 }),
     );
     const motionProduct = {
       ...productResponse.items[0],
@@ -167,8 +166,8 @@ describe("favorites, library, and product details", () => {
     expect(await screen.findByText("Orbit Motion Kit")).toBeInTheDocument();
     expect(screen.queryByText("Pluto Glyph Set")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "My Library" }));
-    const drawer = screen.getByRole("dialog", { name: "My Library" });
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
     expect(await within(drawer).findByText("Pluto Glyph Set")).toBeInTheDocument();
     expect(fetcher).toHaveBeenCalledWith(
       "/api/v1/products",

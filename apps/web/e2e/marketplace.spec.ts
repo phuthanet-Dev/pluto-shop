@@ -86,15 +86,15 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(page.getByTestId("result-count")).not.toHaveText("36 results");
   });
 
-  test("refresh preserves locale, query, and numeric-only favorites", async ({ page }) => {
+  test("refresh preserves locale, query, and numeric-only cart IDs", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/en");
     await expectFullCatalog(page);
 
     await page.evaluate(() => {
       localStorage.setItem(
-        "pluto-shop-favorites",
-        JSON.stringify({ state: { favoriteIds: [1] }, version: 0 }),
+        "pluto-shop-cart",
+        JSON.stringify({ state: { cartIds: [1] }, version: 0 }),
       );
     });
     await page.getByRole("searchbox", { name: "Search assets" }).fill("__persist_probe__");
@@ -107,14 +107,14 @@ test.describe("Pluto Shop marketplace", () => {
     await page.reload();
     await expect(page).toHaveURL(/\/th\?q=__persist_probe__/);
     const persisted = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem("pluto-shop-favorites") ?? "{}"),
+      JSON.parse(localStorage.getItem("pluto-shop-cart") ?? "{}"),
     );
-    expect(Object.keys(persisted.state)).toEqual(["favoriteIds"]);
-    expect(persisted.state.favoriteIds).toHaveLength(1);
-    expect(persisted.state.favoriteIds.every(Number.isSafeInteger)).toBe(true);
+    expect(Object.keys(persisted.state)).toEqual(["cartIds"]);
+    expect(persisted.state.cartIds).toHaveLength(1);
+    expect(persisted.state.cartIds.every(Number.isSafeInteger)).toBe(true);
 
-    await page.getByRole("button", { name: "คลังของฉัน" }).click();
-    await expect(page.getByRole("dialog", { name: "คลังของฉัน" }).locator("li")).toHaveCount(1);
+    await page.getByRole("button", { name: "รถเข็น" }).click();
+    await expect(page.getByRole("dialog", { name: "รถเข็น" }).locator("li")).toHaveCount(1);
   });
 
   test("uses 1, 2, and 4 result columns at target widths", async ({ page }) => {
@@ -158,7 +158,7 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(page.getByRole("searchbox", { name: "Search assets" })).toBeFocused();
     await expect(page.getByRole("textbox", { name: "Maximum price (THB)" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "In stock only" })).toBeVisible();
-    await expect(page.locator(".favorite-button")).toHaveCount(0);
+    await expect(page.locator(".cart-trigger")).toBeVisible();
 
     const detailButton = page.locator(".detail-button").first();
     await tabUntil(page, ".detail-button");
@@ -166,7 +166,9 @@ test.describe("Pluto Shop marketplace", () => {
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Add to cart" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Add to cart" })).toBeEnabled();
+    await dialog.getByRole("button", { name: "Add to cart" }).click();
+    await expect(dialog.getByRole("button", { name: "In cart" })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(detailButton).toBeFocused();

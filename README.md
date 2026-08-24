@@ -48,7 +48,7 @@ docker compose down
 
 ```text
 Browser ──same-origin /api/*──> Next.js ──private Compose network──> Spring API ──JPA/read-only──> PostgreSQL
-   └── favorites: localStorage (เฉพาะ numeric product IDs)
+   └── cart: localStorage (เฉพาะ numeric product IDs; รายละเอียดดึงจาก API)
 Owner secret ──one-shot migrate/Flyway───────────────────────────────────────────────┘
 ```
 
@@ -66,7 +66,7 @@ Owner secret ──one-shot migrate/Flyway────────────�
 | `/th` | ภาษาไทย (ค่าเริ่มต้น), THB |
 | `/en` | ภาษาอังกฤษ, THB |
 
-ตัวสลับภาษาคง `q`, `maxPriceMinor` และ `inStock` ใน query string ส่วน search หน่วง 250 ms ก่อนเรียก API ตัวกรองและ favorites ยังคงอยู่หลัง refresh (filters ผ่าน URL, favorites ผ่าน localStorage)
+ตัวสลับภาษาคง `q`, `maxPriceMinor` และ `inStock` ใน query string ส่วน search หน่วง 250 ms ก่อนเรียก API ตัวกรองและ cart ยังคงอยู่หลัง refresh (filters ผ่าน URL, cart ผ่าน localStorage)
 
 ## Public API
 
@@ -171,7 +171,7 @@ npm run test:catalog
 npm run test:e2e
 ```
 
-`test:catalog` เทียบ API/Next proxy จริงกับ source catalog ทั้ง 36 รายการ (ลำดับ ชื่อ visual code สูตรราคา stock/bundle และ validation) ส่วน Playwright ทดสอบ catalog 36 รายการ, API-driven filters, refresh persistence, favorites, ภาษา, keyboard labels และ viewport 375/768/1280 โดยไม่ใช้ mock API
+`test:catalog` เทียบ API/Next proxy จริงกับ source catalog ทั้ง 36 รายการ (ลำดับ ชื่อ visual code สูตรราคา stock/bundle และ validation) ส่วน Playwright ทดสอบ catalog 36 รายการ, API-driven filters, refresh persistence, cart, ภาษา, keyboard labels และ viewport 375/768/1280 โดยไม่ใช้ mock API
 
 ## CI
 

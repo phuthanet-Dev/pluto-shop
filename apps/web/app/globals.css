@@ -239,7 +239,7 @@ button:disabled {
 }
 
 .locale-switch,
-.library-trigger {
+.cart-trigger {
   display: inline-flex;
   min-width: 44px;
   min-height: 44px;
@@ -257,24 +257,24 @@ button:disabled {
 }
 
 .locale-switch:hover,
-.library-trigger:hover {
+.cart-trigger:hover {
   border-color: var(--border-strong);
   background: rgba(255, 255, 255, 0.04);
   color: var(--ink);
 }
 
-.library-trigger {
+.cart-trigger {
   gap: 9px;
   padding: 0 12px;
   letter-spacing: 0;
 }
 
-.library-trigger > span:first-child {
+.cart-trigger > span:first-child {
   color: var(--accent-bright);
   font-size: 1.1rem;
 }
 
-.library-count {
+.cart-count {
   display: grid;
   min-width: 20px;
   height: 20px;
@@ -929,7 +929,7 @@ button:disabled {
 
 .skeleton-art,
 .skeleton-line,
-.library-loading-line {
+.cart-loading-line {
   background: linear-gradient(
     100deg,
     rgba(255, 255, 255, 0.035) 20%,
@@ -1069,7 +1069,7 @@ button:disabled {
   padding: 20px 25px 32px;
 }
 
-.library-drawer {
+.cart-drawer {
   top: 0;
   right: 0;
   bottom: 0;
@@ -1084,7 +1084,7 @@ button:disabled {
   animation: drawer-in 200ms ease-out;
 }
 
-.library-list {
+.cart-list {
   display: grid;
   gap: 10px;
   margin: 0;
@@ -1092,7 +1092,7 @@ button:disabled {
   list-style: none;
 }
 
-.library-list li {
+.cart-list li {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) auto;
   gap: 12px;
@@ -1103,43 +1103,54 @@ button:disabled {
   background: #0a0a0e;
 }
 
-.library-list .product-art {
+.cart-list .product-art {
   min-height: 58px;
   border-radius: 6px;
 }
 
-.library-list .visual-code {
+.cart-list .visual-code {
   display: none;
 }
 
-.library-list li > div:not(.product-art) {
+.cart-list li > div:not(.product-art) {
   display: grid;
   min-width: 0;
   gap: 5px;
 }
 
-.library-list strong {
+.cart-list strong {
   overflow: hidden;
   font-size: 0.76rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.library-list li > div > span {
+.cart-list li > div > span {
   color: var(--muted);
   font-family: "Cascadia Mono", monospace;
   font-size: 0.61rem;
 }
 
-.download-button {
+.cart-remove-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
   min-height: 36px;
-  padding: 0 9px;
+  place-items: center;
   border: 1px solid var(--border);
+  border-radius: 8px;
   background: transparent;
-  font-size: 0.58rem;
+  color: var(--muted-strong);
+  font-size: 1.1rem;
 }
 
-.empty-library {
+.cart-remove-button:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+}
+
+.empty-cart {
   display: grid;
   min-height: 260px;
   place-items: center;
@@ -1148,7 +1159,7 @@ button:disabled {
   font-size: 0.82rem;
 }
 
-.library-loading-line {
+.cart-loading-line {
   display: block;
   height: 70px;
   margin-bottom: 10px;
@@ -1444,7 +1455,7 @@ button:disabled {
     padding-left: 16px;
   }
 
-  .library-trigger {
+  .cart-trigger {
     padding: 0 8px;
   }
 
@@ -1491,15 +1502,15 @@ button:disabled {
     padding-top: 18px;
   }
 
-  .library-drawer {
+  .cart-drawer {
     width: 100%;
   }
 
-  .library-list li {
+  .cart-list li {
     grid-template-columns: 62px minmax(0, 1fr);
   }
 
-  .library-list .download-button {
+  .cart-list .cart-remove-button {
     grid-column: 1 / -1;
   }
 
@@ -1521,7 +1532,7 @@ button:disabled {
 }
 
 @media (max-width: 359px) {
-  .library-label {
+  .cart-label {
     display: none;
   }
 }
