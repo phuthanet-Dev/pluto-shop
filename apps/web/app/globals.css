@@ -796,21 +796,6 @@ button:disabled {
   opacity: 0.38;
 }
 
-.type-badge {
-  position: absolute;
-  z-index: 4;
-  top: 11px;
-  left: 11px;
-  padding: 5px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
-  background: rgba(7, 7, 10, 0.78);
-  color: #b8b2bf;
-  font-family: "Cascadia Mono", monospace;
-  font-size: 0.52rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
 .card-body {
   padding: 16px;

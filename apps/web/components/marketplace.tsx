@@ -84,8 +84,6 @@ const copyByLocale = {
     creator: "เป็นมิตรกับครีเอเตอร์",
     available: "พร้อมจำหน่าย",
     soldOut: "สินค้าหมด",
-    single: "ชิ้นเดียว",
-    bundle: "บันเดิล",
     items: "รายการ",
     view: "ดูรายละเอียด",
     switchLocale: "Switch to English",
@@ -128,8 +126,6 @@ const copyByLocale = {
     creator: "Creator friendly",
     available: "Available",
     soldOut: "Sold out",
-    single: "Single",
-    bundle: "Bundle",
     items: "items",
     view: "View details",
     switchLocale: "เปลี่ยนเป็นภาษาไทย",
@@ -689,9 +685,6 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
                           ) : (
                             <span className="favorite-placeholder" aria-hidden="true" />
                           )}
-                          <span className="type-badge">
-                            {product.type === "BUNDLE" ? copy.bundle : copy.single}
-                          </span>
                         </div>
                         <div className="card-body">
                           <div className="card-title-row">

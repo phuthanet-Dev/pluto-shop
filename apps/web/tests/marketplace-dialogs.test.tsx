@@ -83,6 +83,14 @@ describe("favorites, library, and product details", () => {
     expect(within(drawer).getByText("No saved assets yet.")).toBeInTheDocument();
   });
 
+  it("does not show the bundle type label on product cards", async () => {
+    render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+
+    await screen.findByText("Pluto Glyph Set");
+
+    expect(document.querySelectorAll(".type-badge")).toHaveLength(0);
+  });
+
   it("gives the mobile filter close button a localized filter label", async () => {
     const user = userEvent.setup();
 
