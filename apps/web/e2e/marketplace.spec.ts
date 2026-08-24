@@ -45,6 +45,15 @@ test.describe("Pluto Shop marketplace", () => {
     const admin = await page.request.get("/admin", { maxRedirects: 0 });
     expect(admin.status()).toBe(307);
     expect(admin.headers().location).toBe("/api/auth/login?callbackUrl=%2Fadmin");
+
+    const logout = await page.request.get("/api/auth/logout", { maxRedirects: 0 });
+    expect(logout.status()).toBe(307);
+    const logoutLocation = new URL(logout.headers().location ?? "");
+    expect(logoutLocation.pathname).toContain("/protocol/openid-connect/logout");
+    expect(logoutLocation.searchParams.get("client_id")).toBe("pluto-web");
+    expect(logoutLocation.searchParams.get("post_logout_redirect_uri")).toBe(
+      "http://127.0.0.1:3000/th",
+    );
   });
 
   test("renders the real 36-item catalog in 9 × 4 order", async ({ page }) => {

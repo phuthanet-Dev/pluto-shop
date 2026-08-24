@@ -25,10 +25,12 @@ type OidcConfiguration = {
   authorization_endpoint: string;
   token_endpoint: string;
   jwks_uri: string;
+  end_session_endpoint?: string;
 };
 
 type StoredSession = AuthSession & {
   accessToken: string;
+  idToken: string;
 };
 
 let discoveryPromise: Promise<OidcConfiguration> | undefined;
@@ -222,6 +224,7 @@ export async function finishLogin(request: Request): Promise<Response> {
       name: typeof verified.payload.name === "string" ? verified.payload.name : undefined,
       roles: realmRoles(verified.payload),
       accessToken: token.access_token,
+      idToken: token.id_token,
     };
     const encrypted = await new EncryptJWT(session)
       .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
@@ -239,7 +242,7 @@ export async function finishLogin(request: Request): Promise<Response> {
   }
 }
 
-export async function getSession(): Promise<AuthSession | null> {
+async function getStoredSession(): Promise<StoredSession | null> {
   const secret = sessionSecret();
   if (!secret) return null;
   const value = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -250,20 +253,58 @@ export async function getSession(): Promise<AuthSession | null> {
       keyManagementAlgorithms: ["dir"],
       contentEncryptionAlgorithms: ["A256GCM"],
     });
-    if (typeof payload.sub !== "string") return null;
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.accessToken !== "string" ||
+      typeof payload.idToken !== "string"
+    ) {
+      return null;
+    }
     return {
       sub: payload.sub,
       email: typeof payload.email === "string" ? payload.email : undefined,
       name: typeof payload.name === "string" ? payload.name : undefined,
       roles: realmRoles(payload),
+      accessToken: payload.accessToken,
+      idToken: payload.idToken,
     };
   } catch {
     return null;
   }
 }
 
-export function clearSession(): Response {
-  const response = NextResponse.redirect(publicAppRedirect("/th", publicAppOrigin()));
-  response.cookies.set(SESSION_COOKIE, "", { ...baseCookieOptions(0), maxAge: 0 });
+export async function getSession(): Promise<AuthSession | null> {
+  const stored = await getStoredSession();
+  if (!stored) return null;
+  return {
+    sub: stored.sub,
+    email: stored.email,
+    name: stored.name,
+    roles: stored.roles,
+  };
+}
+
+export async function clearSession(): Promise<Response> {
+  const stored = await getStoredSession();
+  const redirect = publicAppRedirect("/th", publicAppOrigin());
+  let logoutUrl = redirect;
+
+  try {
+    const config = await discover();
+    if (config.end_session_endpoint) {
+      const endSession = new URL(config.end_session_endpoint);
+      endSession.searchParams.set("client_id", clientId());
+      endSession.searchParams.set("post_logout_redirect_uri", redirect);
+      if (stored?.idToken) endSession.searchParams.set("id_token_hint", stored.idToken);
+      logoutUrl = endSession.toString();
+    }
+  } catch {
+    // Local session is still cleared if the identity provider is unavailable.
+  }
+
+  const response = NextResponse.redirect(logoutUrl);
+  for (const name of [SESSION_COOKIE, STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
+    response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
+  }
   return response;
 }
