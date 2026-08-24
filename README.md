@@ -149,6 +149,8 @@ npm test
 npm run build
 ```
 
+ไอคอนรถเข็นใช้ asset จาก [Icons8 Shopping Cart](https://icons8.com/icon/kqlTT3Fp2Ga1/shopping-cart) และ bundle เป็นไฟล์ local เพื่อไม่เรียก external asset ตอน runtime
+
 ### Backend
 
 ต้องมี Java 17 เมื่อรันบน host; Maven Wrapper จะจัดการ Maven ให้:

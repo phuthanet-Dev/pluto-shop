@@ -269,9 +269,13 @@ button:disabled {
   letter-spacing: 0;
 }
 
-.cart-trigger > span:first-child {
-  color: var(--accent-bright);
-  font-size: 1.1rem;
+.cart-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: url("/icons/icons8-shopping-cart.png") center / contain no-repeat;
+  filter: invert(1);
+  opacity: 0.88;
 }
 
 .cart-count {

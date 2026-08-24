@@ -389,7 +389,7 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
                   type="button"
                   aria-label={copy.cart}
                 >
-                  <span aria-hidden="true">🛒</span>
+                  <span className="cart-icon" aria-hidden="true" />
                   <span className="cart-label">{copy.cart}</span>
                   {hasHydratedCart ? (
                     <span className="cart-count">{cartIds.length}</span>
@@ -787,7 +787,7 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
                 aria-label={selectedProductInCart ? copy.inCart : copy.addToCart}
                 onClick={() => addToCart(selectedProduct.id)}
               >
-                <span aria-hidden="true">🛒</span>
+                <span className="cart-icon" aria-hidden="true" />
                 {selectedProductInCart ? copy.inCart : copy.addToCart}
               </button>
             </div>
