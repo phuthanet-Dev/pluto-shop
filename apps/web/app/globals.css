@@ -273,6 +273,15 @@ button:disabled {
   text-decoration: none;
 }
 
+.auth-user {
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .auth-link:hover {
   color: var(--ink);
 }
@@ -1478,6 +1487,11 @@ button:disabled {
   }
 
   .auth-signup {
+    display: none;
+  }
+
+  .auth-user,
+  .auth-admin {
     display: none;
   }
 

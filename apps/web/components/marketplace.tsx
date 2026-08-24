@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
+import { fetchAuthSession } from "@/lib/auth-client";
 import {
   fetchProducts,
   productDescription,
@@ -34,6 +35,7 @@ import { useCartStore } from "@/stores/cart";
 type MarketplaceProps = {
   locale: Locale;
   fetcher?: typeof fetch;
+  authFetcher?: typeof fetch;
 };
 
 type SearchForm = {
@@ -73,6 +75,7 @@ const copyByLocale = {
     inCart: "อยู่ในรถเข็น",
     login: "เข้าสู่ระบบ",
     signup: "สมัครสมาชิก",
+    logout: "ออกจากระบบ",
     closeFilters: "ปิดตัวกรอง",
     closeDetails: "ปิดรายละเอียด",
     emptyTitle: "ไม่พบสินทรัพย์ที่ตรงกัน",
@@ -116,6 +119,7 @@ const copyByLocale = {
     inCart: "In cart",
     login: "Log in",
     signup: "Sign up",
+    logout: "Log out",
     closeFilters: "Close filters",
     closeDetails: "Close details",
     emptyTitle: "No assets match",
@@ -178,7 +182,7 @@ function SkeletonGrid({ label }: { label: string }) {
   );
 }
 
-export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
+export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: MarketplaceProps) {
   const copy = copyByLocale[locale];
   const pathname = usePathname();
   const router = useRouter();
@@ -262,6 +266,12 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
   const products = useQuery({
     queryKey: ["products", activeFilters],
     queryFn: ({ signal }) => fetchProducts(activeFilters, signal, fetcher),
+  });
+  const authSession = useQuery({
+    queryKey: ["auth", "session"],
+    queryFn: () => fetchAuthSession(authFetcher),
+    staleTime: 60_000,
+    retry: false,
   });
   const cartProducts = useQuery({
     queryKey: ["products", "cart", "unfiltered"],
@@ -386,18 +396,36 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
             >
               {copy.localeShort}
             </Link>
-            <Link
-              className="auth-link"
-              href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
-            >
-              {copy.login}
-            </Link>
-            <Link
-              className="auth-link auth-signup"
-              href={`/api/auth/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
-            >
-              {copy.signup}
-            </Link>
+            {authSession.data?.authenticated ? (
+              <>
+                <span className="auth-user">
+                  {authSession.data.user.name ?? authSession.data.user.email}
+                </span>
+                {authSession.data.user.roles.includes("ADMIN") ? (
+                  <Link className="auth-link auth-admin" href="/admin">
+                    Admin
+                  </Link>
+                ) : null}
+                <Link className="auth-link" href="/api/auth/logout" prefetch={false}>
+                  {copy.logout}
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  className="auth-link"
+                  href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                >
+                  {copy.login}
+                </Link>
+                <Link
+                  className="auth-link auth-signup"
+                  href={`/api/auth/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                >
+                  {copy.signup}
+                </Link>
+              </>
+            )}
             <Dialog open={cartOpen} onOpenChange={setCartOpen}>
               <DialogTrigger asChild>
                 <button

@@ -74,6 +74,31 @@ describe("cart and product details", () => {
     expect(within(drawer).getByText("Your cart is empty.")).toBeInTheDocument();
   });
 
+  it("shows the authenticated user and sign-out action after login", async () => {
+    const authFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(
+        JSON.stringify({
+          authenticated: true,
+          user: {
+            sub: "user-1",
+            email: "dev@example.com",
+            name: "Dev User",
+            roles: ["CUSTOMER"],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    render(<Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} />, { wrapper: Wrapper });
+
+    expect(await screen.findByText("Dev User")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Log out" })).toHaveAttribute(
+      "href",
+      "/api/auth/logout",
+    );
+    expect(screen.queryByRole("link", { name: "Log in" })).not.toBeInTheDocument();
+  });
+
   it("does not show the bundle type label on product cards", async () => {
     render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
 
