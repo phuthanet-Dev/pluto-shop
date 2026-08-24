@@ -1,5 +1,65 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "LINE Seed Sans";
+  src: url("/fonts/line-seed/LINESeedSans-W-Rg.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans";
+  src: url("/fonts/line-seed/LINESeedSans-W-Bd.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans";
+  src: url("/fonts/line-seed/LINESeedSans-W-He.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 800;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans";
+  src: url("/fonts/line-seed/LINESeedSansTH-W-Rg.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  unicode-range: U+0E00-0E7F;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans";
+  src: url("/fonts/line-seed/LINESeedSansTH-W-Bd.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  unicode-range: U+0E00-0E7F;
+}
+
+@font-face {
+  font-family: "LINE Seed Sans";
+  src: url("/fonts/line-seed/LINESeedSansTH-W-He.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 800;
+  unicode-range: U+0E00-0E7F;
+}
+
 :root {
   --background: #07070a;
   --surface: #0d0d12;
@@ -36,7 +96,7 @@ body {
     radial-gradient(circle at 78% 0%, rgba(113, 70, 190, 0.09), transparent 28rem),
     var(--background);
   color: var(--ink);
-  font-family: "Aptos", "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif;
+  font-family: "LINE Seed Sans", "Noto Sans Thai", "Leelawadee UI", "Segoe UI", sans-serif;
   font-feature-settings: "ss01" 1, "cv01" 1;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
@@ -1229,7 +1289,7 @@ button:disabled {
 
 .footer-brand {
   color: var(--muted-strong);
-  font-family: "Aptos", "Noto Sans Thai", "Segoe UI", sans-serif;
+  font-family: "LINE Seed Sans", "Noto Sans Thai", "Segoe UI", sans-serif;
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0;
