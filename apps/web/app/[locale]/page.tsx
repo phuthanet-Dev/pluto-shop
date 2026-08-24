@@ -18,7 +18,7 @@ export async function generateMetadata({
   if (!isLocale(locale)) return {};
 
   return {
-    title: locale === "th" ? "สำรวจสินทรัพย์สร้างสรรค์" : "Explore creative assets",
+    title: "Pluto Shop",
     alternates: {
       canonical: `/${locale}`,
       languages: { th: "/th", en: "/en" },

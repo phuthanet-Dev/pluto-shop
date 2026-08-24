@@ -8,10 +8,7 @@ const metadataBase = new URL(process.env.SITE_URL ?? "http://localhost:3000");
 
 export const metadata: Metadata = {
   metadataBase,
-  title: {
-    default: "Pluto Shop — Creative Asset Marketplace",
-    template: "%s — Pluto Shop",
-  },
+  title: "Pluto Shop",
   description:
     "Explore creator-friendly digital assets with instant delivery at Pluto Shop.",
   applicationName: "Pluto Shop",
@@ -19,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Pluto Shop",
-    title: "Pluto Shop — Creative Asset Marketplace",
+    title: "Pluto Shop",
     description:
       "Curated digital goods for designers, developers, and visual storytellers.",
     images: [
@@ -27,13 +24,13 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Pluto Shop Creative Asset Marketplace",
+        alt: "Pluto Shop",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pluto Shop — Creative Asset Marketplace",
+    title: "Pluto Shop",
     description: "Curated digital goods for creative people.",
     images: ["/og.png"],
   },
