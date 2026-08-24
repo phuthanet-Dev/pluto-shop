@@ -84,6 +84,13 @@ jobs:
             printf 'POSTGRES_USER=pluto\n'
             printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'POSTGRES_APP_PASSWORD=%s\n' "$(openssl rand -hex 32)"
+            printf 'KEYCLOAK_ADMIN=admin\n'
+            printf 'KEYCLOAK_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 32)"
+            printf 'AUTH_SESSION_SECRET=%s\n' "$(openssl rand -hex 32)"
+            printf 'OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto\n'
+            printf 'OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto\n'
+            printf 'OIDC_CLIENT_ID=pluto-web\n'
+            printf 'OIDC_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback\n'
             printf 'WEB_PORT=3000\n'
           } > .env
       - name: Build and start healthy stack

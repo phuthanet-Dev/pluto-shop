@@ -15,9 +15,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -217,6 +219,21 @@ class ProductApiIntegrationTest {
         mockMvc.perform(get("/api/v1/products").param("q", "  " + "x".repeat(120) + "  "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void adminEndpointRequiresAnAuthenticatedAdminRole() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/ping"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/admin/ping").with(jwt()
+                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/admin/ping").with(jwt()
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("authenticated"));
     }
 
     @Test

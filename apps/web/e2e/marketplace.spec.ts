@@ -22,6 +22,31 @@ async function tabUntil(
 }
 
 test.describe("Pluto Shop marketplace", () => {
+  test("protects admin and exposes OIDC login and signup redirects", async ({ page }) => {
+    const session = await page.request.get("/api/auth/session");
+    expect(session.status()).toBe(200);
+    expect(await session.json()).toEqual({ authenticated: false });
+
+    const login = await page.request.get("/api/auth/login?callbackUrl=%2Fadmin", {
+      maxRedirects: 0,
+    });
+    expect(login.status()).toBe(307);
+    const loginLocation = login.headers().location ?? "";
+    expect(loginLocation).toContain("127.0.0.1:8081/realms/pluto");
+    expect(loginLocation).toContain("code_challenge=");
+    expect(loginLocation).not.toContain("client_secret");
+
+    const signup = await page.request.get("/api/auth/signup?callbackUrl=%2Fadmin", {
+      maxRedirects: 0,
+    });
+    expect(signup.status()).toBe(307);
+    expect(signup.headers().location ?? "").toContain("kc_action=register");
+
+    const admin = await page.request.get("/admin", { maxRedirects: 0 });
+    expect(admin.status()).toBe(307);
+    expect(admin.headers().location).toBe("/api/auth/login?callbackUrl=%2Fadmin");
+  });
+
   test("renders the real 36-item catalog in 9 × 4 order", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/en");

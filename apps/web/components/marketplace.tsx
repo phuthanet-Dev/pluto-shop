@@ -71,6 +71,8 @@ const copyByLocale = {
     removeFromCart: (name: string) => `นำ ${name} ออกจากรถเข็น`,
     addToCart: "เพิ่มลงรถเข็น",
     inCart: "อยู่ในรถเข็น",
+    login: "เข้าสู่ระบบ",
+    signup: "สมัครสมาชิก",
     closeFilters: "ปิดตัวกรอง",
     closeDetails: "ปิดรายละเอียด",
     emptyTitle: "ไม่พบสินทรัพย์ที่ตรงกัน",
@@ -112,6 +114,8 @@ const copyByLocale = {
     removeFromCart: (name: string) => `Remove ${name} from cart`,
     addToCart: "Add to cart",
     inCart: "In cart",
+    login: "Log in",
+    signup: "Sign up",
     closeFilters: "Close filters",
     closeDetails: "Close details",
     emptyTitle: "No assets match",
@@ -381,6 +385,18 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
               hrefLang={locale === "th" ? "en" : "th"}
             >
               {copy.localeShort}
+            </Link>
+            <Link
+              className="auth-link"
+              href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+            >
+              {copy.login}
+            </Link>
+            <Link
+              className="auth-link auth-signup"
+              href={`/api/auth/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+            >
+              {copy.signup}
             </Link>
             <Dialog open={cartOpen} onOpenChange={setCartOpen}>
               <DialogTrigger asChild>

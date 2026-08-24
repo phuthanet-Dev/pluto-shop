@@ -263,6 +263,20 @@ button:disabled {
   color: var(--ink);
 }
 
+.auth-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  color: var(--ink);
+}
+
 .cart-trigger {
   gap: 9px;
   padding: 0 12px;
@@ -1461,6 +1475,10 @@ button:disabled {
 
   .cart-trigger {
     padding: 0 8px;
+  }
+
+  .auth-signup {
+    display: none;
   }
 
   .hero {

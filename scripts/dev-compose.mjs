@@ -1,16 +1,27 @@
 import { randomBytes } from "node:crypto";
-import { constants } from "node:fs";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export function buildLocalEnv(ownerPassword, appPassword) {
+export function buildLocalEnv(
+  ownerPassword,
+  appPassword,
+  authSessionSecret = randomBytes(32).toString("hex"),
+  keycloakAdminPassword = randomBytes(32).toString("base64url"),
+) {
   return [
     "POSTGRES_DB=plutoshop",
     "POSTGRES_USER=pluto",
     `POSTGRES_PASSWORD=${ownerPassword}`,
     `POSTGRES_APP_PASSWORD=${appPassword}`,
+    "KEYCLOAK_ADMIN=admin",
+    `KEYCLOAK_ADMIN_PASSWORD=${keycloakAdminPassword}`,
+    `AUTH_SESSION_SECRET=${authSessionSecret}`,
+    "OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto",
+    "OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto",
+    "OIDC_CLIENT_ID=pluto-web",
+    "OIDC_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback",
     "WEB_PORT=3000",
     "",
   ].join("\n");
@@ -42,7 +53,19 @@ export function validateLocalEnv(content) {
     values.set(key, value);
   }
 
-  for (const key of ["POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_APP_PASSWORD"]) {
+  for (const key of [
+    "POSTGRES_DB",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_APP_PASSWORD",
+    "KEYCLOAK_ADMIN",
+    "KEYCLOAK_ADMIN_PASSWORD",
+    "AUTH_SESSION_SECRET",
+    "OIDC_ISSUER",
+    "OIDC_INTERNAL_ISSUER",
+    "OIDC_CLIENT_ID",
+    "OIDC_REDIRECT_URI",
+  ]) {
     if (!values.get(key)) {
       throw new Error(`.env is missing ${key}; remove it and rerun npm run dev:docker, or set it explicitly.`);
     }
@@ -66,13 +89,50 @@ export function validateLocalEnv(content) {
   if (ownerPassword === appPassword) {
     throw new Error("Owner and application database passwords must be different.");
   }
+
+  const authSessionSecret = values.get("AUTH_SESSION_SECRET");
+  if (!/^[0-9a-f]{64}$/iu.test(authSessionSecret)) {
+    throw new Error("AUTH_SESSION_SECRET must be a 32-byte hexadecimal secret.");
+  }
+
+  if (values.get("KEYCLOAK_ADMIN_PASSWORD").length < 24) {
+    throw new Error("KEYCLOAK_ADMIN_PASSWORD must contain at least 24 characters.");
+  }
 }
 
 export async function ensureLocalEnv(envPath, createPassword = () => randomBytes(32).toString("base64url")) {
   try {
-    await access(envPath, constants.F_OK);
-    return "existing";
-  } catch {
+    const existing = await readFile(envPath, "utf8");
+    const additions = [];
+    const hasKey = (key) => new RegExp(`^${key}=`, "mu").test(existing);
+
+    if (!hasKey("KEYCLOAK_ADMIN")) additions.push("KEYCLOAK_ADMIN=admin");
+    if (!hasKey("KEYCLOAK_ADMIN_PASSWORD")) {
+      additions.push(`KEYCLOAK_ADMIN_PASSWORD=${randomBytes(32).toString("base64url")}`);
+    }
+    if (!hasKey("AUTH_SESSION_SECRET")) {
+      additions.push(`AUTH_SESSION_SECRET=${randomBytes(32).toString("hex")}`);
+    }
+    if (!hasKey("OIDC_ISSUER")) {
+      additions.push("OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto");
+    }
+    if (!hasKey("OIDC_INTERNAL_ISSUER")) {
+      additions.push("OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto");
+    }
+    if (!hasKey("OIDC_CLIENT_ID")) additions.push("OIDC_CLIENT_ID=pluto-web");
+    if (!hasKey("OIDC_REDIRECT_URI")) {
+      additions.push("OIDC_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback");
+    }
+    if (additions.length === 0) return "existing";
+    await writeFile(envPath, `${existing.trimEnd()}\n${additions.join("\n")}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    return "updated";
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
     // The exclusive write below protects an existing secret if two commands start together.
   }
 

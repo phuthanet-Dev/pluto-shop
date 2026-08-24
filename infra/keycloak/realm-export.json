@@ -1,0 +1,49 @@
+{
+  "realm": "pluto",
+  "enabled": true,
+  "displayName": "Pluto Shop",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "CUSTOMER",
+        "description": "Default role for signed-up customers"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Catalog and stock administration"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "pluto-web",
+      "name": "Pluto Shop Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://keycloak.localhost:3000/api/auth/callback",
+        "http://127.0.0.1:3000/api/auth/callback",
+        "http://localhost:3000/api/auth/callback"
+      ],
+      "webOrigins": [
+        "http://keycloak.localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ]
+}
