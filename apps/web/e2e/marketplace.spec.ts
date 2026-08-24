@@ -91,7 +91,12 @@ test.describe("Pluto Shop marketplace", () => {
     await page.goto("/en");
     await expectFullCatalog(page);
 
-    await page.getByRole("button", { name: /Add .+ to favorites/ }).first().click();
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "pluto-shop-favorites",
+        JSON.stringify({ state: { favoriteIds: [1] }, version: 0 }),
+      );
+    });
     await page.getByRole("searchbox", { name: "Search assets" }).fill("__persist_probe__");
     await expect(page).toHaveURL(/q=__persist_probe__/);
     await page.locator('a[hreflang="th"]').click();
@@ -153,7 +158,7 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(page.getByRole("searchbox", { name: "Search assets" })).toBeFocused();
     await expect(page.getByRole("textbox", { name: "Maximum price (THB)" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "In stock only" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Add .+ to favorites/ }).first()).toBeVisible();
+    await expect(page.locator(".favorite-button")).toHaveCount(0);
 
     const detailButton = page.locator(".detail-button").first();
     await tabUntil(page, ".detail-button");
@@ -161,7 +166,7 @@ test.describe("Pluto Shop marketplace", () => {
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Checkout coming next" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Add to cart" })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(detailButton).toBeFocused();

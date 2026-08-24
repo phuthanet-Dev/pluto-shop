@@ -770,33 +770,6 @@ button:disabled {
   white-space: nowrap;
 }
 
-.favorite-button,
-.favorite-placeholder {
-  position: absolute;
-  z-index: 5;
-  top: 9px;
-  right: 9px;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 50%;
-  background: rgba(7, 7, 10, 0.78);
-  color: #f1eaff;
-  font-size: 1rem;
-}
-
-.favorite-button[aria-pressed="true"] {
-  color: #b89cff;
-}
-
-.favorite-placeholder {
-  opacity: 0.38;
-}
-
-
 .card-body {
   padding: 16px;
 }
@@ -1224,7 +1197,11 @@ button:disabled {
   font-size: 0.74rem;
 }
 
-.checkout-button {
+.cart-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
 }
 

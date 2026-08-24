@@ -69,7 +69,7 @@ const copyByLocale = {
     closeLibrary: "ปิดคลัง",
     downloadsNext: "ดาวน์โหลดพร้อมใช้งานในเฟสถัดไป",
     noSaved: "ยังไม่มีสินทรัพย์ที่บันทึกไว้",
-    checkoutNext: "เช็กเอาต์กำลังมาในเฟสถัดไป",
+    addToCart: "เพิ่มลงรถเข็น",
     closeFilters: "ปิดตัวกรอง",
     closeDetails: "ปิดรายละเอียด",
     emptyTitle: "ไม่พบสินทรัพย์ที่ตรงกัน",
@@ -88,8 +88,6 @@ const copyByLocale = {
     view: "ดูรายละเอียด",
     switchLocale: "Switch to English",
     localeShort: "EN",
-    addFavorite: (name: string) => `เพิ่ม ${name} ไปยังรายการโปรด`,
-    removeFavorite: (name: string) => `นำ ${name} ออกจากรายการโปรด`,
     viewDetails: (name: string) => `ดูรายละเอียด ${name}`,
   },
   en: {
@@ -111,7 +109,7 @@ const copyByLocale = {
     closeLibrary: "Close library",
     downloadsNext: "Downloads arrive in the next phase",
     noSaved: "No saved assets yet.",
-    checkoutNext: "Checkout coming next",
+    addToCart: "Add to cart",
     closeFilters: "Close filters",
     closeDetails: "Close details",
     emptyTitle: "No assets match",
@@ -130,8 +128,6 @@ const copyByLocale = {
     view: "View details",
     switchLocale: "เปลี่ยนเป็นภาษาไทย",
     localeShort: "TH",
-    addFavorite: (name: string) => `Add ${name} to favorites`,
-    removeFavorite: (name: string) => `Remove ${name} from favorites`,
     viewDetails: (name: string) => `View details for ${name}`,
   },
 } as const;
@@ -191,7 +187,7 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
   const [filterOpen, setFilterOpen] = useState(false);
   const favoriteIds = useFavoritesStore((state) => state.favoriteIds);
   const hasHydratedFavorites = useFavoritesStore((state) => state.hasHydrated);
-  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+
   const {
     clearErrors,
     control,
@@ -663,28 +659,10 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
                 >
                   {products.data.items.map((product) => {
                     const name = productName(product, locale);
-                    const isFavorite = favoriteIds.includes(product.id);
-                    const favoriteLabel = isFavorite
-                      ? copy.removeFavorite(name)
-                      : copy.addFavorite(name);
-
                     return (
                       <article className="product-card" key={product.id}>
                         <div className="card-art-wrap">
                           <ProductArt product={product} />
-                          {hasHydratedFavorites ? (
-                            <button
-                              className="favorite-button"
-                              type="button"
-                              aria-label={favoriteLabel}
-                              aria-pressed={isFavorite}
-                              onClick={() => toggleFavorite(product.id)}
-                            >
-                              <span aria-hidden="true">{isFavorite ? "♥" : "♡"}</span>
-                            </button>
-                          ) : (
-                            <span className="favorite-placeholder" aria-hidden="true" />
-                          )}
                         </div>
                         <div className="card-body">
                           <div className="card-title-row">
@@ -768,7 +746,6 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
             <div className="dialog-copy-column">
               <div className="dialog-heading-row">
                 <div>
-                  <p className="eyebrow">{selectedProduct.type}</p>
                   <DialogTitle>{productName(selectedProduct, locale)}</DialogTitle>
                 </div>
                 <DialogClose asChild>
@@ -798,12 +775,13 @@ export function Marketplace({ locale, fetcher = fetch }: MarketplaceProps) {
                 </div>
               </dl>
               <button
-                className="primary-button checkout-button"
+                className="primary-button cart-button"
                 type="button"
                 disabled
-                aria-label={copy.checkoutNext}
+                aria-label={copy.addToCart}
               >
-                {copy.checkoutNext}
+                <span aria-hidden="true">🛒</span>
+                {copy.addToCart}
               </button>
             </div>
           </DialogContent>

@@ -44,11 +44,8 @@ describe("favorites, library, and product details", () => {
 
     render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
 
-    expect(
-      await screen.findByRole("button", {
-        name: "Remove Pluto Glyph Set from favorites",
-      }),
-    ).toBeInTheDocument();
+    await screen.findByText("Pluto Glyph Set");
+    expect(screen.queryByRole("button", { name: /favorite/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "My Library" }));
 
     const drawer = screen.getByRole("dialog", { name: "My Library" });
@@ -105,27 +102,21 @@ describe("favorites, library, and product details", () => {
     ).toBeInTheDocument();
   });
 
-  it("favorites a product and opens an Escape-closeable detail dialog", async () => {
+  it("opens an Escape-closeable detail dialog with a cart action", async () => {
     const user = userEvent.setup();
     render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
 
-    const favorite = await screen.findByRole("button", {
-      name: "Add Pluto Glyph Set to favorites",
-    });
-    await user.click(favorite);
-    expect(favorite).toHaveAccessibleName(
-      "Remove Pluto Glyph Set from favorites",
-    );
-
+    await screen.findByText("Pluto Glyph Set");
     const detailButton = screen.getByRole("button", {
       name: "View details for Pluto Glyph Set",
     });
     await user.click(detailButton);
     const dialog = screen.getByRole("dialog", { name: "Pluto Glyph Set" });
+    expect(within(dialog).queryByText("SINGLE")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Icons for creative work")).toBeInTheDocument();
     expect(within(dialog).getByText(/THB\s+1,299\.00/)).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("button", { name: "Checkout coming next" }),
+      within(dialog).getByRole("button", { name: "Add to cart" }),
     ).toBeDisabled();
 
     await user.keyboard("{Escape}");
