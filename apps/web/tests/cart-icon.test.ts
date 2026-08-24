@@ -11,10 +11,16 @@ describe("Icons8 shopping cart asset", () => {
     expect(
       existsSync(resolve(webRoot, "public/icons/icons8-shopping-cart.png")),
     ).toBe(true);
+    expect(
+      existsSync(resolve(webRoot, "public/icons/icons8-cart.gif")),
+    ).toBe(true);
   });
 
   it("uses the local cart icon instead of an emoji or remote runtime URL", () => {
     expect(css).toContain('url("/icons/icons8-shopping-cart.png")');
+    expect(css).toContain('url("/icons/icons8-cart.gif")');
+    expect(css).toContain(".cart-trigger:hover .cart-icon");
+    expect(css).toContain(".cart-button:not(:disabled):hover .cart-icon");
     expect(component).toContain('className="cart-icon"');
     expect(component).not.toContain("🛒");
     expect(component).not.toContain("img.icons8.com");
