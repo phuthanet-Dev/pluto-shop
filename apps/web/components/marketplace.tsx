@@ -406,7 +406,7 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
                     Admin
                   </Link>
                 ) : null}
-                <Link className="auth-link" href="/api/auth/logout" prefetch={false}>
+                <Link className="auth-link" href={`/logout?callbackUrl=${encodeURIComponent(`/${locale}`)}`} prefetch={false}>
                   {copy.logout}
                 </Link>
               </>
@@ -414,13 +414,13 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
               <>
                 <Link
                   className="auth-link"
-                  href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                  href={`/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
                 >
                   {copy.login}
                 </Link>
                 <Link
                   className="auth-link auth-signup"
-                  href={`/api/auth/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                  href={`/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
                 >
                   {copy.signup}
                 </Link>

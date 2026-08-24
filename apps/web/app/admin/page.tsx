@@ -17,7 +17,7 @@ export default async function AdminPage() {
         <span className="state-code">403 / FORBIDDEN</span>
         <h1>Admin access required</h1>
         <p>Your account is authenticated but does not have the ADMIN role.</p>
-        <Link className="primary-button" href="/api/auth/logout" prefetch={false}>
+        <Link className="primary-button" href="/logout?callbackUrl=%2Fth" prefetch={false}>
           Sign out
         </Link>
       </main>
@@ -29,7 +29,7 @@ export default async function AdminPage() {
       <span className="state-code">ADMIN / PLUTO SHOP</span>
       <h1>Admin console</h1>
       <p>Authentication is ready. Product and stock management is the next slice.</p>
-      <Link className="primary-button" href="/api/auth/logout" prefetch={false}>
+      <Link className="primary-button" href="/logout?callbackUrl=%2Fth" prefetch={false}>
         Sign out
       </Link>
     </main>

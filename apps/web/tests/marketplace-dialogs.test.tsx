@@ -94,7 +94,7 @@ describe("cart and product details", () => {
     expect(await screen.findByText("Dev User")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Log out" })).toHaveAttribute(
       "href",
-      "/api/auth/logout",
+      "/logout?callbackUrl=%2Fen",
     );
     expect(screen.queryByRole("link", { name: "Log in" })).not.toBeInTheDocument();
   });
