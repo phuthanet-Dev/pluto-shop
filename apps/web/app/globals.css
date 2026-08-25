@@ -1340,6 +1340,66 @@ button:disabled {
   width: 100%;
 }
 
+.detail-quantity-control {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+
+.detail-quantity-control > label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-quantity-control > div {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-quantity-control button {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.detail-quantity-control button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.detail-quantity-control button:disabled,
+.detail-quantity-control input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.detail-quantity-control input {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+  text-align: center;
+}
+
+.detail-quantity-control input:focus-visible {
+  border-color: var(--accent-bright);
+  outline: 2px solid rgba(173, 139, 255, 0.55);
+  outline-offset: 2px;
+}
+
 .site-footer {
   display: flex;
   width: min(calc(100% - 48px), calc(var(--content-width) - 48px));

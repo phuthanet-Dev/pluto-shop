@@ -204,6 +204,7 @@ export function Marketplace({
   );
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const cartIds = useCartStore((state) => state.cartIds);
@@ -859,6 +860,7 @@ export function Marketplace({
                             onClick={(event) => {
                               detailTriggerRef.current = event.currentTarget;
                               setSelectedProduct(product);
+                              setSelectedQuantity(1);
                             }}
                           >
                             {copy.view}
@@ -891,6 +893,7 @@ export function Marketplace({
         open={selectedProduct !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedProduct(null);
+          if (!open) setSelectedQuantity(1);
         }}
       >
         {selectedProduct ? (
@@ -935,12 +938,51 @@ export function Marketplace({
                   <dd>{selectedProduct.stockQuantity}</dd>
                 </div>
               </dl>
+              <div className="detail-quantity-control">
+                <label htmlFor="detail-quantity">
+                  {locale === "th" ? "จำนวน" : "Quantity"}
+                </label>
+                <div>
+                  <button
+                    type="button"
+                    aria-label={`Decrease ${productName(selectedProduct, locale)} quantity`}
+                    disabled={selectedQuantity <= 1 || selectedProductInCart}
+                    onClick={() => setSelectedQuantity((value) => Math.max(1, value - 1))}
+                  >
+                    −
+                  </button>
+                  <input
+                    id="detail-quantity"
+                    type="number"
+                    min={1}
+                    max={selectedProduct.stockQuantity}
+                    value={selectedQuantity}
+                    aria-label={`Quantity for ${productName(selectedProduct, locale)}`}
+                    disabled={selectedProductInCart || selectedProduct.stockQuantity <= 0}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10);
+                      if (!Number.isFinite(parsed)) return;
+                      setSelectedQuantity(
+                        Math.min(selectedProduct.stockQuantity, Math.max(1, parsed)),
+                      );
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Increase ${productName(selectedProduct, locale)} quantity`}
+                    disabled={selectedQuantity >= selectedProduct.stockQuantity || selectedProductInCart}
+                    onClick={() => setSelectedQuantity((value) => Math.min(selectedProduct.stockQuantity, value + 1))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
               <button
                 className="primary-button cart-button"
                 type="button"
                 disabled={selectedProduct.stockQuantity <= 0 || selectedProductInCart}
                 aria-label={selectedProductInCart ? copy.inCart : copy.addToCart}
-                onClick={() => addToCart(selectedProduct.id)}
+                onClick={() => addToCart(selectedProduct.id, selectedQuantity)}
               >
                 <span className="cart-icon" aria-hidden="true" />
                 {selectedProductInCart ? copy.inCart : copy.addToCart}

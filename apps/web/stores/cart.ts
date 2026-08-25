@@ -13,7 +13,7 @@ type CartState = {
   quantities: Record<string, number>;
   mode: CartMode;
   hasHydrated: boolean;
-  addToCart: (productId: number) => void;
+  addToCart: (productId: number, quantity?: number) => void;
   removeFromCart: (productId: number) => void;
   setCartItems: (items: CartItemState[], mode?: CartMode) => void;
   setQuantity: (productId: number, quantity: number) => void;
@@ -52,15 +52,18 @@ export const useCartStore = create<CartState>()(
       quantities: {},
       mode: "guest",
       hasHydrated: false,
-      addToCart: (productId) => {
+      addToCart: (productId, quantity = 1) => {
         if (!Number.isSafeInteger(productId) || productId <= 0) return;
+        const normalizedQuantity = Number.isSafeInteger(quantity) && quantity > 0
+          ? Math.min(99, quantity)
+          : 1;
         set((state) => ({
           cartIds: state.cartIds.includes(productId)
             ? state.cartIds
             : [...state.cartIds, productId],
           quantities: state.cartIds.includes(productId)
             ? state.quantities
-            : { ...state.quantities, [String(productId)]: 1 },
+            : { ...state.quantities, [String(productId)]: normalizedQuantity },
         }));
       },
       removeFromCart: (productId) => {
