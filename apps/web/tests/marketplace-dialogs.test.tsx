@@ -154,19 +154,22 @@ describe("cart and product details", () => {
     const dialog = screen.getByRole("dialog", { name: "Pluto Glyph Set" });
     expect(within(dialog).queryByText("SINGLE")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Icons for creative work")).toBeInTheDocument();
-    expect(within(dialog).getByText(/THB\s+1,299\.00/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/THB\s+1,299\.00/, { selector: ".dialog-price" })).toBeInTheDocument();
     const quantity = within(dialog).getByRole("spinbutton", {
       name: "Quantity for Pluto Glyph Set",
     });
     expect(quantity).toHaveValue(1);
     expect(quantity).toHaveAttribute("max", "8");
+    expect(within(dialog).getByTestId("detail-total")).toHaveTextContent(/THB\s+1,299\.00/);
     await user.click(
       within(dialog).getByRole("button", { name: "Increase Pluto Glyph Set quantity" }),
     );
     expect(quantity).toHaveValue(2);
+    expect(within(dialog).getByTestId("detail-total")).toHaveTextContent(/THB\s+2,598\.00/);
     await user.clear(quantity);
     await user.type(quantity, "99");
     expect(quantity).toHaveValue(8);
+    expect(within(dialog).getByTestId("detail-total")).toHaveTextContent(/THB\s+10,392\.00/);
     expect(
       within(dialog).getByRole("button", { name: "Increase Pluto Glyph Set quantity" }),
     ).toBeDisabled();

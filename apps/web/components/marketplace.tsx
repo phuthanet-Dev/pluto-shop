@@ -71,6 +71,7 @@ const copyByLocale = {
     cartLoading: "กำลังโหลดรถเข็น",
     cartError: "ไม่สามารถโหลดรถเข็นได้",
     cartTotal: "รวมทั้งหมด",
+    detailTotal: "รวมสินค้า",
     closeCart: "ปิดรถเข็น",
     cartEmpty: "รถเข็นยังว่างอยู่",
     removeFromCart: (name: string) => `นำ ${name} ออกจากรถเข็น`,
@@ -118,6 +119,7 @@ const copyByLocale = {
     cartLoading: "Loading cart",
     cartError: "Could not load cart",
     cartTotal: "Cart total",
+    detailTotal: "Item total",
     closeCart: "Close cart",
     cartEmpty: "Your cart is empty.",
     removeFromCart: (name: string) => `Remove ${name} from cart`,
@@ -992,6 +994,12 @@ export function Marketplace({
                     +
                   </button>
                 </div>
+              </div>
+              <div className="detail-total-row" data-testid="detail-total">
+                <span>{copy.detailTotal}</span>
+                <strong>
+                  {formatThb(selectedProduct.priceMinor * selectedQuantity, locale)}
+                </strong>
               </div>
               <button
                 className="primary-button cart-button"

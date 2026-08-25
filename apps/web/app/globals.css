@@ -1424,6 +1424,25 @@ button:disabled {
   outline-offset: 2px;
 }
 
+.detail-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 22px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.detail-total-row strong {
+  color: var(--accent-bright);
+  font-family: "Cascadia Mono", monospace;
+  font-size: 1rem;
+}
+
 .site-footer {
   display: flex;
   width: min(calc(100% - 48px), calc(var(--content-width) - 48px));
