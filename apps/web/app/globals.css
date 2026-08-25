@@ -1927,6 +1927,7 @@ button:disabled {
 .admin-product-form {
   display: grid;
   gap: 24px;
+  scroll-margin-top: calc(var(--header-height) + 24px);
   padding: 24px;
   border: 1px solid var(--border-strong);
   border-radius: 14px;

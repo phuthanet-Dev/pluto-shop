@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AdminProductsApiError,
@@ -138,6 +138,8 @@ export function AdminProductsConsole() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const revealFormRef = useRef(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -171,12 +173,22 @@ export function AdminProductsConsole() {
     };
   }, [submittedQuery]);
 
+  useEffect(() => {
+    if (!form || !revealFormRef.current) return;
+    revealFormRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [form, editingId]);
+
   const nextCatalogOrder = useMemo(
     () => products.reduce((highest, product) => Math.max(highest, product.catalogOrder), 0) + 1,
     [products],
   );
 
   function openCreate() {
+    revealFormRef.current = false;
     setEditingId(null);
     setForm(blankForm(nextCatalogOrder));
     setError(null);
@@ -184,6 +196,7 @@ export function AdminProductsConsole() {
   }
 
   function openEdit(product: AdminProduct) {
+    revealFormRef.current = true;
     setEditingId(product.id);
     setForm(productForm(product));
     setError(null);
@@ -192,6 +205,7 @@ export function AdminProductsConsole() {
 
   function closeForm() {
     if (saving) return;
+    revealFormRef.current = false;
     setForm(null);
     setEditingId(null);
   }
@@ -293,7 +307,7 @@ export function AdminProductsConsole() {
       {notice ? <p className="admin-feedback success" role="status">{notice}</p> : null}
 
       {form ? (
-        <form className="admin-product-form" onSubmit={submitForm} aria-labelledby="admin-product-form-title">
+        <form ref={formRef} className="admin-product-form" onSubmit={submitForm} aria-labelledby="admin-product-form-title">
           <div className="admin-form-heading">
             <div>
               <span className="state-code">{editingId === null ? "สร้างสินค้า" : "แก้ไขสินค้า"}</span>

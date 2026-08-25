@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   createAdminProduct: vi.fn(),
   updateAdminProduct: vi.fn(),
   archiveAdminProduct: vi.fn(),
+  scrollIntoView: vi.fn(),
 }));
 
 vi.mock("@/lib/admin-products", async () => {
@@ -47,6 +48,11 @@ describe("AdminProductsConsole", () => {
     mocks.createAdminProduct.mockReset().mockResolvedValue(product);
     mocks.updateAdminProduct.mockReset().mockResolvedValue(product);
     mocks.archiveAdminProduct.mockReset().mockResolvedValue({ ...product, active: false, version: 1 });
+    mocks.scrollIntoView.mockReset();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: mocks.scrollIntoView,
+    });
     vi.stubGlobal("confirm", vi.fn(() => true));
   });
 
@@ -61,6 +67,16 @@ describe("AdminProductsConsole", () => {
     expect(screen.getByRole("heading", { name: "เพิ่มสินค้า" })).toBeInTheDocument();
     expect(screen.getByLabelText("รหัส URL")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "เพิ่มสินค้า" }).querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("scrolls the edit form into view when editing a product", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await waitFor(() =>
+      expect(mocks.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" }),
+    );
   });
 
   it("submits a new product with server-compatible fields", async () => {
