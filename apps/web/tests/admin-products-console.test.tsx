@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AdminProduct } from "@/lib/admin-products";
+import { AdminProductsApiError, type AdminProduct } from "@/lib/admin-products";
 import { AdminProductsConsole } from "@/components/admin-products-console";
 
 const product: AdminProduct = {
@@ -79,6 +79,16 @@ describe("AdminProductsConsole", () => {
     await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
     await waitFor(() =>
       expect(mocks.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" }),
+    );
+  });
+
+  it("offers a fresh login when the admin session expires", async () => {
+    mocks.fetchAdminProducts.mockRejectedValue(new AdminProductsApiError(401, "Unauthorized"));
+    render(<AdminProductsConsole />);
+
+    expect(await screen.findByRole("link", { name: "เข้าสู่ระบบใหม่" })).toHaveAttribute(
+      "href",
+      "/api/auth/login?callbackUrl=%2Fadmin",
     );
   });
 

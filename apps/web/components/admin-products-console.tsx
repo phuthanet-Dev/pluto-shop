@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 import {
   AdminProductsApiError,
@@ -157,6 +158,7 @@ export function AdminProductsConsole() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const revealFormRef = useRef(false);
 
@@ -166,7 +168,9 @@ export function AdminProductsConsole() {
     try {
       const response = await fetchAdminProducts(submittedQuery);
       setProducts(response.items);
+      setSessionExpired(false);
     } catch (loadError) {
+      setSessionExpired(loadError instanceof AdminProductsApiError && loadError.status === 401);
       setError(errorMessage(loadError));
     } finally {
       setLoading(false);
@@ -180,9 +184,13 @@ export function AdminProductsConsole() {
         if (cancelled) return;
         setProducts(response.items);
         setError(null);
+        setSessionExpired(false);
       })
       .catch((loadError: unknown) => {
-        if (!cancelled) setError(errorMessage(loadError));
+        if (!cancelled) {
+          setSessionExpired(loadError instanceof AdminProductsApiError && loadError.status === 401);
+          setError(errorMessage(loadError));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -256,6 +264,7 @@ export function AdminProductsConsole() {
       setEditingId(null);
       await reload();
     } catch (saveError) {
+      setSessionExpired(saveError instanceof AdminProductsApiError && saveError.status === 401);
       setError(errorMessage(saveError));
     } finally {
       setSaving(false);
@@ -271,6 +280,7 @@ export function AdminProductsConsole() {
       setNotice(`เก็บถาวร ${product.nameTh} แล้ว`);
       await reload();
     } catch (archiveError) {
+      setSessionExpired(archiveError instanceof AdminProductsApiError && archiveError.status === 401);
       setError(errorMessage(archiveError));
     }
   }
@@ -322,7 +332,14 @@ export function AdminProductsConsole() {
         ) : null}
       </form>
 
-      {error ? <p className="admin-feedback error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="admin-feedback error" role="alert">
+          {error}
+          {sessionExpired ? (
+            <Link href="/api/auth/login?callbackUrl=%2Fadmin" prefetch={false}>เข้าสู่ระบบใหม่</Link>
+          ) : null}
+        </p>
+      ) : null}
       {notice ? <p className="admin-feedback success" role="status">{notice}</p> : null}
 
       {form ? (

@@ -2035,6 +2035,13 @@ button:disabled {
   color: var(--danger);
 }
 
+.admin-feedback.error a {
+  margin-left: 8px;
+  color: var(--danger);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .admin-feedback.success {
   border: 1px solid rgba(112, 214, 160, 0.35);
   background: rgba(112, 214, 160, 0.08);
