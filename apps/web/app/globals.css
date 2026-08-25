@@ -1266,26 +1266,45 @@ button:disabled {
 }
 
 .logout-dialog {
-  width: min(calc(100vw - 32px), 500px);
-  padding: 25px;
+  width: min(calc(100vw - 32px), 780px);
+  padding: 64px 72px 66px;
+  border-top: 2px solid var(--accent-bright);
+  border-radius: 22px;
+}
+
+.logout-dialog .dialog-heading-row {
+  display: block;
+}
+
+.logout-dialog .dialog-heading-row h2 {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 680;
+  letter-spacing: -0.075em;
+  line-height: 1;
 }
 
 .logout-dialog > [data-radix-dialog-description] {
-  margin: 20px 0 24px;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.6;
+  margin: 78px 0 0;
+  color: var(--ink);
+  font-size: 1.2rem;
+  line-height: 1.4;
 }
 
 .logout-dialog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
+  display: block;
+  margin-top: 0;
 }
 
 .logout-dialog-actions .primary-button {
-  padding: 0 16px;
+  width: 100%;
+  min-height: 76px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  box-shadow: 0 14px 28px rgba(109, 40, 217, 0.28);
+  color: #fff;
+  font-size: 1.3rem;
 }
 
 .dialog-copy-column > p:not(.eyebrow, .dialog-price) {
@@ -1658,6 +1677,24 @@ button:disabled {
 
   .auth-eyebrow {
     margin-top: 38px;
+  }
+
+  .logout-dialog {
+    padding: 42px 24px 28px;
+  }
+
+  .logout-dialog .dialog-heading-row h2 {
+    font-size: clamp(2.35rem, 12vw, 3rem);
+  }
+
+  .logout-dialog > [data-radix-dialog-description] {
+    margin-top: 54px;
+    font-size: 1.05rem;
+  }
+
+  .logout-dialog-actions .primary-button {
+    min-height: 64px;
+    font-size: 1.1rem;
   }
 
   .hero {

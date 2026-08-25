@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogTitle,
@@ -27,29 +26,16 @@ export function LogoutDialog({ callbackUrl = "/th" }: LogoutDialogProps) {
       </DialogTrigger>
       <DialogContent className="logout-dialog">
         <div className="dialog-heading-row">
-          <div>
-            <p className="eyebrow">Pluto Shop / AUTH</p>
-            <DialogTitle>Sign out of Pluto Shop</DialogTitle>
-          </div>
-          <DialogClose asChild>
-            <button className="icon-button" type="button" aria-label="Close sign-out dialog">
-              <span aria-hidden="true">×</span>
-            </button>
-          </DialogClose>
+          <DialogTitle>Logging out</DialogTitle>
         </div>
-        <DialogDescription>Your Pluto Shop session will be cleared on this device.</DialogDescription>
+        <DialogDescription>Do you want to log out?</DialogDescription>
         <div className="logout-dialog-actions">
-          <DialogClose asChild>
-            <button className="secondary-button" type="button">
-              Keep me signed in
-            </button>
-          </DialogClose>
           <Link
             className="primary-button"
             href={`/api/auth/logout?callbackUrl=${encodeURIComponent(callbackUrl)}`}
             prefetch={false}
           >
-            Sign out securely
+            Logout
           </Link>
         </div>
       </DialogContent>

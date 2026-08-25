@@ -76,10 +76,9 @@ const copyByLocale = {
     login: "เข้าสู่ระบบ",
     signup: "สมัครสมาชิก",
     logout: "ออกจากระบบ",
-    logoutTitle: "ออกจากระบบ Pluto Shop?",
-    logoutBody: "เซสชัน Pluto Shop บนอุปกรณ์นี้จะถูกล้างออก",
-    logoutConfirm: "ออกจากระบบอย่างปลอดภัย",
-    logoutCancel: "อยู่ในระบบต่อ",
+    logoutTitle: "กำลังออกจากระบบ",
+    logoutBody: "ต้องการออกจากระบบหรือไม่?",
+    logoutConfirm: "ออกจากระบบ",
     closeFilters: "ปิดตัวกรอง",
     closeDetails: "ปิดรายละเอียด",
     emptyTitle: "ไม่พบสินทรัพย์ที่ตรงกัน",
@@ -124,10 +123,9 @@ const copyByLocale = {
     login: "Log in",
     signup: "Sign up",
     logout: "Log out",
-    logoutTitle: "Sign out of Pluto Shop",
-    logoutBody: "Your Pluto Shop session will be cleared on this device.",
-    logoutConfirm: "Sign out securely",
-    logoutCancel: "Keep me signed in",
+    logoutTitle: "Logging out",
+    logoutBody: "Do you want to log out?",
+    logoutConfirm: "Logout",
     closeFilters: "Close filters",
     closeDetails: "Close details",
     emptyTitle: "No assets match",
@@ -423,23 +421,10 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
                   </DialogTrigger>
                   <DialogContent className="logout-dialog">
                     <div className="dialog-heading-row">
-                      <div>
-                        <p className="eyebrow">Pluto Shop / AUTH</p>
-                        <DialogTitle>{copy.logoutTitle}</DialogTitle>
-                      </div>
-                      <DialogClose asChild>
-                        <button className="icon-button" type="button" aria-label={copy.closeDetails}>
-                          <span aria-hidden="true">×</span>
-                        </button>
-                      </DialogClose>
+                      <DialogTitle>{copy.logoutTitle}</DialogTitle>
                     </div>
                     <DialogDescription>{copy.logoutBody}</DialogDescription>
                     <div className="logout-dialog-actions">
-                      <DialogClose asChild>
-                        <button className="secondary-button" type="button">
-                          {copy.logoutCancel}
-                        </button>
-                      </DialogClose>
                       <Link
                         className="primary-button"
                         href={`/api/auth/logout?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
