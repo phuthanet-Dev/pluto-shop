@@ -15,6 +15,16 @@ import {
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const visualCodePattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
+function AdminIcon({ kind }: { kind: "plus" | "edit" | "archive" }) {
+  if (kind === "plus") {
+    return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 4v12M4 10h12" /></svg>;
+  }
+  if (kind === "edit") {
+    return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m4 14.8-.7 2.7 2.7-.7L16.7 6.1a1.7 1.7 0 0 0-2.4-2.4L4 14.8Z" /><path d="m12.9 4.9 2.2 2.2" /></svg>;
+  }
+  return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3.5 6.5h13v10h-13zM7 6.5V4h6v2.5M3.5 9h13" /><path d="M8 11.5v2.5M12 11.5v2.5" /></svg>;
+}
+
 type ProductFormState = {
   slug: string;
   nameTh: string;
@@ -95,27 +105,27 @@ function formRequest(form: ProductFormState): AdminProductWrite {
 }
 
 function validateForm(form: ProductFormState): string | null {
-  if (!slugPattern.test(form.slug.trim())) return "Slug must use lowercase letters, numbers, and hyphens.";
-  if (!form.nameTh.trim() || !form.nameEn.trim()) return "Both localized names are required.";
-  if (!form.descriptionTh.trim() || !form.descriptionEn.trim()) return "Both localized descriptions are required.";
-  if (!visualCodePattern.test(form.visualCode.trim())) return "Visual code contains unsupported characters.";
-  if (!Number.isInteger(Number(form.priceMinor)) || Number(form.priceMinor) < 0) return "Price must be a non-negative integer in satang.";
-  if (!Number.isInteger(Number(form.stockQuantity)) || Number(form.stockQuantity) < 0) return "Stock must be a non-negative integer.";
-  if (!Number.isInteger(Number(form.catalogOrder)) || Number(form.catalogOrder) <= 0) return "Catalog order must be a positive integer.";
+  if (!slugPattern.test(form.slug.trim())) return "Slug ต้องใช้ตัวอักษรภาษาอังกฤษตัวพิมพ์เล็ก ตัวเลข และขีดกลางเท่านั้น";
+  if (!form.nameTh.trim() || !form.nameEn.trim()) return "กรุณากรอกชื่อสินค้าทั้งภาษาไทยและภาษาอังกฤษ";
+  if (!form.descriptionTh.trim() || !form.descriptionEn.trim()) return "กรุณากรอกคำอธิบายสินค้าทั้งภาษาไทยและภาษาอังกฤษ";
+  if (!visualCodePattern.test(form.visualCode.trim())) return "รหัสภาพมีอักขระที่ไม่รองรับ";
+  if (!Number.isInteger(Number(form.priceMinor)) || Number(form.priceMinor) < 0) return "ราคาต้องเป็นจำนวนเต็มสตางค์ที่ไม่ติดลบ";
+  if (!Number.isInteger(Number(form.stockQuantity)) || Number(form.stockQuantity) < 0) return "สต็อกต้องเป็นจำนวนเต็มที่ไม่ติดลบ";
+  if (!Number.isInteger(Number(form.catalogOrder)) || Number(form.catalogOrder) <= 0) return "ลำดับแคตตาล็อกต้องเป็นจำนวนเต็มบวก";
   if (form.type === "BUNDLE" && (!Number.isInteger(Number(form.bundleItemCount)) || Number(form.bundleItemCount) < 2)) {
-    return "Bundle item count must be at least 2.";
+    return "ชุดสินค้าต้องมีจำนวนรายการอย่างน้อย 2 รายการ";
   }
   return null;
 }
 
 function errorMessage(error: unknown): string {
   if (error instanceof AdminProductsApiError) {
-    if (error.status === 409) return "This product changed elsewhere. Reload the table and try again.";
-    if (error.status === 403) return "Your account does not have admin permission.";
-    if (error.status === 401) return "Your admin session has expired. Sign in again.";
+    if (error.status === 409) return "สินค้านี้ถูกแก้ไขจากที่อื่น กรุณาโหลดตารางใหม่แล้วลองอีกครั้ง";
+    if (error.status === 403) return "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลระบบ";
+    if (error.status === 401) return "เซสชันผู้ดูแลหมดอายุ กรุณาเข้าสู่ระบบใหม่";
     return error.message;
   }
-  return "The admin product service is unavailable. Try again.";
+  return "ไม่สามารถเชื่อมต่อระบบจัดการสินค้าได้ กรุณาลองอีกครั้ง";
 }
 
 export function AdminProductsConsole() {
@@ -204,10 +214,10 @@ export function AdminProductsConsole() {
     try {
       if (editingId === null) {
         await createAdminProduct(formRequest(form));
-        setNotice("Product created.");
+        setNotice("เพิ่มสินค้าแล้ว");
       } else {
         await updateAdminProduct(editingId, formRequest(form));
-        setNotice("Product updated.");
+        setNotice("แก้ไขสินค้าแล้ว");
       }
       setForm(null);
       setEditingId(null);
@@ -220,12 +230,12 @@ export function AdminProductsConsole() {
   }
 
   async function archiveProduct(product: AdminProduct) {
-    if (!product.active || !window.confirm(`Archive ${product.nameEn}? It will disappear from the public catalog.`)) return;
+    if (!product.active || !window.confirm(`ต้องการเก็บถาวร ${product.nameTh} ใช่หรือไม่ สินค้าจะหายจากแคตตาล็อกสาธารณะ`)) return;
     setError(null);
     setNotice(null);
     try {
       await archiveAdminProduct(product.id, product.version);
-      setNotice(`${product.nameEn} archived.`);
+      setNotice(`เก็บถาวร ${product.nameTh} แล้ว`);
       await reload();
     } catch (archiveError) {
       setError(errorMessage(archiveError));
@@ -236,12 +246,13 @@ export function AdminProductsConsole() {
     <section className="admin-products-console" aria-labelledby="admin-products-title">
       <div className="admin-console-header">
         <div>
-          <span className="state-code">ADMIN / CATALOG</span>
-          <h1 id="admin-products-title">Product catalog</h1>
-          <p>Create, edit, stock-manage, and archive products without changing historical references.</p>
+          <span className="state-code">แอดมิน / แคตตาล็อก</span>
+          <h1 id="admin-products-title">แคตตาล็อกสินค้า</h1>
+          <p>เพิ่ม แก้ไข จัดการสต็อก และเก็บสินค้าโดยไม่กระทบข้อมูลอ้างอิงเดิม</p>
         </div>
         <button className="primary-button" type="button" onClick={openCreate}>
-          Add product
+          <AdminIcon kind="plus" />
+          <span>เพิ่มสินค้า</span>
         </button>
       </div>
 
@@ -254,15 +265,15 @@ export function AdminProductsConsole() {
           setSubmittedQuery(query.trim());
         }}
       >
-        <label htmlFor="admin-product-search">Search products</label>
+        <label htmlFor="admin-product-search">ค้นหาสินค้า</label>
         <input
           id="admin-product-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           maxLength={120}
-          placeholder="Slug, name, description, visual code"
+          placeholder="รหัส URL ชื่อ คำอธิบาย หรือรหัสภาพ"
         />
-        <button className="secondary-button" type="submit">Search</button>
+        <button className="secondary-button" type="submit">ค้นหา</button>
         {submittedQuery ? (
           <button
             className="text-button"
@@ -273,7 +284,7 @@ export function AdminProductsConsole() {
               setSubmittedQuery("");
             }}
           >
-            Clear
+            ล้าง
           </button>
         ) : null}
       </form>
@@ -285,51 +296,51 @@ export function AdminProductsConsole() {
         <form className="admin-product-form" onSubmit={submitForm} aria-labelledby="admin-product-form-title">
           <div className="admin-form-heading">
             <div>
-              <span className="state-code">{editingId === null ? "CREATE" : "UPDATE"}</span>
-              <h2 id="admin-product-form-title">{editingId === null ? "Add product" : "Edit product"}</h2>
+              <span className="state-code">{editingId === null ? "สร้างสินค้า" : "แก้ไขสินค้า"}</span>
+              <h2 id="admin-product-form-title">{editingId === null ? "เพิ่มสินค้า" : "แก้ไขสินค้า"}</h2>
             </div>
-            <button className="icon-button" type="button" aria-label="Close product form" onClick={closeForm}>×</button>
+            <button className="icon-button" type="button" aria-label="ปิดฟอร์มสินค้า" onClick={closeForm}>×</button>
           </div>
           <div className="admin-form-grid">
-            <label>Slug<input value={form.slug} onChange={(event) => updateForm("slug", event.target.value)} required /></label>
-            <label>Visual code<input value={form.visualCode} onChange={(event) => updateForm("visualCode", event.target.value)} required /></label>
-            <label>Thai name<input value={form.nameTh} onChange={(event) => updateForm("nameTh", event.target.value)} required /></label>
-            <label>English name<input value={form.nameEn} onChange={(event) => updateForm("nameEn", event.target.value)} required /></label>
-            <label className="admin-form-wide">Thai description<textarea value={form.descriptionTh} onChange={(event) => updateForm("descriptionTh", event.target.value)} required /></label>
-            <label className="admin-form-wide">English description<textarea value={form.descriptionEn} onChange={(event) => updateForm("descriptionEn", event.target.value)} required /></label>
-            <label>Type<select value={form.type} onChange={(event) => updateForm("type", event.target.value as ProductFormState["type"])}><option value="SINGLE">SINGLE</option><option value="BUNDLE">BUNDLE</option></select></label>
-            <label>Price (satang)<input type="number" min="0" step="1" value={form.priceMinor} onChange={(event) => updateForm("priceMinor", event.target.value)} required /></label>
-            <label>Stock quantity<input type="number" min="0" step="1" value={form.stockQuantity} onChange={(event) => updateForm("stockQuantity", event.target.value)} required /></label>
-            <label>Bundle item count<input type="number" min="2" step="1" value={form.bundleItemCount} disabled={form.type === "SINGLE"} onChange={(event) => updateForm("bundleItemCount", event.target.value)} /></label>
-            <label>Catalog order<input type="number" min="1" step="1" value={form.catalogOrder} onChange={(event) => updateForm("catalogOrder", event.target.value)} required /></label>
-            <label className="admin-checkbox"><input type="checkbox" checked={form.instantDelivery} onChange={(event) => updateForm("instantDelivery", event.target.checked)} /> Instant delivery</label>
-            <label className="admin-checkbox"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> Visible in public catalog</label>
+            <label>รหัส URL<input value={form.slug} onChange={(event) => updateForm("slug", event.target.value)} required /></label>
+            <label>รหัสภาพ<input value={form.visualCode} onChange={(event) => updateForm("visualCode", event.target.value)} required /></label>
+            <label>ชื่อสินค้า (ภาษาไทย)<input value={form.nameTh} onChange={(event) => updateForm("nameTh", event.target.value)} required /></label>
+            <label>ชื่อสินค้า (ภาษาอังกฤษ)<input value={form.nameEn} onChange={(event) => updateForm("nameEn", event.target.value)} required /></label>
+            <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาไทย)<textarea value={form.descriptionTh} onChange={(event) => updateForm("descriptionTh", event.target.value)} required /></label>
+            <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาอังกฤษ)<textarea value={form.descriptionEn} onChange={(event) => updateForm("descriptionEn", event.target.value)} required /></label>
+            <label>ประเภทสินค้า<select value={form.type} onChange={(event) => updateForm("type", event.target.value as ProductFormState["type"])}><option value="SINGLE">สินค้าเดี่ยว (SINGLE)</option><option value="BUNDLE">ชุดสินค้า (BUNDLE)</option></select></label>
+            <label>ราคา (สตางค์)<input type="number" min="0" step="1" value={form.priceMinor} onChange={(event) => updateForm("priceMinor", event.target.value)} required /></label>
+            <label>จำนวนสต็อก<input type="number" min="0" step="1" value={form.stockQuantity} onChange={(event) => updateForm("stockQuantity", event.target.value)} required /></label>
+            <label>จำนวนรายการในชุด<input type="number" min="2" step="1" value={form.bundleItemCount} disabled={form.type === "SINGLE"} onChange={(event) => updateForm("bundleItemCount", event.target.value)} /></label>
+            <label>ลำดับแคตตาล็อก<input type="number" min="1" step="1" value={form.catalogOrder} onChange={(event) => updateForm("catalogOrder", event.target.value)} required /></label>
+            <label className="admin-checkbox"><input type="checkbox" checked={form.instantDelivery} onChange={(event) => updateForm("instantDelivery", event.target.checked)} /> ส่งมอบทันที</label>
+            <label className="admin-checkbox"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> แสดงในแคตตาล็อกสาธารณะ</label>
           </div>
           <div className="admin-form-actions">
-            <button className="secondary-button" type="button" onClick={closeForm} disabled={saving}>Cancel</button>
-            <button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save product"}</button>
+            <button className="secondary-button" type="button" onClick={closeForm} disabled={saving}>ยกเลิก</button>
+            <button className="primary-button" type="submit" disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกสินค้า"}</button>
           </div>
         </form>
       ) : null}
 
       <div className="admin-table-wrap">
         <table className="admin-product-table">
-          <caption className="sr-only">Admin product catalog</caption>
-          <thead><tr><th scope="col">Product</th><th scope="col">Type</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Order</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+          <caption className="sr-only">ตารางจัดการสินค้า</caption>
+          <thead><tr><th scope="col">สินค้า</th><th scope="col">ประเภท</th><th scope="col">ราคา</th><th scope="col">สต็อก</th><th scope="col">ลำดับ</th><th scope="col">สถานะ</th><th scope="col"><span className="sr-only">การทำงาน</span></th></tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={7} className="admin-table-state">Loading products…</td></tr> : null}
-            {!loading && products.length === 0 ? <tr><td colSpan={7} className="admin-table-state">No products found.</td></tr> : null}
+            {loading ? <tr><td colSpan={7} className="admin-table-state">กำลังโหลดสินค้า…</td></tr> : null}
+            {!loading && products.length === 0 ? <tr><td colSpan={7} className="admin-table-state">ไม่พบสินค้า</td></tr> : null}
             {!loading ? products.map((product) => (
               <tr key={product.id} className={!product.active ? "is-archived" : undefined}>
-                <th scope="row"><strong>{product.nameEn}</strong><span>{product.slug}</span></th>
+                <th scope="row"><strong>{product.nameTh}</strong><span>{product.slug}</span></th>
                 <td>{product.type}</td>
                 <td>฿{(product.priceMinor / 100).toFixed(2)}</td>
-                <td>{product.stockQuantity}{product.bundleItemCount ? ` / ${product.bundleItemCount} items` : ""}</td>
+                <td>{product.stockQuantity}{product.bundleItemCount ? ` / ${product.bundleItemCount} รายการ` : ""}</td>
                 <td>{product.catalogOrder}</td>
-                <td><span className={product.active ? "admin-status active" : "admin-status archived"}>{product.active ? "Active" : "Archived"}</span></td>
+                <td><span className={product.active ? "admin-status active" : "admin-status archived"}>{product.active ? "ใช้งาน" : "เก็บถาวร"}</span></td>
                 <td className="admin-row-actions">
-                  <button className="text-button" type="button" onClick={() => openEdit(product)}>Edit</button>
-                  <button className="text-button danger" type="button" disabled={!product.active} aria-label={`Archive ${product.nameEn}`} onClick={() => void archiveProduct(product)}>Archive</button>
+                  <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไข ${product.nameTh}`} onClick={() => openEdit(product)}><AdminIcon kind="edit" /></button>
+                  <button className="text-button danger admin-icon-button" type="button" disabled={!product.active} aria-label={`เก็บถาวร ${product.nameTh}`} onClick={() => void archiveProduct(product)}><AdminIcon kind="archive" /></button>
                 </td>
               </tr>
             )) : null}

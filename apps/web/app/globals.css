@@ -1983,6 +1983,30 @@ button:disabled {
   font-size: 0.76rem;
 }
 
+.admin-console-header > .primary-button {
+  gap: 8px;
+  padding: 0 16px;
+}
+
+.admin-action-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.admin-icon-button {
+  display: inline-grid;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  place-items: center;
+}
+
 .secondary-button:hover:not(:disabled),
 .text-button:hover:not(:disabled) {
   border-color: var(--border-strong);

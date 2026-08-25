@@ -54,23 +54,26 @@ describe("AdminProductsConsole", () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
-    expect(await screen.findByRole("row", { name: /Phase 3 Product/ })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Add product" }));
-    expect(screen.getByRole("heading", { name: "Add product" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Slug")).toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /สินค้า Phase 3/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "เก็บถาวร สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    expect(screen.getByRole("heading", { name: "เพิ่มสินค้า" })).toBeInTheDocument();
+    expect(screen.getByLabelText("รหัส URL")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "เพิ่มสินค้า" }).querySelector("svg")).toBeInTheDocument();
   });
 
   it("submits a new product with server-compatible fields", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
-    await user.click(screen.getByRole("button", { name: "Add product" }));
-    await user.type(screen.getByLabelText("Slug"), "new-phase3-product");
-    await user.type(screen.getByLabelText("Visual code"), "P3-NEW");
-    await user.type(screen.getByLabelText("Thai name"), "สินค้าใหม่");
-    await user.type(screen.getByLabelText("English name"), "New product");
-    await user.type(screen.getByLabelText("Thai description"), "คำอธิบายใหม่");
-    await user.type(screen.getByLabelText("English description"), "New description");
-    await user.click(screen.getByRole("button", { name: "Save product" }));
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    await user.type(screen.getByLabelText("รหัส URL"), "new-phase3-product");
+    await user.type(screen.getByLabelText("รหัสภาพ"), "P3-NEW");
+    await user.type(screen.getByLabelText("ชื่อสินค้า (ภาษาไทย)"), "สินค้าใหม่");
+    await user.type(screen.getByLabelText("ชื่อสินค้า (ภาษาอังกฤษ)"), "New product");
+    await user.type(screen.getByLabelText("คำอธิบายสินค้า (ภาษาไทย)"), "คำอธิบายใหม่");
+    await user.type(screen.getByLabelText("คำอธิบายสินค้า (ภาษาอังกฤษ)"), "New description");
+    await user.click(screen.getByRole("button", { name: "บันทึกสินค้า" }));
 
     await waitFor(() =>
       expect(mocks.createAdminProduct).toHaveBeenCalledWith(expect.objectContaining({
@@ -89,7 +92,7 @@ describe("AdminProductsConsole", () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "Archive Phase 3 Product" }));
+    await user.click(await screen.findByRole("button", { name: "เก็บถาวร สินค้า Phase 3" }));
     expect(confirm).toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.archiveAdminProduct).toHaveBeenCalledWith(product.id, product.version),
