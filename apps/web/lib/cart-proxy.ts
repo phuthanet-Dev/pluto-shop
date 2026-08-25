@@ -4,7 +4,18 @@ import { getAccessToken } from "@/lib/auth-server";
 
 const CART_API_PATH = "/api/v1/cart";
 
+function sameSiteMutation(request: Request): boolean {
+  if (request.method === "GET") return true;
+  return request.headers.get("origin") === (process.env.SITE_URL ?? "http://127.0.0.1:3000");
+}
+
 export async function proxyCartRequest(request: Request, suffix = ""): Promise<Response> {
+  if (!sameSiteMutation(request)) {
+    return NextResponse.json(
+      { type: "about:blank", title: "CSRF origin rejected", status: 403 },
+      { status: 403, headers: { "content-type": "application/problem+json" } },
+    );
+  }
   const accessToken = await getAccessToken();
   if (!accessToken) {
     return NextResponse.json(

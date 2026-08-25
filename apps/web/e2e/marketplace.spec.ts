@@ -28,6 +28,11 @@ test.describe("Pluto Shop marketplace", () => {
     expect(await session.json()).toEqual({ authenticated: false });
     const cart = await page.request.get("/api/v1/cart");
     expect(cart.status()).toBe(401);
+    const csrfCart = await page.request.post("/api/v1/cart/merge", {
+      headers: { origin: "http://evil.invalid" },
+      data: { items: [] },
+    });
+    expect(csrfCart.status()).toBe(403);
 
     const login = await page.request.get("/api/auth/login?callbackUrl=%2Fadmin", {
       maxRedirects: 0,
