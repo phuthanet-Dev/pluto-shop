@@ -30,8 +30,8 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/api/v1/:path*",
-        destination: `${internalApiUrl}/api/v1/:path*`,
+        source: "/api/v1/products/:path*",
+        destination: `${internalApiUrl}/api/v1/products/:path*`,
       },
     ];
   },

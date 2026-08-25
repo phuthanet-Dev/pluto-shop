@@ -35,6 +35,12 @@ test.describe("Pluto Shop marketplace", () => {
     expect(csrfCart.status()).toBe(403);
     const adminProducts = await page.request.get("/api/v1/admin/products");
     expect(adminProducts.status()).toBe(401);
+    const adminProductPatch = await page.request.patch("/api/v1/admin/products/1", {
+      headers: { origin: "http://127.0.0.1:3000" },
+      data: {},
+    });
+    expect(adminProductPatch.status()).toBe(401);
+    expect(adminProductPatch.headers()["content-type"]).toBe("application/problem+json");
     const csrfAdmin = await page.request.post("/api/v1/admin/products", {
       headers: { origin: "http://evil.invalid" },
       data: {},
