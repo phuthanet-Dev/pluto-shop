@@ -70,6 +70,7 @@ const copyByLocale = {
     cartDescription: "สินค้าที่คุณเลือกไว้",
     cartLoading: "กำลังโหลดรถเข็น",
     cartError: "ไม่สามารถโหลดรถเข็นได้",
+    cartTotal: "รวมทั้งหมด",
     closeCart: "ปิดรถเข็น",
     cartEmpty: "รถเข็นยังว่างอยู่",
     removeFromCart: (name: string) => `นำ ${name} ออกจากรถเข็น`,
@@ -116,6 +117,7 @@ const copyByLocale = {
     cartDescription: "Creative assets you have selected.",
     cartLoading: "Loading cart",
     cartError: "Could not load cart",
+    cartTotal: "Cart total",
     closeCart: "Close cart",
     cartEmpty: "Your cart is empty.",
     removeFromCart: (name: string) => `Remove ${name} from cart`,
@@ -415,6 +417,10 @@ export function Marketplace({
     (total, productId) => total + (cartQuantities[String(productId)] ?? 1),
     0,
   );
+  const cartTotalMinor = cartProductsInView.reduce(
+    (total, product) => total + product.priceMinor * (cartQuantities[String(product.id)] ?? 1),
+    0,
+  );
   const selectedProductInCart =
     selectedProduct !== null && cartIds.includes(selectedProduct.id);
   const hasFilters =
@@ -577,7 +583,10 @@ export function Marketplace({
                           <div>
                             <strong>{productName(product, locale)}</strong>
                             <span>
-                              {formatThb(product.priceMinor, locale)}
+                              {formatThb(product.priceMinor, locale)} × {cartQuantities[String(product.id)] ?? 1}
+                            </span>
+                            <span className="cart-line-total" data-testid="cart-line-total">
+                              {formatThb(product.priceMinor * (cartQuantities[String(product.id)] ?? 1), locale)}
                             </span>
                             <div className="cart-quantity-controls">
                               <button
@@ -610,6 +619,12 @@ export function Marketplace({
                         </li>
                       ))}
                     </ul>
+                  ) : null}
+                  {cartProductsInView.length > 0 ? (
+                    <div className="cart-total-row" data-testid="cart-total">
+                      <span>{copy.cartTotal}</span>
+                      <strong>{formatThb(cartTotalMinor, locale)}</strong>
+                    </div>
                   ) : null}
                   {cartIds.length === 0 ||
                   (!cartProducts.isPending &&

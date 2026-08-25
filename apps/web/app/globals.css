@@ -1195,6 +1195,30 @@ button:disabled {
   text-align: center;
 }
 
+.cart-line-total {
+  color: var(--ink) !important;
+  font-size: 0.68rem !important;
+  font-weight: 700;
+}
+
+.cart-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-strong);
+  color: var(--muted-strong);
+  font-size: 0.78rem;
+}
+
+.cart-total-row strong {
+  color: var(--ink);
+  font-family: "Cascadia Mono", monospace;
+  font-size: 0.9rem;
+}
+
 .cart-remove-button {
   display: grid;
   width: 36px;

@@ -62,6 +62,8 @@ describe("cart and product details", () => {
       within(drawer).getByRole("button", { name: "Increase Pluto Glyph Set quantity" }),
     );
     expect(within(drawer).getByText("×2")).toBeInTheDocument();
+    expect(within(drawer).getByTestId("cart-line-total")).toHaveTextContent(/THB\s+2,598\.00/);
+    expect(within(drawer).getByTestId("cart-total")).toHaveTextContent(/THB\s+2,598\.00/);
 
     await user.click(within(drawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" }));
     await waitFor(() =>
