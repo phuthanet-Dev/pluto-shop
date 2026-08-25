@@ -39,12 +39,24 @@ export async function proxyAdminProductsRequest(
     : await request.text();
 
   try {
-    const upstream = await fetch(`${process.env.INTERNAL_API_URL}${ADMIN_PRODUCTS_PATH}${suffix}`, {
-      method: request.method,
-      headers,
-      body,
-      cache: "no-store",
-    });
+    const upstreamUrl = `${process.env.INTERNAL_API_URL}${ADMIN_PRODUCTS_PATH}${suffix}`;
+    const send = (token: string) => {
+      const retryHeaders = new Headers(headers);
+      retryHeaders.set("authorization", `Bearer ${token}`);
+      return fetch(upstreamUrl, {
+        method: request.method,
+        headers: retryHeaders,
+        body,
+        cache: "no-store",
+      });
+    };
+    let upstream = await send(accessToken);
+    if (upstream.status === 401) {
+      const refreshedToken = await getAccessToken(true);
+      if (refreshedToken && refreshedToken !== accessToken) {
+        upstream = await send(refreshedToken);
+      }
+    }
     const responseHeaders = new Headers();
     const upstreamContentType = upstream.headers.get("content-type");
     if (upstreamContentType) responseHeaders.set("content-type", upstreamContentType);

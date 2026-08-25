@@ -412,13 +412,13 @@ export async function getSession(): Promise<AuthSession | null> {
   return stored;
 }
 
-export async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(forceRefresh = false): Promise<string | null> {
   const secret = sessionSecret();
   if (!secret) return null;
   const cookieStore = await cookies();
   const value = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
 
-  if (value) {
+  if (!forceRefresh && value) {
     try {
       const { payload } = await jwtDecrypt(value, secret, {
         keyManagementAlgorithms: ["dir"],
