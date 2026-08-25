@@ -76,6 +76,10 @@ const copyByLocale = {
     login: "เข้าสู่ระบบ",
     signup: "สมัครสมาชิก",
     logout: "ออกจากระบบ",
+    logoutTitle: "ออกจากระบบ Pluto Shop?",
+    logoutBody: "เซสชัน Pluto Shop บนอุปกรณ์นี้จะถูกล้างออก",
+    logoutConfirm: "ออกจากระบบอย่างปลอดภัย",
+    logoutCancel: "อยู่ในระบบต่อ",
     closeFilters: "ปิดตัวกรอง",
     closeDetails: "ปิดรายละเอียด",
     emptyTitle: "ไม่พบสินทรัพย์ที่ตรงกัน",
@@ -120,6 +124,10 @@ const copyByLocale = {
     login: "Log in",
     signup: "Sign up",
     logout: "Log out",
+    logoutTitle: "Sign out of Pluto Shop",
+    logoutBody: "Your Pluto Shop session will be cleared on this device.",
+    logoutConfirm: "Sign out securely",
+    logoutCancel: "Keep me signed in",
     closeFilters: "Close filters",
     closeDetails: "Close details",
     emptyTitle: "No assets match",
@@ -195,6 +203,7 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const cartIds = useCartStore((state) => state.cartIds);
   const hasHydratedCart = useCartStore((state) => state.hasHydrated);
   const addToCart = useCartStore((state) => state.addToCart);
@@ -406,21 +415,53 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
                     Admin
                   </Link>
                 ) : null}
-                <Link className="auth-link" href={`/logout?callbackUrl=${encodeURIComponent(`/${locale}`)}`} prefetch={false}>
-                  {copy.logout}
-                </Link>
+                <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+                  <DialogTrigger asChild>
+                    <button className="auth-link auth-link-button" type="button">
+                      {copy.logout}
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="logout-dialog">
+                    <div className="dialog-heading-row">
+                      <div>
+                        <p className="eyebrow">Pluto Shop / AUTH</p>
+                        <DialogTitle>{copy.logoutTitle}</DialogTitle>
+                      </div>
+                      <DialogClose asChild>
+                        <button className="icon-button" type="button" aria-label={copy.closeDetails}>
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </DialogClose>
+                    </div>
+                    <DialogDescription>{copy.logoutBody}</DialogDescription>
+                    <div className="logout-dialog-actions">
+                      <DialogClose asChild>
+                        <button className="secondary-button" type="button">
+                          {copy.logoutCancel}
+                        </button>
+                      </DialogClose>
+                      <Link
+                        className="primary-button"
+                        href={`/api/auth/logout?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                        prefetch={false}
+                      >
+                        {copy.logoutConfirm}
+                      </Link>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </>
             ) : (
               <>
                 <Link
                   className="auth-link"
-                  href={`/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                  href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
                 >
                   {copy.login}
                 </Link>
                 <Link
                   className="auth-link auth-signup"
-                  href={`/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                  href={`/api/auth/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
                 >
                   {copy.signup}
                 </Link>

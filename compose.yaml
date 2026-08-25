@@ -34,6 +34,7 @@ services:
     volumes:
       - keycloak-data:/opt/keycloak/data
       - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./infra/keycloak/themes:/opt/keycloak/themes:ro
     ports:
       - "127.0.0.1:8081:8080"
     healthcheck:

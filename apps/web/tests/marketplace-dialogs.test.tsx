@@ -92,9 +92,17 @@ describe("cart and product details", () => {
     render(<Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} />, { wrapper: Wrapper });
 
     expect(await screen.findByText("Dev User")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Log out" })).toHaveAttribute(
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+    const dialog = screen.getByRole("dialog", { name: "Sign out of Pluto Shop" });
+    expect(within(dialog).getByText("Your Pluto Shop session will be cleared on this device.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Sign out securely" })).toHaveAttribute(
       "href",
-      "/logout?callbackUrl=%2Fen",
+      "/api/auth/logout?callbackUrl=%2Fen",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Keep me signed in" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Sign out of Pluto Shop" })).not.toBeInTheDocument(),
     );
     expect(screen.queryByRole("link", { name: "Log in" })).not.toBeInTheDocument();
   });

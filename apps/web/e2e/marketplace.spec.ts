@@ -35,6 +35,11 @@ test.describe("Pluto Shop marketplace", () => {
     expect(loginLocation).toContain("127.0.0.1:8081/realms/pluto");
     expect(loginLocation).toContain("code_challenge=");
     expect(loginLocation).not.toContain("client_secret");
+    const keycloakLogin = await page.request.get(loginLocation);
+    expect(keycloakLogin.status()).toBe(200);
+    const keycloakHtml = await keycloakLogin.text();
+    expect(keycloakHtml).toContain("/pluto/");
+    expect(keycloakHtml).toContain("pluto.css");
 
     const signup = await page.request.get("/api/auth/signup?callbackUrl=%2Fadmin", {
       maxRedirects: 0,

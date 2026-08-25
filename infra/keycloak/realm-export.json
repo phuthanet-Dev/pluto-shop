@@ -2,6 +2,7 @@
   "realm": "pluto",
   "enabled": true,
   "displayName": "Pluto Shop",
+  "loginTheme": "pluto",
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
   "loginWithEmailAllowed": true,

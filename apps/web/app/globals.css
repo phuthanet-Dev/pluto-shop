@@ -286,6 +286,15 @@ button:disabled {
   color: var(--ink);
 }
 
+.auth-link-button {
+  margin: 0;
+  border: 0;
+  padding: 0 4px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
 .cart-trigger {
   gap: 9px;
   padding: 0 12px;
@@ -705,6 +714,7 @@ button:disabled {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted-strong);
+  cursor: pointer;
 }
 
 .primary-button:disabled,
@@ -1253,6 +1263,29 @@ button:disabled {
   font-weight: 630;
   letter-spacing: -0.045em;
   line-height: 1.05;
+}
+
+.logout-dialog {
+  width: min(calc(100vw - 32px), 500px);
+  padding: 25px;
+}
+
+.logout-dialog > [data-radix-dialog-description] {
+  margin: 20px 0 24px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.logout-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.logout-dialog-actions .primary-button {
+  padding: 0 16px;
 }
 
 .dialog-copy-column > p:not(.eyebrow, .dialog-price) {

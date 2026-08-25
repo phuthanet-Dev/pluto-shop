@@ -76,10 +76,13 @@ Compose เริ่ม Keycloak realm `pluto` ที่ `http://127.0.0.1:8081`
 ```text
 Login:  http://127.0.0.1:3000/api/auth/login
 Signup: http://127.0.0.1:3000/api/auth/signup
+Logout: http://127.0.0.1:3000/api/auth/logout (ผ่าน confirmation dialog)
 Admin:  http://127.0.0.1:3000/admin
 ```
 
 Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AUTH_SESSION_SECRET`; access token ไม่อยู่ใน localStorage และ route `/admin` ตรวจ `ADMIN` role ฝั่ง server ส่วน public catalog ยัง anonymous ได้ตามเดิม Spring API ตรวจ JWT issuer/JWK และตอบ `401/403` แบบ sanitized ที่ `/api/v1/admin/*` ตัวอย่าง probe คือ `/api/v1/admin/ping` ขณะนี้ยังไม่มี CRUD สินค้า/stock
+
+หน้า credential ของ Keycloak ใช้ custom theme `pluto` ที่ `infra/keycloak/themes/pluto` เพื่อให้พื้นหลัง, card, focus state, button และโลโก้สอดคล้องกับ Pluto Shop โดยยังคงให้ Keycloak เป็นผู้จัดการ password, session และ OIDC security ทั้งหมด
 
 การ signup ใน dev realm ปิด email verification เพื่อให้ local flow ใช้ได้โดยไม่ต้องมี SMTP; production ต้องเปิด verification, ตั้ง HTTPS และใช้ secret manager ก่อนเปิดใช้งานจริง
 

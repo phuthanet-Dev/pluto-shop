@@ -1,0 +1,331 @@
+/* Pluto Shop Keycloak theme: presentation only. Keycloak keeps auth semantics. */
+
+:root {
+  --pluto-bg: #07070a;
+  --pluto-panel: rgba(16, 15, 23, 0.88);
+  --pluto-panel-solid: #100f17;
+  --pluto-border: rgba(255, 255, 255, 0.12);
+  --pluto-border-strong: rgba(167, 139, 250, 0.36);
+  --pluto-ink: #f6f4fb;
+  --pluto-muted: #aaa5b7;
+  --pluto-accent: #8b5cf6;
+  --pluto-accent-bright: #b99cff;
+  --pluto-danger: #fb7185;
+  --pluto-radius: 18px;
+}
+
+html,
+body,
+.kcBodyClass,
+.login-pf-page {
+  min-height: 100%;
+}
+
+body,
+.kcBodyClass,
+.login-pf-page {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--pluto-ink);
+  background:
+    radial-gradient(circle at 50% 12%, rgba(139, 92, 246, 0.2), transparent 28rem),
+    radial-gradient(circle at 8% 80%, rgba(91, 33, 182, 0.14), transparent 24rem),
+    var(--pluto-bg);
+  font-family: "LINE Seed Sans TH", "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before,
+.kcBodyClass::before,
+.login-pf-page::before {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  content: "";
+  mask-image: radial-gradient(circle at center, #000, transparent 78%);
+  pointer-events: none;
+}
+
+/* New Keycloak v2 layout */
+.pf-v5-c-login,
+.pf-v5-c-login.kcLoginClass,
+.pf-v5-c-login__container {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  background: transparent;
+}
+
+.pf-v5-c-login__container {
+  display: grid;
+  grid-template-areas:
+    "header"
+    "main";
+  grid-template-columns: minmax(0, 520px);
+  grid-template-rows: auto auto;
+  place-items: center;
+  place-content: center;
+  padding: 40px 20px;
+}
+
+.pf-v5-c-login__main,
+.pf-v5-c-login__main.kcFormCardClass {
+  grid-area: main;
+  width: min(100%, 520px);
+  border: 1px solid var(--pluto-border);
+  border-top: 2px solid var(--pluto-accent);
+  border-radius: var(--pluto-radius);
+  background: var(--pluto-panel);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.5), 0 0 50px rgba(139, 92, 246, 0.08);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  backdrop-filter: blur(22px) saturate(130%);
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-footer,
+.pf-v5-c-login__main-body {
+  background: transparent;
+}
+
+.pf-v5-c-login__main-header {
+  padding: 40px 48px 12px;
+}
+
+.pf-v5-c-login__main-body {
+  padding: 12px 48px 44px;
+}
+
+/* Legacy Keycloak selectors retained for compatibility across pages. */
+#kc-container,
+#kc-content,
+#kc-content-wrapper,
+.login-pf-page .container {
+  position: relative;
+  z-index: 1;
+}
+
+#kc-content,
+.login-pf-page .card-pf {
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
+
+.login-pf-page .card-pf {
+  border: 1px solid var(--pluto-border);
+  border-top: 2px solid var(--pluto-accent);
+  border-radius: var(--pluto-radius);
+  background: var(--pluto-panel);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.5), 0 0 50px rgba(139, 92, 246, 0.08);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  backdrop-filter: blur(22px) saturate(130%);
+}
+
+#kc-header,
+.pf-v5-c-login__header {
+  grid-area: header;
+  position: relative;
+  z-index: 2;
+  padding: 28px 20px 24px;
+  text-align: center;
+}
+
+#kc-header-wrapper,
+.pf-v5-c-brand,
+.pf-v5-c-login__header h1 {
+  color: var(--pluto-ink);
+  font-size: clamp(1.1rem, 2.5vw, 1.55rem);
+  font-weight: 720;
+  letter-spacing: 0.2em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+#kc-header-wrapper::before,
+.pf-v5-c-brand::before {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  margin: 0 10px -8px 0;
+  background: url("../img/pluto-mark.svg") center / contain no-repeat;
+  content: "";
+  filter: drop-shadow(0 0 12px rgba(185, 156, 255, 0.55));
+}
+
+#kc-page-title,
+.pf-v5-c-login__main-header h1,
+.pf-v5-c-login__main-header h2 {
+  margin: 0 0 26px;
+  color: var(--pluto-ink);
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  font-weight: 680;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
+}
+
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text,
+.control-label,
+#kc-form label,
+label {
+  color: var(--pluto-ink);
+  font-size: 0.82rem;
+  font-weight: 680;
+}
+
+.pf-v5-c-form-control,
+.pf-v5-c-form-control:focus,
+.form-control,
+.form-control:focus,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+select {
+  min-height: 50px;
+  border: 1px solid var(--pluto-border) !important;
+  border-radius: 10px !important;
+  outline: 0 !important;
+  color: var(--pluto-ink) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  box-shadow: none !important;
+  font-size: 0.92rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.pf-v5-c-form-control:focus,
+.form-control:focus,
+input:focus,
+select:focus {
+  border-color: var(--pluto-accent-bright) !important;
+  background: rgba(139, 92, 246, 0.1) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--pluto-ink);
+  -webkit-box-shadow: 0 0 0 1000px #282332 inset;
+  transition: background-color 9999s ease-out;
+}
+
+.pf-v5-c-button,
+.pf-v5-c-button.pf-m-primary,
+#kc-login,
+#kc-register,
+.btn-primary,
+input[type="submit"] {
+  min-height: 50px;
+  border: 0 !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9) !important;
+  box-shadow: 0 12px 28px rgba(109, 40, 217, 0.28) !important;
+  font-weight: 720;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.pf-v5-c-button:hover,
+.pf-v5-c-button.pf-m-primary:hover,
+#kc-login:hover,
+#kc-register:hover,
+.btn-primary:hover,
+input[type="submit"]:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 16px 32px rgba(109, 40, 217, 0.38) !important;
+}
+
+.pf-v5-c-button:focus-visible,
+#kc-login:focus-visible,
+#kc-register:focus-visible,
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(185, 156, 255, 0.8) !important;
+  outline-offset: 3px;
+}
+
+a,
+.pf-v5-c-login__main a,
+#kc-content a {
+  color: var(--pluto-accent-bright);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover,
+.pf-v5-c-login__main a:hover,
+#kc-content a:hover {
+  color: #d1bfff;
+}
+
+.pf-v5-c-helper-text,
+.pf-v5-c-form__helper-text,
+.subtitle,
+#kc-info-wrapper,
+#kc-registration,
+#kc-form-options,
+#kc-form-buttons,
+.kcFormOptionsWrapperClass {
+  color: var(--pluto-muted);
+}
+
+.pf-v5-c-check__label,
+.pf-v5-c-check__label-text,
+.pf-v5-c-check,
+#kc-form-options,
+#kc-form-options label,
+#kc-form-options span {
+  color: var(--pluto-muted) !important;
+}
+
+.pf-v5-c-alert,
+.alert,
+.kc-feedback-text {
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  border-radius: 10px;
+  color: #fecdd3;
+  background: rgba(159, 18, 57, 0.18);
+}
+
+.pf-v5-c-login__main-footer,
+#kc-info,
+#kc-info-wrapper {
+  border-top-color: var(--pluto-border);
+}
+
+@media (max-width: 600px) {
+  .pf-v5-c-login__container {
+    padding: 20px 14px;
+  }
+
+  .pf-v5-c-login__main-header,
+  .pf-v5-c-login__main-body {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  #kc-header-wrapper {
+    font-size: 1rem;
+  }
+
+  #kc-content,
+  .login-pf-page .card-pf {
+    width: calc(100% - 28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
