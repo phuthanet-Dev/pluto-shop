@@ -247,4 +247,18 @@ test.describe("Pluto Shop marketplace", () => {
     expect(fontSizes.length).toBeGreaterThanOrEqual(3);
     expect(new Set(fontSizes).size).toBe(1);
   });
+
+  test("preserves scroll position when switching locale", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/en");
+    await expectFullCatalog(page);
+    await page.evaluate(() => window.scrollTo(0, 1400));
+    const before = await page.evaluate(() => window.scrollY);
+    await page.locator(".locale-switch").click();
+    await page.waitForURL(/\/th$/u);
+    await expect(page.locator(".product-card")).toHaveCount(36);
+    const after = await page.evaluate(() => window.scrollY);
+    expect(before).toBeGreaterThan(500);
+    expect(after).toBeGreaterThan(500);
+  });
 });

@@ -483,6 +483,7 @@ export function Marketplace({
           <nav className="header-actions" aria-label="Primary navigation">
             <Link
               href={localeHref}
+              scroll={false}
               className="locale-switch"
               aria-label={copy.switchLocale}
               hrefLang={locale === "th" ? "en" : "th"}
