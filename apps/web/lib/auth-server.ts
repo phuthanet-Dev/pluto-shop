@@ -20,6 +20,7 @@ const STATE_COOKIE = "pluto_oidc_state";
 const VERIFIER_COOKIE = "pluto_oidc_verifier";
 const NONCE_COOKIE = "pluto_oidc_nonce";
 const CALLBACK_COOKIE = "pluto_oidc_callback";
+const LOGOUT_CALLBACK_PATH = "/api/auth/logout/callback";
 
 type OidcConfiguration = {
   authorization_endpoint: string;
@@ -115,6 +116,12 @@ function redirectUri(request: Request): string {
     process.env.OIDC_REDIRECT_URI ??
     new URL("/api/auth/callback", request.url).toString()
   );
+}
+
+function logoutCallbackUri(callback: string): string {
+  const url = new URL(LOGOUT_CALLBACK_PATH, publicAppOrigin());
+  url.searchParams.set("callbackUrl", callback);
+  return url.toString();
 }
 
 export async function startLogin(
@@ -284,27 +291,31 @@ export async function getSession(): Promise<AuthSession | null> {
   };
 }
 
-export async function clearSession(): Promise<Response> {
-  const stored = await getStoredSession();
-  const redirect = publicAppRedirect("/th", publicAppOrigin());
-  let logoutUrl = redirect;
+export async function startLogout(request: Request): Promise<Response> {
+  const requestedCallback = new URL(request.url).searchParams.get("callbackUrl");
+  const callback = requestedCallback === null ? "/th" : safeCallbackPath(requestedCallback);
 
   try {
     const config = await discover();
-    if (config.end_session_endpoint) {
-      const endSession = new URL(config.end_session_endpoint);
-      endSession.searchParams.set("client_id", clientId());
-      endSession.searchParams.set("post_logout_redirect_uri", redirect);
-      if (stored?.idToken) endSession.searchParams.set("id_token_hint", stored.idToken);
-      logoutUrl = endSession.toString();
-    }
+    if (!config.end_session_endpoint) throw new Error("OIDC logout is unavailable");
+    const endSession = new URL(config.end_session_endpoint);
+    endSession.searchParams.set("client_id", clientId());
+    endSession.searchParams.set("post_logout_redirect_uri", logoutCallbackUri(callback));
+    return NextResponse.redirect(endSession);
   } catch {
-    // Local session is still cleared if the identity provider is unavailable.
+    return NextResponse.json({ error: "logout_unavailable" }, { status: 503 });
   }
+}
 
-  const response = NextResponse.redirect(logoutUrl);
+function clearAuthCookies(response: NextResponse): void {
   for (const name of [SESSION_COOKIE, STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
     response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
   }
+}
+
+export function finishLogout(request: Request): Response {
+  const callback = safeCallbackPath(new URL(request.url).searchParams.get("callbackUrl"));
+  const response = NextResponse.redirect(publicAppRedirect(callback, publicAppOrigin()));
+  clearAuthCookies(response);
   return response;
 }

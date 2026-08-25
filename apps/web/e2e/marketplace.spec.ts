@@ -57,8 +57,17 @@ test.describe("Pluto Shop marketplace", () => {
     expect(logoutLocation.pathname).toContain("/protocol/openid-connect/logout");
     expect(logoutLocation.searchParams.get("client_id")).toBe("pluto-web");
     expect(logoutLocation.searchParams.get("post_logout_redirect_uri")).toBe(
-      "http://127.0.0.1:3000/th",
+      "http://127.0.0.1:3000/api/auth/logout/callback?callbackUrl=%2Fth",
     );
+    expect(logout.headers()["set-cookie"] ?? "").not.toContain("pluto_session=");
+
+    const logoutCallback = await page.request.get(
+      "/api/auth/logout/callback?callbackUrl=%2Fth",
+      { maxRedirects: 0 },
+    );
+    expect(logoutCallback.status()).toBe(307);
+    expect(logoutCallback.headers().location).toBe("http://127.0.0.1:3000/th");
+    expect(logoutCallback.headers()["set-cookie"] ?? "").toContain("pluto_session=");
   });
 
   test("renders the real 36-item catalog in 9 × 4 order", async ({ page }) => {
