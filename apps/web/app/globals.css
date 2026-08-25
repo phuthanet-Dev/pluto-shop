@@ -1851,8 +1851,14 @@ button:disabled {
   padding: 61.6px 0 88px;
 }
 
-.admin-page > .primary-button {
-  margin-top: 24px;
+.admin-page-topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
+.admin-signout-button {
+  padding: 0 16px;
 }
 
 .admin-products-console {

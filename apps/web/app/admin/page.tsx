@@ -27,10 +27,12 @@ export default async function AdminPage() {
 
   return (
     <main className="admin-page" id="main-content">
+      <div className="admin-page-topbar">
+        <Link className="secondary-button admin-signout-button" href="/api/auth/logout?callbackUrl=%2Fth" prefetch={false}>
+          ออกจากระบบ
+        </Link>
+      </div>
       <AdminProductsConsole />
-      <Link className="primary-button" href="/api/auth/logout?callbackUrl=%2Fth" prefetch={false}>
-        ออกจากระบบ
-      </Link>
     </main>
   );
 }
