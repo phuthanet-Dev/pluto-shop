@@ -62,6 +62,153 @@ type ProductFormState = {
   version: number;
 };
 
+const productTypeOptions: ReadonlyArray<{
+  value: ProductFormState["type"];
+  label: string;
+  description: string;
+}> = [
+  { value: "SINGLE", label: "สินค้าเดี่ยว", description: "ขายเป็นชิ้นเดียว" },
+  { value: "BUNDLE", label: "ชุดสินค้า", description: "รวมหลายรายการไว้ในชุดเดียว" },
+];
+
+function AdminTypeDropdown({
+  value,
+  onChange,
+}: {
+  value: ProductFormState["type"];
+  onChange: (value: ProductFormState["type"]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(() =>
+    Math.max(0, productTypeOptions.findIndex((option) => option.value === value)),
+  );
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listboxId = "admin-product-type-listbox";
+  const selectedIndex = Math.max(0, productTypeOptions.findIndex((option) => option.value === value));
+  const selectedOption = productTypeOptions[selectedIndex];
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
+
+  function openDropdown() {
+    setHighlightedIndex(selectedIndex);
+    setOpen(true);
+  }
+
+  function chooseOption(index: number) {
+    const option = productTypeOptions[index];
+    if (!option) return;
+    onChange(option.value);
+    setHighlightedIndex(index);
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!open) {
+        openDropdown();
+        return;
+      }
+      setHighlightedIndex((current) => (current + 1) % productTypeOptions.length);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) {
+        openDropdown();
+        return;
+      }
+      setHighlightedIndex((current) => (current - 1 + productTypeOptions.length) % productTypeOptions.length);
+      return;
+    }
+    if (event.key === "Home" && open) {
+      event.preventDefault();
+      setHighlightedIndex(0);
+      return;
+    }
+    if (event.key === "End" && open) {
+      event.preventDefault();
+      setHighlightedIndex(productTypeOptions.length - 1);
+      return;
+    }
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (!open) {
+        openDropdown();
+      } else {
+        chooseOption(highlightedIndex);
+      }
+    }
+  }
+
+  return (
+    <div ref={containerRef} className={`admin-custom-select-field${open ? " is-open" : ""}`}>
+      <span className="admin-field-label">ประเภทสินค้า</span>
+      <button
+        ref={triggerRef}
+        className="admin-select-trigger"
+        type="button"
+        role="combobox"
+        aria-label="ประเภทสินค้า"
+        aria-controls={listboxId}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-activedescendant={open ? `${listboxId}-${highlightedIndex}` : undefined}
+        onClick={() => (open ? setOpen(false) : openDropdown())}
+        onKeyDown={handleKeyDown}
+      >
+        <span className="admin-select-value">
+          <strong>{selectedOption.label}</strong>{" "}
+          <span>({selectedOption.value})</span>
+        </span>
+        <svg className="admin-select-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <path d="m5 7.5 5 5 5-5" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          id={listboxId}
+          className="admin-select-menu"
+          role="listbox"
+          aria-label="ประเภทสินค้า"
+        >
+          {productTypeOptions.map((option, index) => (
+            <div
+              id={`${listboxId}-${index}`}
+              key={option.value}
+              className="admin-select-option"
+              role="option"
+              aria-label={`${option.label} (${option.value})`}
+              aria-selected={option.value === value}
+              data-highlighted={index === highlightedIndex ? "true" : undefined}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              onClick={() => chooseOption(index)}
+            >
+              <span className="admin-select-option-title">{option.label} <em>({option.value})</em></span>
+              <span className="admin-select-option-description">{option.description}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function blankForm(catalogOrder: number): ProductFormState {
   return {
     slug: "",
@@ -358,7 +505,7 @@ export function AdminProductsConsole() {
             <label>ชื่อสินค้า (ภาษาอังกฤษ)<input value={form.nameEn} onChange={(event) => updateForm("nameEn", event.target.value)} required /></label>
             <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาไทย)<textarea value={form.descriptionTh} onChange={(event) => updateForm("descriptionTh", event.target.value)} required /></label>
             <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาอังกฤษ)<textarea value={form.descriptionEn} onChange={(event) => updateForm("descriptionEn", event.target.value)} required /></label>
-            <label>ประเภทสินค้า<select value={form.type} onChange={(event) => updateForm("type", event.target.value as ProductFormState["type"])}><option value="SINGLE">สินค้าเดี่ยว (SINGLE)</option><option value="BUNDLE">ชุดสินค้า (BUNDLE)</option></select></label>
+            <AdminTypeDropdown value={form.type} onChange={(value) => updateForm("type", value)} />
             <label>ราคา (บาท)<input type="text" inputMode="decimal" value={form.priceBaht} onChange={(event) => updateForm("priceBaht", event.target.value)} required /></label>
             <label>จำนวนสต็อก<input type="number" min="0" step="1" value={form.stockQuantity} onChange={(event) => updateForm("stockQuantity", event.target.value)} required /></label>
             <label>จำนวนรายการในชุด<input type="number" min="2" step="1" value={form.bundleItemCount} disabled={form.type === "SINGLE"} onChange={(event) => updateForm("bundleItemCount", event.target.value)} /></label>

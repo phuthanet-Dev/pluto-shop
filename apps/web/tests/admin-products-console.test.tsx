@@ -72,6 +72,28 @@ describe("AdminProductsConsole", () => {
     expect(screen.getByRole("button", { name: "ค้นหา" }).querySelector("svg")).toBeInTheDocument();
   });
 
+  it("uses a custom keyboard-accessible product type dropdown", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    const typeTrigger = screen.getByRole("combobox", { name: "ประเภทสินค้า" });
+    expect(typeTrigger).toHaveTextContent("สินค้าเดี่ยว (SINGLE)");
+
+    await user.click(typeTrigger);
+    expect(screen.getByRole("listbox", { name: "ประเภทสินค้า" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "ชุดสินค้า (BUNDLE)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: "ชุดสินค้า (BUNDLE)" }));
+    expect(typeTrigger).toHaveTextContent("ชุดสินค้า (BUNDLE)");
+    expect(screen.queryByRole("listbox", { name: "ประเภทสินค้า" })).not.toBeInTheDocument();
+
+    typeTrigger.focus();
+    await user.keyboard(" ");
+    await user.keyboard("{ArrowUp}{Enter}");
+    expect(typeTrigger).toHaveTextContent("สินค้าเดี่ยว (SINGLE)");
+  });
+
   it("scrolls the edit form into view when editing a product", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
