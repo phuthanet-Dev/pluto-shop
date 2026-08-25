@@ -161,10 +161,11 @@ Create a protected admin console and write API for product metadata and stock, w
 
 ### Proposed admin capabilities
 
-- `/admin/products`: searchable 36-item catalog table.
-- Edit Thai/English name and description, price in THB satang, instant-delivery flag, active visibility, and catalog order.
-- Edit single-item stock and bundle availability/count with explicit validation.
-- Create/archive products only if the product lifecycle requirements are agreed; avoid hard deletion of products referenced by carts/orders.
+- `/admin/products`: searchable catalog table for the current and newly created products.
+- Add new products with validated slug, visual code, Thai/English name and description, THB price in satang, product type, stock/bundle count, catalog order, and instant-delivery flag.
+- Edit Thai/English name and description, price in THB satang, instant-delivery flag, active visibility, catalog order, and stock.
+- Archive products with a soft delete; archived products disappear from the public catalog and cannot be added to new carts, while historical cart/order/audit references remain intact.
+- Do not hard-delete products through the normal admin UI/API.
 - Show last update time and updating admin subject.
 - Display clear validation and conflict errors.
 
