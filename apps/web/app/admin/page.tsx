@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { hasAdminRole } from "@/lib/auth";
 import { getSession } from "@/lib/auth-server";
+import { AdminProductsConsole } from "@/components/admin-products-console";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,8 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="not-found" id="main-content">
-      <span className="state-code">ADMIN / PLUTO SHOP</span>
-      <h1>Admin console</h1>
-      <p>Authentication is ready. Product and stock management is the next slice.</p>
+    <main className="admin-page" id="main-content">
+      <AdminProductsConsole />
       <Link className="primary-button" href="/api/auth/logout?callbackUrl=%2Fth" prefetch={false}>
         Sign out
       </Link>

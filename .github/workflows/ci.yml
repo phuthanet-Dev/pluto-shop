@@ -85,6 +85,7 @@ jobs:
             printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'POSTGRES_APP_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'POSTGRES_WRITE_PASSWORD=%s\n' "$(openssl rand -hex 32)"
+            printf 'POSTGRES_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'KEYCLOAK_ADMIN=admin\n'
             printf 'KEYCLOAK_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'AUTH_SESSION_SECRET=%s\n' "$(openssl rand -hex 32)"
@@ -101,13 +102,18 @@ jobs:
       - name: Verify runtime database role is read-only
         shell: bash
         run: |
-          docker compose exec -T api sh -ec 'test "$SPRING_FLYWAY_ENABLED" = "false"; test -z "${SPRING_FLYWAY_USER:-}"; test -z "${SPRING_FLYWAY_PASSWORD:-}"; test "$SPRING_DATASOURCE_USERNAME" = "pluto_user"'
+          docker compose exec -T api sh -ec 'test "$SPRING_FLYWAY_ENABLED" = "false"; test -z "${SPRING_FLYWAY_USER:-}"; test -z "${SPRING_FLYWAY_PASSWORD:-}"; test "$SPRING_DATASOURCE_USERNAME" = "pluto_user"; test "$SPRING_DATASOURCE_ADMIN_USERNAME" = "pluto_admin"'
           count="$(docker compose exec -T postgres sh -ec 'PGPASSWORD="$POSTGRES_APP_PASSWORD" exec psql --host 127.0.0.1 --no-align --tuples-only --username pluto_app --dbname "$POSTGRES_DB" --command "SELECT count(*) FROM products"')"
           test "$count" = "36"
           if docker compose exec -T postgres sh -ec 'PGPASSWORD="$POSTGRES_APP_PASSWORD" exec psql --host 127.0.0.1 --set ON_ERROR_STOP=1 --username pluto_app --dbname "$POSTGRES_DB" --command "UPDATE products SET catalog_order = catalog_order WHERE false"'; then
             echo 'pluto_app unexpectedly has write permission' >&2
             exit 1
           fi
+          if docker compose exec -T postgres sh -ec 'PGPASSWORD="$POSTGRES_WRITE_PASSWORD" exec psql --host 127.0.0.1 --set ON_ERROR_STOP=1 --username pluto_user --dbname "$POSTGRES_DB" --command "UPDATE products SET catalog_order = catalog_order WHERE false"'; then
+            echo 'pluto_user unexpectedly has product write permission' >&2
+            exit 1
+          fi
+          docker compose exec -T postgres sh -ec 'PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" exec psql --host 127.0.0.1 --set ON_ERROR_STOP=1 --username pluto_admin --dbname "$POSTGRES_DB" --command "UPDATE products SET catalog_order = catalog_order WHERE false"'
           user_count="$(docker compose exec -T postgres sh -ec 'PGPASSWORD="$POSTGRES_WRITE_PASSWORD" exec psql --host 127.0.0.1 --no-align --tuples-only --username pluto_user --dbname "$POSTGRES_DB" --command "SELECT count(*) FROM app_users"')"
           test "$user_count" = "0"
       - name: Run browser integration tests

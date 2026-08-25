@@ -77,7 +77,12 @@ public class CartService {
     }
 
     private CartResponse replaceItems(Cart cart, Map<Long, Integer> requested) {
-        Map<Long, Product> products = productRepository.findAllById(requested.keySet()).stream()
+        if (requested.isEmpty()) {
+            cart.clearItems();
+            Cart saved = cartRepository.save(cart);
+            return new CartResponse(List.of(), List.of(), saved.getVersion());
+        }
+        Map<Long, Product> products = productRepository.findAllByIdAndActiveTrue(requested.keySet()).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
         List<Long> removed = new ArrayList<>();
         cart.clearItems();

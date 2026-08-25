@@ -80,7 +80,7 @@ Logout: http://127.0.0.1:3000/api/auth/logout (redirect ไป Keycloak โด�
 Admin:  http://127.0.0.1:3000/admin
 ```
 
-Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AUTH_SESSION_SECRET`; access token ไม่อยู่ใน localStorage และ route `/admin` ตรวจ `ADMIN` role ฝั่ง server ส่วน public catalog ยัง anonymous ได้ตามเดิม Spring API ตรวจ JWT issuer/JWK และตอบ `401/403` แบบ sanitized ที่ `/api/v1/admin/*` ตัวอย่าง probe คือ `/api/v1/admin/ping` ขณะนี้ยังไม่มี CRUD สินค้า/stock
+Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AUTH_SESSION_SECRET`; access token ไม่อยู่ใน localStorage และ route `/admin` ตรวจ `ADMIN` role ฝั่ง server ส่วน public catalog ยัง anonymous ได้ตามเดิม Spring API ตรวจ JWT issuer/JWK และตอบ `401/403` แบบ sanitized ที่ `/api/v1/admin/*`
 
 หน้า credential ของ Keycloak ใช้ custom theme `pluto` ที่ `infra/keycloak/themes/pluto` เพื่อให้พื้นหลัง, card, focus state, button และโลโก้สอดคล้องกับ Pluto Shop โดยยังคงให้ Keycloak เป็นผู้จัดการ password, session และ OIDC security ทั้งหมด
 
@@ -95,7 +95,21 @@ POST   /api/v1/cart/merge
 DELETE /api/v1/cart
 ```
 
-Guest cart ยังคงอยู่ใน browser เฉพาะ numeric product IDs/quantities และจะ merge หลัง login โดย API ตรวจ product/stock/quantity จากฐานข้อมูลจริงเสมอ Next.js แนบ access token ผ่าน encrypted HttpOnly cookie ไปยัง BFF เท่านั้น ไม่ส่ง token ให้ client JavaScript หรือ `localStorage` ส่วน `pluto_app` ยังคง read-only และ `pluto_user` เขียนได้เฉพาะตาราง identity/cart
+Guest cart ยังคงอยู่ใน browser เฉพาะ numeric product IDs/quantities และจะ merge หลัง login โดย API ตรวจ product/stock/quantity จากฐานข้อมูลจริงเสมอ Next.js แนบ access token ผ่าน encrypted HttpOnly cookie ไปยัง BFF เท่านั้น ไม่ส่ง token ให้ client JavaScript หรือ `localStorage`; refresh token ถ้ามีจะอยู่ใน encrypted HttpOnly cookie แยกต่างหากและใช้ refresh server-side เท่านั้น ส่วน `pluto_app` ยังคง read-only และ `pluto_user` เขียนได้เฉพาะตาราง identity/cart
+
+### Phase 3 admin catalog slice
+
+หน้า `/admin` มี catalog console สำหรับ admin เท่านั้น โดย BFF ใช้ same-origin และ backend ตรวจ `ROLE_ADMIN` ทุกครั้ง:
+
+```text
+GET    /api/v1/admin/products
+POST   /api/v1/admin/products
+PATCH  /api/v1/admin/products/{id}
+PATCH  /api/v1/admin/products/{id}/stock
+DELETE /api/v1/admin/products/{id}?version={version}
+```
+
+Admin เพิ่ม/แก้สินค้าและ stock ได้ รวมถึง archive สินค้าแบบ soft delete สินค้าที่ archive จะหายจาก public catalog และเพิ่มเข้า cart ใหม่ไม่ได้ แต่ยังเก็บข้อมูลสำหรับ cart/order/audit ส่วน `pluto_admin` เป็น database role แยกสำหรับ catalog/audit mutations; `pluto_user` และ `pluto_app` ไม่มีสิทธิ์เขียน products
 
 การ signup ใน dev realm ปิด email verification เพื่อให้ local flow ใช้ได้โดยไม่ต้องมี SMTP; production ต้องเปิด verification, ตั้ง HTTPS และใช้ secret manager ก่อนเปิดใช้งานจริง
 
@@ -228,4 +242,4 @@ GitHub Actions ภายนอกถูก pin ด้วย commit SHA และ
 
 ## ยังไม่รวมในรอบนี้
 
-Product/admin CRUD, user profile UI, checkout/payment, download delivery, Redis, object storage/R2, deployment, Sites และ VPS ยังไม่รวมในเฟสนี้ ปุ่มที่ยังไม่เปิดใช้จะแสดงเป็น phase ถัดไปโดยไม่มี broken links
+Checkout/payment, order lifecycle, user profile UI, download delivery, Redis, object storage/R2, deployment, Sites และ VPS ยังไม่รวมในเฟสนี้ ปุ่มที่ยังไม่เปิดใช้จะแสดงเป็น phase ถัดไปโดยไม่มี broken links

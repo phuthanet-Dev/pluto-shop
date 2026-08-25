@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
   createRemoteJWKSet,
+  decodeJwt,
   EncryptJWT,
   jwtDecrypt,
   jwtVerify,
@@ -23,6 +24,7 @@ const NONCE_COOKIE = "pluto_oidc_nonce";
 const CALLBACK_COOKIE = "pluto_oidc_callback";
 const LOGOUT_CALLBACK_PATH = "/api/auth/logout/callback";
 const ACCESS_TOKEN_COOKIE = "pluto_oidc_access";
+const REFRESH_TOKEN_COOKIE = "pluto_oidc_refresh";
 
 type OidcConfiguration = {
   authorization_endpoint: string;
@@ -228,6 +230,8 @@ export async function finishLogin(request: Request): Promise<Response> {
     const token = (await tokenResponse.json()) as {
       access_token?: unknown;
       id_token?: unknown;
+      refresh_token?: unknown;
+      expires_in?: unknown;
     };
     if (typeof token.access_token !== "string" || typeof token.id_token !== "string") {
       throw new Error("OIDC token response is incomplete");
@@ -284,18 +288,98 @@ export async function finishLogin(request: Request): Promise<Response> {
       .encrypt(secret);
     const response = NextResponse.redirect(publicAppRedirect(callback, publicAppOrigin()));
     response.cookies.set(SESSION_COOKIE, encrypted, baseCookieOptions(8 * 60 * 60));
-    const accessEncrypted = await new EncryptJWT({ token: token.access_token })
-      .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
-      .setIssuedAt()
-      .setExpirationTime("1h")
-      .encrypt(secret);
+    const accessEncrypted = await encryptAccessCookie(
+      secret,
+      token.access_token,
+      typeof token.expires_in === "number" ? token.expires_in : 60,
+    );
     response.cookies.set(ACCESS_TOKEN_COOKIE, accessEncrypted, baseCookieOptions(60 * 60));
+    if (typeof token.refresh_token === "string") {
+      response.cookies.set(
+        REFRESH_TOKEN_COOKIE,
+        await encryptRefreshCookie(secret, token.refresh_token),
+        baseCookieOptions(30 * 24 * 60 * 60),
+      );
+    } else {
+      response.cookies.set(REFRESH_TOKEN_COOKIE, "", { ...baseCookieOptions(0), maxAge: 0 });
+    }
     for (const name of [STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
       response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
     }
     return response;
   } catch {
     return NextResponse.json({ error: "authentication_failed" }, { status: 502 });
+  }
+}
+
+async function encryptAccessCookie(secret: Uint8Array, token: string, expiresIn: number): Promise<string> {
+  const expiresAt = Date.now() + Math.max(5, expiresIn - 15) * 1000;
+  return new EncryptJWT({ token, expiresAt })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .encrypt(secret);
+}
+
+async function encryptRefreshCookie(secret: Uint8Array, token: string): Promise<string> {
+  return new EncryptJWT({ token })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .encrypt(secret);
+}
+
+function accessTokenIsUsable(payload: Record<string, unknown>, token: string): boolean {
+  const expiresAt = payload.expiresAt;
+  if (typeof expiresAt === "number") return expiresAt > Date.now() + 5_000;
+  try {
+    const decoded = decodeJwt(token);
+    return typeof decoded.exp !== "number" || decoded.exp * 1_000 > Date.now() + 5_000;
+  } catch {
+    return true;
+  }
+}
+
+async function refreshAccessToken(secret: Uint8Array, refreshToken: string): Promise<string | null> {
+  try {
+    const config = await discover();
+    const response = await fetch(config.token_endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: clientId(),
+        refresh_token: refreshToken,
+      }),
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const token = (await response.json()) as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      expires_in?: unknown;
+    };
+    if (typeof token.access_token !== "string") return null;
+    const cookieStore = await cookies();
+    cookieStore.set(
+      ACCESS_TOKEN_COOKIE,
+      await encryptAccessCookie(
+        secret,
+        token.access_token,
+        typeof token.expires_in === "number" ? token.expires_in : 60,
+      ),
+      baseCookieOptions(60 * 60),
+    );
+    if (typeof token.refresh_token === "string") {
+      cookieStore.set(
+        REFRESH_TOKEN_COOKIE,
+        await encryptRefreshCookie(secret, token.refresh_token),
+        baseCookieOptions(30 * 24 * 60 * 60),
+      );
+    }
+    return token.access_token;
+  } catch {
+    return null;
   }
 }
 
@@ -331,15 +415,31 @@ export async function getSession(): Promise<AuthSession | null> {
 export async function getAccessToken(): Promise<string | null> {
   const secret = sessionSecret();
   if (!secret) return null;
-  const value = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!value) return null;
+  const cookieStore = await cookies();
+  const value = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
 
+  if (value) {
+    try {
+      const { payload } = await jwtDecrypt(value, secret, {
+        keyManagementAlgorithms: ["dir"],
+        contentEncryptionAlgorithms: ["A256GCM"],
+      });
+      if (typeof payload.token === "string" && accessTokenIsUsable(payload, payload.token)) {
+        return payload.token;
+      }
+    } catch {
+      // Fall through to refresh-token recovery.
+    }
+  }
+
+  const refreshValue = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (!refreshValue) return null;
   try {
-    const { payload } = await jwtDecrypt(value, secret, {
+    const { payload } = await jwtDecrypt(refreshValue, secret, {
       keyManagementAlgorithms: ["dir"],
       contentEncryptionAlgorithms: ["A256GCM"],
     });
-    return typeof payload.token === "string" ? payload.token : null;
+    return typeof payload.token === "string" ? refreshAccessToken(secret, payload.token) : null;
   } catch {
     return null;
   }
@@ -362,7 +462,7 @@ export async function startLogout(request: Request): Promise<Response> {
 }
 
 function clearAuthCookies(response: NextResponse): void {
-  for (const name of [SESSION_COOKIE, ACCESS_TOKEN_COOKIE, STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
+  for (const name of [SESSION_COOKIE, ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
     response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
   }
 }

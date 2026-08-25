@@ -33,6 +33,13 @@ test.describe("Pluto Shop marketplace", () => {
       data: { items: [] },
     });
     expect(csrfCart.status()).toBe(403);
+    const adminProducts = await page.request.get("/api/v1/admin/products");
+    expect(adminProducts.status()).toBe(401);
+    const csrfAdmin = await page.request.post("/api/v1/admin/products", {
+      headers: { origin: "http://evil.invalid" },
+      data: {},
+    });
+    expect(csrfAdmin.status()).toBe(403);
 
     const login = await page.request.get("/api/auth/login?callbackUrl=%2Fadmin", {
       maxRedirects: 0,

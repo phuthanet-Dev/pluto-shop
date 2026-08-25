@@ -8,11 +8,13 @@ import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends Repository<Product, Long> {
 
-    List<Product> findAllById(Iterable<Long> ids);
+    @Query("select p from Product p where p.active = true and p.id in :ids")
+    List<Product> findAllByIdAndActiveTrue(@Param("ids") Iterable<Long> ids);
 
     @Query("""
             select p from Product p
-            where (
+            where p.active = true
+              and (
                   :queryPattern is null
                or lower(p.nameTh) like :queryPattern escape '\\'
                or lower(p.nameEn) like :queryPattern escape '\\'
@@ -32,7 +34,7 @@ public interface ProductRepository extends Repository<Product, Long> {
             @Param("maxPriceMinor") Integer maxPriceMinor,
             @Param("inStock") Boolean inStock);
 
-    @Query("select min(p.priceMinor) as minMinor, max(p.priceMinor) as maxMinor from Product p")
+    @Query("select min(p.priceMinor) as minMinor, max(p.priceMinor) as maxMinor from Product p where p.active = true")
     CatalogPriceRange findCatalogPriceRange();
 
     interface CatalogPriceRange {

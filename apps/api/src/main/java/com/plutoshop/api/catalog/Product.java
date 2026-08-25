@@ -1,5 +1,7 @@
 package com.plutoshop.api.catalog;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -56,6 +58,19 @@ public class Product {
 
     @Column(name = "catalog_order", nullable = false, unique = true)
     private int catalogOrder;
+
+    @Column(nullable = false)
+    private boolean active;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Column(name = "updated_by")
+    private String updatedBy;
+
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    private long version;
 
     protected Product() {
     }
@@ -114,5 +129,21 @@ public class Product {
 
     public int getCatalogOrder() {
         return catalogOrder;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public String getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

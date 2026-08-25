@@ -27,11 +27,13 @@ class ProductCatalogService {
                 .map(ProductCatalogService::toItem)
                 .toList();
         ProductRepository.CatalogPriceRange catalogRange = repository.findCatalogPriceRange();
+        int minMinor = catalogRange.getMinMinor() == null ? 0 : catalogRange.getMinMinor();
+        int maxMinor = catalogRange.getMaxMinor() == null ? 0 : catalogRange.getMaxMinor();
 
         return new ProductCatalogResponse(
                 items,
                 items.size(),
-                new PriceRange(catalogRange.getMinMinor(), catalogRange.getMaxMinor(), CURRENCY));
+                new PriceRange(minMinor, maxMinor, CURRENCY));
     }
 
     private static String normalizeQuery(String query) {
