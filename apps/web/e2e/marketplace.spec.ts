@@ -41,6 +41,14 @@ test.describe("Pluto Shop marketplace", () => {
     expect(keycloakHtml).toContain("/pluto/");
     expect(keycloakHtml).toContain("pluto.css");
 
+    const staleCallback = await page.request.get("/api/auth/callback?state=stale", {
+      maxRedirects: 0,
+    });
+    expect(staleCallback.status()).toBe(307);
+    expect(staleCallback.headers().location).toBe(
+      "http://127.0.0.1:3000/api/auth/login?callbackUrl=%2Fadmin",
+    );
+
     const signup = await page.request.get("/api/auth/signup?callbackUrl=%2Fadmin", {
       maxRedirects: 0,
     });

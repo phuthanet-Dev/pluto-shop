@@ -170,6 +170,20 @@ export async function startLogin(
   }
 }
 
+function clearTransientCookies(response: NextResponse): void {
+  for (const name of [STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
+    response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
+  }
+}
+
+function redirectToFreshLogin(callback: string): Response {
+  const login = new URL("/api/auth/login", publicAppOrigin());
+  login.searchParams.set("callbackUrl", callback);
+  const response = NextResponse.redirect(login);
+  clearTransientCookies(response);
+  return response;
+}
+
 export async function finishLogin(request: Request): Promise<Response> {
   const secret = sessionSecret();
   if (!secret) {
@@ -189,7 +203,7 @@ export async function finishLogin(request: Request): Promise<Response> {
   const returnedState = requestUrl.searchParams.get("state");
 
   if (!state || !verifier || !nonce || !code || !returnedState || !sameSecret(state, returnedState)) {
-    return NextResponse.json({ error: "invalid_auth_callback" }, { status: 400 });
+    return redirectToFreshLogin(callback);
   }
 
   try {
