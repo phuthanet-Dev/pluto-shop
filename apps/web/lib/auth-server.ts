@@ -22,6 +22,7 @@ const VERIFIER_COOKIE = "pluto_oidc_verifier";
 const NONCE_COOKIE = "pluto_oidc_nonce";
 const CALLBACK_COOKIE = "pluto_oidc_callback";
 const LOGOUT_CALLBACK_PATH = "/api/auth/logout/callback";
+const ACCESS_TOKEN_COOKIE = "pluto_oidc_access";
 
 type OidcConfiguration = {
   authorization_endpoint: string;
@@ -283,6 +284,12 @@ export async function finishLogin(request: Request): Promise<Response> {
       .encrypt(secret);
     const response = NextResponse.redirect(publicAppRedirect(callback, publicAppOrigin()));
     response.cookies.set(SESSION_COOKIE, encrypted, baseCookieOptions(8 * 60 * 60));
+    const accessEncrypted = await new EncryptJWT({ token: token.access_token })
+      .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .encrypt(secret);
+    response.cookies.set(ACCESS_TOKEN_COOKIE, accessEncrypted, baseCookieOptions(60 * 60));
     for (const name of [STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
       response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
     }
@@ -321,6 +328,23 @@ export async function getSession(): Promise<AuthSession | null> {
   return stored;
 }
 
+export async function getAccessToken(): Promise<string | null> {
+  const secret = sessionSecret();
+  if (!secret) return null;
+  const value = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  if (!value) return null;
+
+  try {
+    const { payload } = await jwtDecrypt(value, secret, {
+      keyManagementAlgorithms: ["dir"],
+      contentEncryptionAlgorithms: ["A256GCM"],
+    });
+    return typeof payload.token === "string" ? payload.token : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function startLogout(request: Request): Promise<Response> {
   const requestedCallback = new URL(request.url).searchParams.get("callbackUrl");
   const callback = requestedCallback === null ? "/th" : safeCallbackPath(requestedCallback);
@@ -338,7 +362,7 @@ export async function startLogout(request: Request): Promise<Response> {
 }
 
 function clearAuthCookies(response: NextResponse): void {
-  for (const name of [SESSION_COOKIE, STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
+  for (const name of [SESSION_COOKIE, ACCESS_TOKEN_COOKIE, STATE_COOKIE, VERIFIER_COOKIE, NONCE_COOKIE, CALLBACK_COOKIE]) {
     response.cookies.set(name, "", { ...baseCookieOptions(0), maxAge: 0 });
   }
 }

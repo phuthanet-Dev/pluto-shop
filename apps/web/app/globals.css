@@ -1159,6 +1159,42 @@ button:disabled {
   font-size: 0.61rem;
 }
 
+.cart-quantity-controls {
+  display: inline-flex !important;
+  width: max-content;
+  align-items: center;
+  gap: 7px !important;
+  margin-top: 2px;
+}
+
+.cart-quantity-controls button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.cart-quantity-controls button:hover {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.cart-quantity-controls span {
+  min-width: 24px;
+  color: var(--muted-strong);
+  font-family: "Cascadia Mono", monospace;
+  font-size: 0.64rem;
+  text-align: center;
+}
+
 .cart-remove-button {
   display: grid;
   width: 36px;

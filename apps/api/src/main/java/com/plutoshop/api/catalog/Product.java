@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "products")
-class Product {
+public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,59 +60,59 @@ class Product {
     protected Product() {
     }
 
-    Long getId() {
+    public Long getId() {
         return id;
     }
 
-    String getSlug() {
+    public String getSlug() {
         return slug;
     }
 
-    String getNameTh() {
+    public String getNameTh() {
         return nameTh;
     }
 
-    String getNameEn() {
+    public String getNameEn() {
         return nameEn;
     }
 
-    String getDescriptionTh() {
+    public String getDescriptionTh() {
         return descriptionTh;
     }
 
-    String getDescriptionEn() {
+    public String getDescriptionEn() {
         return descriptionEn;
     }
 
-    String getVisualCode() {
+    public String getVisualCode() {
         return visualCode;
     }
 
-    ProductType getType() {
+    public ProductType getType() {
         return type;
     }
 
-    int getPriceMinor() {
+    public int getPriceMinor() {
         return priceMinor;
     }
 
-    String getCurrency() {
+    public String getCurrency() {
         return currency;
     }
 
-    int getStockQuantity() {
+    public int getStockQuantity() {
         return stockQuantity;
     }
 
-    Integer getBundleItemCount() {
+    public Integer getBundleItemCount() {
         return bundleItemCount;
     }
 
-    boolean isInstantDelivery() {
+    public boolean isInstantDelivery() {
         return instantDelivery;
     }
 
-    int getCatalogOrder() {
+    public int getCatalogOrder() {
         return catalogOrder;
     }
 }

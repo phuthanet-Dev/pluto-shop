@@ -31,7 +31,7 @@ describe("cart and product details", () => {
     fetcher.mockImplementation(async () =>
       new Response(JSON.stringify(productResponse), { status: 200 }),
     );
-    useCartStore.setState({ cartIds: [], hasHydrated: false });
+    useCartStore.setState({ cartIds: [], quantities: {}, mode: "guest", hasHydrated: false });
     useCartStore.persist.clearStorage();
   });
 
@@ -55,6 +55,13 @@ describe("cart and product details", () => {
     expect(
       within(drawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" }),
     ).toBeInTheDocument();
+    expect(
+      within(drawer).getByRole("button", { name: "Increase Pluto Glyph Set quantity" }),
+    ).toBeInTheDocument();
+    await user.click(
+      within(drawer).getByRole("button", { name: "Increase Pluto Glyph Set quantity" }),
+    );
+    expect(within(drawer).getByText("×2")).toBeInTheDocument();
 
     await user.click(within(drawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" }));
     await waitFor(() =>
@@ -89,9 +96,20 @@ describe("cart and product details", () => {
         { status: 200 },
       ),
     );
-    render(<Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} />, { wrapper: Wrapper });
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [], removedProductIds: [], version: 0 }), { status: 200 }),
+    );
+    render(
+      <Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} cartFetcher={cartFetcher} />,
+      { wrapper: Wrapper },
+    );
 
     expect(await screen.findByText("Dev User")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(cartFetcher).toHaveBeenCalledWith("/api/v1/cart", {
+        headers: { accept: "application/json" },
+      }),
+    );
     expect(screen.getByRole("link", { name: "Log out" })).toHaveAttribute(
       "href",
       "/api/auth/logout?callbackUrl=%2Fen",

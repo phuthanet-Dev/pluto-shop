@@ -13,6 +13,7 @@ test("buildLocalEnv creates required values without the example placeholder", ()
   assert.match(content, /^POSTGRES_USER=pluto$/m);
   assert.match(content, /^POSTGRES_PASSWORD=safe-random-value$/m);
   assert.match(content, /^POSTGRES_APP_PASSWORD=safe-random-app-value$/m);
+  assert.match(content, /^POSTGRES_WRITE_PASSWORD=.+$/m);
   assert.doesNotMatch(content, /replace-with/);
 });
 
@@ -49,6 +50,7 @@ test("ensureLocalEnv upgrades a legacy env without replacing database secrets", 
   const content = await readFile(envPath, "utf8");
   assert.match(content, new RegExp(`POSTGRES_PASSWORD=${owner}`));
   assert.match(content, new RegExp(`POSTGRES_APP_PASSWORD=${app}`));
+  assert.match(content, /^POSTGRES_WRITE_PASSWORD=.+$/mu);
   assert.match(content, /^AUTH_SESSION_SECRET=[0-9a-f]{64}$/mu);
   assert.match(content, /^OIDC_INTERNAL_ISSUER=http:\/\/keycloak:8080\/realms\/pluto$/mu);
   assert.doesNotMatch(content, /unused-secret/);
@@ -76,6 +78,12 @@ test("validateLocalEnv rejects a missing application password", () => {
 test("validateLocalEnv rejects reused database credentials", () => {
   const reused = "same-password-value-that-is-long";
   assert.throws(() => validateLocalEnv(buildLocalEnv(reused, reused)), /must be different/);
+});
+
+test("validateLocalEnv rejects reused write credentials", () => {
+  const owner = "o".repeat(32);
+  const app = "a".repeat(32);
+  assert.throws(() => validateLocalEnv(buildLocalEnv(owner, app, owner)), /must be different/);
 });
 
 test("validateLocalEnv rejects unsafe database identifiers", () => {

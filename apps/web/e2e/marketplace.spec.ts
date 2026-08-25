@@ -26,6 +26,8 @@ test.describe("Pluto Shop marketplace", () => {
     const session = await page.request.get("/api/auth/session");
     expect(session.status()).toBe(200);
     expect(await session.json()).toEqual({ authenticated: false });
+    const cart = await page.request.get("/api/v1/cart");
+    expect(cart.status()).toBe(401);
 
     const login = await page.request.get("/api/auth/login?callbackUrl=%2Fadmin", {
       maxRedirects: 0,
@@ -166,9 +168,10 @@ test.describe("Pluto Shop marketplace", () => {
     const persisted = await page.evaluate(() =>
       JSON.parse(localStorage.getItem("pluto-shop-cart") ?? "{}"),
     );
-    expect(Object.keys(persisted.state)).toEqual(["cartIds"]);
+    expect(Object.keys(persisted.state).sort()).toEqual(["cartIds", "quantities"]);
     expect(persisted.state.cartIds).toHaveLength(1);
     expect(persisted.state.cartIds.every(Number.isSafeInteger)).toBe(true);
+    expect(persisted.state.quantities).toEqual({ "1": 1 });
 
     await page.getByRole("button", { name: "รถเข็น" }).click();
     await expect(page.getByRole("dialog", { name: "รถเข็น" }).locator("li")).toHaveCount(1);

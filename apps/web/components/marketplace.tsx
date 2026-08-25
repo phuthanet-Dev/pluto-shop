@@ -18,6 +18,7 @@ import {
 import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { fetchAuthSession } from "@/lib/auth-client";
+import { fetchCart, mergeCart, replaceCart } from "@/lib/cart-api";
 import {
   fetchProducts,
   productDescription,
@@ -36,6 +37,7 @@ type MarketplaceProps = {
   locale: Locale;
   fetcher?: typeof fetch;
   authFetcher?: typeof fetch;
+  cartFetcher?: typeof fetch;
 };
 
 type SearchForm = {
@@ -71,6 +73,8 @@ const copyByLocale = {
     closeCart: "ปิดรถเข็น",
     cartEmpty: "รถเข็นยังว่างอยู่",
     removeFromCart: (name: string) => `นำ ${name} ออกจากรถเข็น`,
+    decreaseQuantity: (name: string) => `ลดจำนวน ${name}`,
+    increaseQuantity: (name: string) => `เพิ่มจำนวน ${name}`,
     addToCart: "เพิ่มลงรถเข็น",
     inCart: "อยู่ในรถเข็น",
     login: "เข้าสู่ระบบ",
@@ -115,6 +119,8 @@ const copyByLocale = {
     closeCart: "Close cart",
     cartEmpty: "Your cart is empty.",
     removeFromCart: (name: string) => `Remove ${name} from cart`,
+    decreaseQuantity: (name: string) => `Decrease ${name} quantity`,
+    increaseQuantity: (name: string) => `Increase ${name} quantity`,
     addToCart: "Add to cart",
     inCart: "In cart",
     login: "Log in",
@@ -182,7 +188,12 @@ function SkeletonGrid({ label }: { label: string }) {
   );
 }
 
-export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: MarketplaceProps) {
+export function Marketplace({
+  locale,
+  fetcher = fetch,
+  authFetcher = fetch,
+  cartFetcher = fetch,
+}: MarketplaceProps) {
   const copy = copyByLocale[locale];
   const pathname = usePathname();
   const router = useRouter();
@@ -196,9 +207,17 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
   const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const cartIds = useCartStore((state) => state.cartIds);
+  const cartQuantities = useCartStore((state) => state.quantities);
+  const cartMode = useCartStore((state) => state.mode);
   const hasHydratedCart = useCartStore((state) => state.hasHydrated);
   const addToCart = useCartStore((state) => state.addToCart);
   const removeFromCart = useCartStore((state) => state.removeFromCart);
+  const setQuantity = useCartStore((state) => state.setQuantity);
+  const setCartItems = useCartStore((state) => state.setCartItems);
+  const clearCart = useCartStore((state) => state.clearCart);
+  const cartSyncSubjectRef = useRef<string | null>(null);
+  const previousAuthenticatedRef = useRef(false);
+  const lastServerCartRef = useRef("");
 
   const {
     clearErrors,
@@ -279,6 +298,69 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
     enabled: cartOpen && hasHydratedCart && cartIds.length > 0,
   });
 
+  useEffect(() => {
+    const session = authSession.data;
+    if (!hasHydratedCart || authSession.isPending) return;
+    if (!session?.authenticated) {
+      if (previousAuthenticatedRef.current) clearCart();
+      previousAuthenticatedRef.current = false;
+      cartSyncSubjectRef.current = null;
+      lastServerCartRef.current = "";
+      return;
+    }
+
+    previousAuthenticatedRef.current = true;
+    if (cartSyncSubjectRef.current === session.user.sub) return;
+    cartSyncSubjectRef.current = session.user.sub;
+
+    const guestItems = cartIds.map((productId) => ({
+      productId,
+      quantity: cartQuantities[String(productId)] ?? 1,
+    }));
+    const request = cartMode === "guest" && guestItems.length > 0
+      ? mergeCart(guestItems, cartFetcher)
+      : fetchCart(cartFetcher);
+    void request
+      .then((response) => {
+        setCartItems(response.items, "account");
+        lastServerCartRef.current = JSON.stringify(response.items);
+      })
+      .catch(() => {
+        cartSyncSubjectRef.current = null;
+      });
+  }, [
+    authSession.data,
+    authSession.isPending,
+    cartFetcher,
+    cartIds,
+    cartMode,
+    cartQuantities,
+    clearCart,
+    hasHydratedCart,
+    setCartItems,
+  ]);
+
+  useEffect(() => {
+    if (!authSession.data?.authenticated || cartMode !== "account" || !cartSyncSubjectRef.current) {
+      return;
+    }
+    const items = cartIds.map((productId) => ({
+      productId,
+      quantity: cartQuantities[String(productId)] ?? 1,
+    }));
+    const serialized = JSON.stringify(items);
+    if (serialized === lastServerCartRef.current) return;
+    lastServerCartRef.current = serialized;
+    void replaceCart(items, cartFetcher)
+      .then((response) => {
+        setCartItems(response.items, "account");
+        lastServerCartRef.current = JSON.stringify(response.items);
+      })
+      .catch(() => {
+        lastServerCartRef.current = "";
+      });
+  }, [authSession.data, cartFetcher, cartIds, cartMode, cartQuantities, setCartItems]);
+
   const applyFilters = handleSubmit((values) => {
     clearErrors("maxPrice");
     const rawPrice = values.maxPrice.trim();
@@ -328,6 +410,10 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
     cartProducts.data?.items.filter((product) =>
       cartIds.includes(product.id),
     ) ?? [];
+  const cartItemCount = cartIds.reduce(
+    (total, productId) => total + (cartQuantities[String(productId)] ?? 1),
+    0,
+  );
   const selectedProductInCart =
     selectedProduct !== null && cartIds.includes(selectedProduct.id);
   const hasFilters =
@@ -440,7 +526,7 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
                   <span className="cart-icon" aria-hidden="true" />
                   <span className="cart-label">{copy.cart}</span>
                   {hasHydratedCart ? (
-                    <span className="cart-count">{cartIds.length}</span>
+                    <span className="cart-count">{cartItemCount}</span>
                   ) : null}
                 </button>
               </DialogTrigger>
@@ -489,7 +575,28 @@ export function Marketplace({ locale, fetcher = fetch, authFetcher = fetch }: Ma
                           <ProductArt product={product} />
                           <div>
                             <strong>{productName(product, locale)}</strong>
-                            <span>{formatThb(product.priceMinor, locale)}</span>
+                            <span>
+                              {formatThb(product.priceMinor, locale)}
+                            </span>
+                            <div className="cart-quantity-controls">
+                              <button
+                                type="button"
+                                aria-label={copy.decreaseQuantity(productName(product, locale))}
+                                onClick={() => setQuantity(product.id, (cartQuantities[String(product.id)] ?? 1) - 1)}
+                              >
+                                −
+                              </button>
+                              <span aria-label={`Quantity ${cartQuantities[String(product.id)] ?? 1}`}>
+                                ×{cartQuantities[String(product.id)] ?? 1}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label={copy.increaseQuantity(productName(product, locale))}
+                                onClick={() => setQuantity(product.id, (cartQuantities[String(product.id)] ?? 1) + 1)}
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                           <button
                             className="cart-remove-button"

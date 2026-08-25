@@ -6,7 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-interface ProductRepository extends Repository<Product, Long> {
+public interface ProductRepository extends Repository<Product, Long> {
+
+    List<Product> findAllById(Iterable<Long> ids);
 
     @Query("""
             select p from Product p

@@ -4,7 +4,7 @@ import { useCartStore } from "@/stores/cart";
 describe("cart persistence and hydration", () => {
   beforeEach(() => {
     useCartStore.persist.clearStorage();
-    useCartStore.setState({ cartIds: [], hasHydrated: false });
+    useCartStore.setState({ cartIds: [], quantities: {}, mode: "guest", hasHydrated: false });
   });
 
   it("hydrates only unique numeric product IDs and exposes hydration state", async () => {
@@ -23,7 +23,7 @@ describe("cart persistence and hydration", () => {
     expect(useCartStore.getState().hasHydrated).toBe(true);
   });
 
-  it("adds each product once, removes it, and persists only numeric cart IDs", () => {
+  it("adds each product once, removes it, and persists numeric IDs with quantities", () => {
     useCartStore.getState().addToCart(7);
     useCartStore.getState().addToCart(7);
     useCartStore.getState().addToCart(11);
@@ -35,6 +35,16 @@ describe("cart persistence and hydration", () => {
     const saved = JSON.parse(
       window.localStorage.getItem("pluto-shop-cart") ?? "{}",
     ) as { state: Record<string, unknown> };
-    expect(saved.state).toEqual({ cartIds: [11] });
+    expect(saved.state).toEqual({ cartIds: [11], quantities: { "11": 1 } });
+  });
+
+  it("does not persist account-owned items into the guest cart", () => {
+    useCartStore.getState().setCartItems([{ productId: 1, quantity: 2 }], "account");
+
+    const saved = JSON.parse(
+      window.localStorage.getItem("pluto-shop-cart") ?? "{}",
+    ) as { state: Record<string, unknown> };
+    expect(useCartStore.getState().mode).toBe("account");
+    expect(saved.state).toEqual({ cartIds: [], quantities: {} });
   });
 });

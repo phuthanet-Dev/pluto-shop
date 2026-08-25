@@ -84,6 +84,19 @@ Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AU
 
 หน้า credential ของ Keycloak ใช้ custom theme `pluto` ที่ `infra/keycloak/themes/pluto` เพื่อให้พื้นหลัง, card, focus state, button และโลโก้สอดคล้องกับ Pluto Shop โดยยังคงให้ Keycloak เป็นผู้จัดการ password, session และ OIDC security ทั้งหมด
 
+### Phase 2 cart sync slice
+
+บัญชีที่ผ่าน OIDC จะมี cart ฝั่ง server โดยยึด `issuer + sub` เป็นเจ้าของ:
+
+```text
+GET    /api/v1/cart
+PUT    /api/v1/cart
+POST   /api/v1/cart/merge
+DELETE /api/v1/cart
+```
+
+Guest cart ยังคงอยู่ใน browser เฉพาะ numeric product IDs/quantities และจะ merge หลัง login โดย API ตรวจ product/stock/quantity จากฐานข้อมูลจริงเสมอ Next.js แนบ access token ผ่าน encrypted HttpOnly cookie ไปยัง BFF เท่านั้น ไม่ส่ง token ให้ client JavaScript หรือ `localStorage` ส่วน `pluto_app` ยังคง read-only และ `pluto_user` เขียนได้เฉพาะตาราง identity/cart
+
 การ signup ใน dev realm ปิด email verification เพื่อให้ local flow ใช้ได้โดยไม่ต้องมี SMTP; production ต้องเปิด verification, ตั้ง HTTPS และใช้ secret manager ก่อนเปิดใช้งานจริง
 
 สำหรับทดสอบ admin ให้เปิด `http://127.0.0.1:8081/admin` ใช้ค่า `KEYCLOAK_ADMIN` และ `KEYCLOAK_ADMIN_PASSWORD` จาก `.env` จากนั้นสร้าง user ทดสอบและ assign realm role `ADMIN` ใน realm `pluto` โดยไม่ใส่ credential ลง Git
@@ -215,4 +228,4 @@ GitHub Actions ภายนอกถูก pin ด้วย commit SHA และ
 
 ## ยังไม่รวมในรอบนี้
 
-Product/admin CRUD, user profile persistence, server-side cart sync, checkout/payment, download delivery, Redis, object storage/R2, deployment, Sites และ VPS ยังไม่รวมในเฟสนี้ ปุ่มที่ยังไม่เปิดใช้จะแสดงเป็น phase ถัดไปโดยไม่มี broken links
+Product/admin CRUD, user profile UI, checkout/payment, download delivery, Redis, object storage/R2, deployment, Sites และ VPS ยังไม่รวมในเฟสนี้ ปุ่มที่ยังไม่เปิดใช้จะแสดงเป็น phase ถัดไปโดยไม่มี broken links

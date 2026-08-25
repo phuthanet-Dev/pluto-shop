@@ -8,6 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?Run npm run dev:docker to create .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run npm run dev:docker to create .env}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?Run npm run dev:docker to create .env}
+      POSTGRES_WRITE_PASSWORD: ${POSTGRES_WRITE_PASSWORD:?Run npm run dev:docker to create .env}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - postgres-data:/var/lib/postgresql
@@ -89,8 +90,9 @@ services:
     image: pluto-shop-api:local
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      SPRING_DATASOURCE_USERNAME: pluto_app
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: pluto_user
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_WRITE_PASSWORD}
+      SPRING_DATASOURCE_READ_ONLY: "false"
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://127.0.0.1:8081/realms/pluto
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/pluto/protocol/openid-connect/certs

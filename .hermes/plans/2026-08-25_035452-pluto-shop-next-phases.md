@@ -15,7 +15,7 @@
 - Current repository: `D:\workspace\Person\PlutoShop`.
 - Current branch is clean but has local commits not yet pushed to `origin/main`.
 - Public catalog is working and read-only: 36 seeded products, Thai/English, THB, same-origin `/api/*` proxy.
-- Current cart is local-only and persists only numeric product IDs in `pluto-shop-cart`; product details are fetched from the API when the drawer opens.
+- Current cart supports a guest cart plus the Phase 2 account-owned cart merge; guest state persists only numeric product IDs/quantities in `pluto-shop-cart`, while authenticated state is reconciled through the server.
 - Current public API exposes only `GET /api/v1/products` and `/actuator/health`.
 - There is no authentication, signup/login, admin route, write API, checkout, order, payment, or download delivery yet.
 - Runtime database role `pluto_app` must remain read-only. Do not weaken it to support admin writes.

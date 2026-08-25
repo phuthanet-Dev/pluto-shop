@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export function buildLocalEnv(
   ownerPassword,
   appPassword,
+  writePassword = randomBytes(32).toString("base64url"),
   authSessionSecret = randomBytes(32).toString("hex"),
   keycloakAdminPassword = randomBytes(32).toString("base64url"),
 ) {
@@ -15,6 +16,7 @@ export function buildLocalEnv(
     "POSTGRES_USER=pluto",
     `POSTGRES_PASSWORD=${ownerPassword}`,
     `POSTGRES_APP_PASSWORD=${appPassword}`,
+    `POSTGRES_WRITE_PASSWORD=${writePassword}`,
     "KEYCLOAK_ADMIN=admin",
     `KEYCLOAK_ADMIN_PASSWORD=${keycloakAdminPassword}`,
     `AUTH_SESSION_SECRET=${authSessionSecret}`,
@@ -59,6 +61,7 @@ export function validateLocalEnv(content) {
     "POSTGRES_USER",
     "POSTGRES_PASSWORD",
     "POSTGRES_APP_PASSWORD",
+    "POSTGRES_WRITE_PASSWORD",
     "KEYCLOAK_ADMIN",
     "KEYCLOAK_ADMIN_PASSWORD",
     "AUTH_SESSION_SECRET",
@@ -81,15 +84,20 @@ export function validateLocalEnv(content) {
 
   const ownerPassword = values.get("POSTGRES_PASSWORD");
   const appPassword = values.get("POSTGRES_APP_PASSWORD");
+  const writePassword = values.get("POSTGRES_WRITE_PASSWORD");
 
-  if (ownerPassword.includes("replace-with") || appPassword.includes("replace-with")) {
+  if (
+    ownerPassword.includes("replace-with") ||
+    appPassword.includes("replace-with") ||
+    writePassword.includes("replace-with")
+  ) {
     throw new Error("Replace the placeholder database passwords before starting Pluto Shop.");
   }
-  if (ownerPassword.length < 24 || appPassword.length < 24) {
+  if (ownerPassword.length < 24 || appPassword.length < 24 || writePassword.length < 24) {
     throw new Error("Database passwords must each contain at least 24 characters.");
   }
-  if (ownerPassword === appPassword) {
-    throw new Error("Owner and application database passwords must be different.");
+  if (new Set([ownerPassword, appPassword, writePassword]).size !== 3) {
+    throw new Error("Owner, application, and write database passwords must be different.");
   }
 
   const authSessionSecret = values.get("AUTH_SESSION_SECRET");
@@ -108,6 +116,9 @@ export async function ensureLocalEnv(envPath, createPassword = () => randomBytes
     const additions = [];
     const hasKey = (key) => new RegExp(`^${key}=`, "mu").test(existing);
 
+    if (!hasKey("POSTGRES_WRITE_PASSWORD")) {
+      additions.push(`POSTGRES_WRITE_PASSWORD=${randomBytes(32).toString("base64url")}`);
+    }
     if (!hasKey("KEYCLOAK_ADMIN")) additions.push("KEYCLOAK_ADMIN=admin");
     if (!hasKey("KEYCLOAK_ADMIN_PASSWORD")) {
       additions.push(`KEYCLOAK_ADMIN_PASSWORD=${randomBytes(32).toString("base64url")}`);
