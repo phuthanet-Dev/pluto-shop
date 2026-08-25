@@ -8,9 +8,10 @@ import {
   jwtVerify,
 } from "jose";
 import {
+  mergeRealmRoles,
   publicAppRedirect,
-  realmRoles,
   safeCallbackPath,
+  sessionRoles,
   type AuthSession,
 } from "@/lib/auth";
 
@@ -26,13 +27,11 @@ type OidcConfiguration = {
   authorization_endpoint: string;
   token_endpoint: string;
   jwks_uri: string;
+  userinfo_endpoint?: string;
   end_session_endpoint?: string;
 };
 
-type StoredSession = AuthSession & {
-  accessToken: string;
-  idToken: string;
-};
+type StoredSession = AuthSession;
 
 let discoveryPromise: Promise<OidcConfiguration> | undefined;
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
@@ -105,6 +104,9 @@ async function discover(): Promise<OidcConfiguration> {
         ...configuration,
         token_endpoint: internalize(configuration.token_endpoint),
         jwks_uri: internalize(configuration.jwks_uri),
+        userinfo_endpoint: configuration.userinfo_endpoint
+          ? internalize(configuration.userinfo_endpoint)
+          : undefined,
       };
     });
   }
@@ -148,7 +150,7 @@ export async function startLogin(
     authorization.searchParams.set("client_id", clientId());
     authorization.searchParams.set("redirect_uri", redirectUri(request));
     authorization.searchParams.set("response_type", "code");
-    authorization.searchParams.set("scope", "openid profile email");
+    authorization.searchParams.set("scope", "openid profile email roles");
     authorization.searchParams.set("state", state);
     authorization.searchParams.set("nonce", nonce);
     authorization.searchParams.set("code_challenge", codeChallenge(verifier));
@@ -239,13 +241,40 @@ export async function finishLogin(request: Request): Promise<Response> {
       throw new Error("OIDC token claims are invalid");
     }
 
+    const verifiedRoleClaims: unknown[] = [verified.payload];
+    try {
+      const accessVerified = await jwtVerify(token.access_token, jwks, {
+        issuer: issuer(),
+      });
+      const audience = accessVerified.payload.aud;
+      const targetsClient =
+        accessVerified.payload.azp === clientId() ||
+        audience === clientId() ||
+        (Array.isArray(audience) && audience.includes(clientId()));
+      if (targetsClient) verifiedRoleClaims.push(accessVerified.payload);
+    } catch {
+      // The ID token remains sufficient for authentication if the access token is opaque.
+    }
+
+    let userInfoClaims: unknown;
+    if (mergeRealmRoles(...verifiedRoleClaims).length === 0 && config.userinfo_endpoint) {
+      try {
+        const userInfoResponse = await fetch(config.userinfo_endpoint, {
+          headers: { authorization: `Bearer ${token.access_token}` },
+          cache: "no-store",
+        });
+        if (userInfoResponse.ok) userInfoClaims = await userInfoResponse.json();
+      } catch {
+        // UserInfo is a role-claim fallback; ID-token authentication still stands.
+      }
+    }
+
+
     const session: StoredSession = {
       sub: verified.payload.sub,
       email: typeof verified.payload.email === "string" ? verified.payload.email : undefined,
       name: typeof verified.payload.name === "string" ? verified.payload.name : undefined,
-      roles: realmRoles(verified.payload),
-      accessToken: token.access_token,
-      idToken: token.id_token,
+      roles: mergeRealmRoles(...verifiedRoleClaims, userInfoClaims),
     };
     const encrypted = await new EncryptJWT(session)
       .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
@@ -274,20 +303,12 @@ async function getStoredSession(): Promise<StoredSession | null> {
       keyManagementAlgorithms: ["dir"],
       contentEncryptionAlgorithms: ["A256GCM"],
     });
-    if (
-      typeof payload.sub !== "string" ||
-      typeof payload.accessToken !== "string" ||
-      typeof payload.idToken !== "string"
-    ) {
-      return null;
-    }
+    if (typeof payload.sub !== "string") return null;
     return {
       sub: payload.sub,
       email: typeof payload.email === "string" ? payload.email : undefined,
       name: typeof payload.name === "string" ? payload.name : undefined,
-      roles: realmRoles(payload),
-      accessToken: payload.accessToken,
-      idToken: payload.idToken,
+      roles: sessionRoles(payload.roles),
     };
   } catch {
     return null;
@@ -297,12 +318,7 @@ async function getStoredSession(): Promise<StoredSession | null> {
 export async function getSession(): Promise<AuthSession | null> {
   const stored = await getStoredSession();
   if (!stored) return null;
-  return {
-    sub: stored.sub,
-    email: stored.email,
-    name: stored.name,
-    roles: stored.roles,
-  };
+  return stored;
 }
 
 export async function startLogout(request: Request): Promise<Response> {

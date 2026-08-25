@@ -34,6 +34,7 @@ test.describe("Pluto Shop marketplace", () => {
     const loginLocation = login.headers().location ?? "";
     expect(loginLocation).toContain("127.0.0.1:8081/realms/pluto");
     expect(loginLocation).toContain("code_challenge=");
+    expect(loginLocation).toContain("scope=openid+profile+email+roles");
     expect(loginLocation).not.toContain("client_secret");
     const keycloakLogin = await page.request.get(loginLocation);
     expect(keycloakLogin.status()).toBe(200);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { hasAdminRole, publicAppRedirect, safeCallbackPath } from "@/lib/auth";
+import {
+  hasAdminRole,
+  mergeRealmRoles,
+  publicAppRedirect,
+  safeCallbackPath,
+  sessionRoles,
+} from "@/lib/auth";
 
 describe("OIDC auth boundaries", () => {
   it("accepts only same-origin relative callback paths", () => {
@@ -15,6 +21,23 @@ describe("OIDC auth boundaries", () => {
     expect(hasAdminRole({ roles: ["CUSTOMER"] })).toBe(false);
     expect(hasAdminRole({ roles: ["CUSTOMER", "ADMIN"] })).toBe(true);
     expect(hasAdminRole({ roles: undefined })).toBe(false);
+  });
+
+  it("merges realm roles from verified OIDC claim sources", () => {
+    expect(
+      mergeRealmRoles(
+        { realm_access: { roles: ["CUSTOMER"] } },
+        { realm_access: { roles: ["ADMIN", "CUSTOMER"] } },
+        { "realm_access.roles": ["EDITOR"] },
+      ),
+    ).toEqual(["CUSTOMER", "ADMIN", "EDITOR"]);
+  });
+
+  it("preserves normalized roles inside the encrypted session payload", () => {
+    expect(sessionRoles(["CUSTOMER", "ADMIN", 7, null])).toEqual([
+      "CUSTOMER",
+      "ADMIN",
+    ]);
   });
 
   it("redirects callbacks to the configured public app origin", () => {
