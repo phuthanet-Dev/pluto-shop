@@ -1845,7 +1845,7 @@ button:disabled {
   }
 }
 
-.admin-page {
+#main-content.admin-page {
   width: min(calc(100% - 48px), var(--content-width));
   margin: 0 auto;
   padding: 88px 0 88px;
@@ -2097,7 +2097,7 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
-  .admin-page {
+  #main-content.admin-page {
     width: min(calc(100% - 32px), var(--content-width));
     padding-top: 56px;
   }
