@@ -67,6 +67,9 @@ describe("AdminProductsConsole", () => {
     expect(screen.getByRole("heading", { name: "เพิ่มสินค้า" })).toBeInTheDocument();
     expect(screen.getByLabelText("รหัส URL")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "เพิ่มสินค้า" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ยกเลิก" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "บันทึกสินค้า" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ค้นหา" }).querySelector("svg")).toBeInTheDocument();
   });
 
   it("scrolls the edit form into view when editing a product", async () => {

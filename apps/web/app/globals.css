@@ -1989,6 +1989,10 @@ button:disabled {
   padding: 0 16px;
 }
 
+.admin-text-icon-button {
+  gap: 8px;
+}
+
 .admin-action-icon {
   display: block;
   width: 16px;

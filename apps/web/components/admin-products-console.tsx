@@ -15,12 +15,21 @@ import {
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const visualCodePattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
-function AdminIcon({ kind }: { kind: "plus" | "edit" | "archive" }) {
+function AdminIcon({ kind }: { kind: "plus" | "edit" | "archive" | "search" | "save" | "cancel" }) {
   if (kind === "plus") {
     return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 4v12M4 10h12" /></svg>;
   }
   if (kind === "edit") {
     return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m4 14.8-.7 2.7 2.7-.7L16.7 6.1a1.7 1.7 0 0 0-2.4-2.4L4 14.8Z" /><path d="m12.9 4.9 2.2 2.2" /></svg>;
+  }
+  if (kind === "search") {
+    return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></svg>;
+  }
+  if (kind === "save") {
+    return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 3.5h10l2 2v11H4z" /><path d="M7 3.5v4h6v-4M7 16.5v-4h6v4" /></svg>;
+  }
+  if (kind === "cancel") {
+    return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="m5 5 10 10M15 5 5 15" /></svg>;
   }
   return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3.5 6.5h13v10h-13zM7 6.5V4h6v2.5M3.5 9h13" /><path d="M8 11.5v2.5M12 11.5v2.5" /></svg>;
 }
@@ -287,7 +296,7 @@ export function AdminProductsConsole() {
           maxLength={120}
           placeholder="รหัส URL ชื่อ คำอธิบาย หรือรหัสภาพ"
         />
-        <button className="secondary-button" type="submit">ค้นหา</button>
+        <button className="secondary-button admin-text-icon-button" type="submit"><AdminIcon kind="search" /><span>ค้นหา</span></button>
         {submittedQuery ? (
           <button
             className="text-button"
@@ -331,8 +340,8 @@ export function AdminProductsConsole() {
             <label className="admin-checkbox"><input type="checkbox" checked={form.active} onChange={(event) => updateForm("active", event.target.checked)} /> แสดงในแคตตาล็อกสาธารณะ</label>
           </div>
           <div className="admin-form-actions">
-            <button className="secondary-button" type="button" onClick={closeForm} disabled={saving}>ยกเลิก</button>
-            <button className="primary-button" type="submit" disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกสินค้า"}</button>
+            <button className="secondary-button admin-text-icon-button" type="button" onClick={closeForm} disabled={saving}><AdminIcon kind="cancel" /><span>ยกเลิก</span></button>
+            <button className="primary-button admin-text-icon-button" type="submit" disabled={saving}><AdminIcon kind="save" /><span>{saving ? "กำลังบันทึก…" : "บันทึกสินค้า"}</span></button>
           </div>
         </form>
       ) : null}
