@@ -92,15 +92,11 @@ describe("cart and product details", () => {
     render(<Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} />, { wrapper: Wrapper });
 
     expect(await screen.findByText("Dev User")).toBeInTheDocument();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Log out" }));
-    const dialog = screen.getByRole("dialog", { name: "Logging out" });
-    expect(within(dialog).getByText("Do you want to log out?")).toBeInTheDocument();
-    expect(within(dialog).getByRole("link", { name: "Logout" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Log out" })).toHaveAttribute(
       "href",
       "/api/auth/logout?callbackUrl=%2Fen",
     );
-    expect(within(dialog).queryByRole("button", { name: "Keep me signed in" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Logging out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Log in" })).not.toBeInTheDocument();
   });
 

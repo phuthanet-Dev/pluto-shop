@@ -76,7 +76,7 @@ Compose เริ่ม Keycloak realm `pluto` ที่ `http://127.0.0.1:8081`
 ```text
 Login:  http://127.0.0.1:3000/api/auth/login
 Signup: http://127.0.0.1:3000/api/auth/signup
-Logout: http://127.0.0.1:3000/api/auth/logout (ผ่าน confirmation dialog)
+Logout: http://127.0.0.1:3000/api/auth/logout (redirect ไป Keycloak โดยตรง)
 Admin:  http://127.0.0.1:3000/admin
 ```
 
