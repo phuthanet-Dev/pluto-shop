@@ -191,6 +191,78 @@ describe("cart and product details", () => {
     expect(screen.getByRole("button", { name: "Cart" })).toHaveFocus();
   });
 
+  it("opens an option chooser before detail for a multi-option product group", async () => {
+    const user = userEvent.setup();
+    const optionResponse = {
+      ...productResponse,
+      items: [
+        {
+          ...productResponse.items[0],
+          id: 101,
+          slug: "claude-full-access-1-day",
+          nameTh: "Claude (Full Access)",
+          nameEn: "Claude (Full Access)",
+          descriptionTh: "เข้าถึง Claude แบบเต็มรูปแบบ",
+          descriptionEn: "Full Claude access",
+          visualCode: "CLAUDE-FA",
+          priceMinor: 232,
+          stockQuantity: 137,
+          selectionMode: "MULTI_OPTION",
+          optionGroup: "claude-full-access",
+          optionLabelTh: "Claude FA Unlimited [1 วัน]",
+          optionLabelEn: "Claude FA Unlimited [1 Day]",
+        },
+        {
+          ...productResponse.items[0],
+          id: 102,
+          slug: "claude-full-access-7-days",
+          nameTh: "Claude (Full Access)",
+          nameEn: "Claude (Full Access)",
+          descriptionTh: "เข้าถึง Claude แบบเต็มรูปแบบ",
+          descriptionEn: "Full Claude access",
+          visualCode: "CLAUDE-FA",
+          priceMinor: 847,
+          stockQuantity: 13,
+          selectionMode: "MULTI_OPTION",
+          optionGroup: "claude-full-access",
+          optionLabelTh: "Claude FA Unlimited [7 วัน]",
+          optionLabelEn: "Claude FA Unlimited [7 Days]",
+        },
+        {
+          ...productResponse.items[0],
+          id: 103,
+          slug: "claude-full-access-1-month",
+          nameTh: "Claude (Full Access)",
+          nameEn: "Claude (Full Access)",
+          descriptionTh: "เข้าถึง Claude แบบเต็มรูปแบบ",
+          descriptionEn: "Full Claude access",
+          visualCode: "CLAUDE-FA",
+          priceMinor: 1847,
+          stockQuantity: 16,
+          selectionMode: "MULTI_OPTION",
+          optionGroup: "claude-full-access",
+          optionLabelTh: "Claude FA Unlimited [1 เดือน]",
+          optionLabelEn: "Claude FA Unlimited [1 Month]",
+        },
+      ],
+      total: 3,
+    } as unknown as typeof productResponse;
+    fetcher.mockImplementation(async () => new Response(JSON.stringify(optionResponse), { status: 200 }));
+
+    render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+
+    await screen.findByText("Claude (Full Access)");
+    await user.click(screen.getByRole("button", { name: "View details for Claude (Full Access)" }));
+
+    const chooser = screen.getByRole("dialog", { name: "Claude (Full Access)" });
+    expect(within(chooser).getByText(/3 products/)).toBeInTheDocument();
+    expect(within(chooser).getByRole("button", { name: "Claude FA Unlimited [7 Days]" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Claude FA Unlimited [7 Days]" })).not.toBeInTheDocument();
+
+    await user.click(within(chooser).getByRole("button", { name: "Claude FA Unlimited [7 Days]" }));
+    expect(await screen.findByRole("dialog", { name: "Claude FA Unlimited [7 Days]" })).toBeInTheDocument();
+  });
+
   it("resolves cart IDs from the unfiltered API when active filters hide them", async () => {
     search = new URLSearchParams("q=motion");
     window.localStorage.setItem(

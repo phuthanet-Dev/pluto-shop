@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -23,6 +23,7 @@ import {
   fetchProducts,
   productDescription,
   productName,
+  productOptionLabel,
 } from "@/lib/products";
 import type { Product } from "@/lib/products";
 import type { Filters } from "@/lib/url-filters";
@@ -97,6 +98,11 @@ const copyByLocale = {
     available: "พร้อมจำหน่าย",
     soldOut: "สินค้าหมด",
     items: "รายการ",
+    optionCount: (count: number) => `${count} ตัวเลือก`,
+    chooseOption: "เลือกตัวเลือก",
+    chooseOptionDescription: "เลือกตัวเลือกที่ต้องการก่อนดูรายละเอียด",
+    closeOptionChooser: "ปิดตัวเลือก",
+    fromPrice: "เริ่มต้น",
     view: "ดูรายละเอียด",
     switchLocale: "Switch to English",
     localeShort: "EN",
@@ -145,6 +151,11 @@ const copyByLocale = {
     available: "Available",
     soldOut: "Sold out",
     items: "items",
+    optionCount: (count: number) => `${count} products`,
+    chooseOption: "Choose an option",
+    chooseOptionDescription: "Choose an option before opening the product details.",
+    closeOptionChooser: "Close option chooser",
+    fromPrice: "From",
     view: "View details",
     switchLocale: "เปลี่ยนเป็นภาษาไทย",
     localeShort: "TH",
@@ -173,6 +184,36 @@ function ProductArt({ product }: { product: Product }) {
       <span className="visual-code">{product.visualCode}</span>
     </div>
   );
+}
+
+type ProductDisplayGroup = {
+  product: Product;
+  options: Product[];
+};
+
+type OptionChooserState = {
+  titleProduct: Product;
+  options: Product[];
+};
+
+function groupProductsForDisplay(items: Product[]): ProductDisplayGroup[] {
+  const groups = new Map<string, ProductDisplayGroup>();
+  const display: ProductDisplayGroup[] = [];
+  for (const product of items) {
+    if (product.selectionMode !== "MULTI_OPTION" || !product.optionGroup) {
+      display.push({ product, options: [product] });
+      continue;
+    }
+    const existing = groups.get(product.optionGroup);
+    if (existing) {
+      existing.options.push(product);
+    } else {
+      const group = { product, options: [product] };
+      groups.set(product.optionGroup, group);
+      display.push(group);
+    }
+  }
+  return display;
 }
 
 function SkeletonGrid({ label }: { label: string }) {
@@ -208,6 +249,7 @@ export function Marketplace({
   );
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [optionChooser, setOptionChooser] = useState<OptionChooserState | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -434,6 +476,28 @@ export function Marketplace({
     locale === "th" ? "en" : "th",
     new URLSearchParams(serializedSearchParams),
   );
+  const displayProducts = useMemo(
+    () => groupProductsForDisplay(products.data?.items ?? []),
+    [products.data?.items],
+  );
+
+  function openProduct(product: Product, options: Product[], trigger: HTMLButtonElement) {
+    detailTriggerRef.current = trigger;
+    setSelectedQuantity(1);
+    if (product.selectionMode === "MULTI_OPTION") {
+      setSelectedProduct(null);
+      setOptionChooser({ titleProduct: product, options });
+      return;
+    }
+    setOptionChooser(null);
+    setSelectedProduct(product);
+  }
+
+  function chooseProductOption(product: Product) {
+    setOptionChooser(null);
+    setSelectedQuantity(1);
+    setSelectedProduct(product);
+  }
 
   const priceControl = (
     <>
@@ -584,7 +648,7 @@ export function Marketplace({
                         <li key={product.id}>
                           <ProductArt product={product} />
                           <div>
-                            <strong>{productName(product, locale)}</strong>
+                            <strong>{productOptionLabel(product, locale)}</strong>
                             <span>
                               {formatThb(product.priceMinor, locale)} × {cartQuantities[String(product.id)] ?? 1}
                             </span>
@@ -594,7 +658,7 @@ export function Marketplace({
                             <div className="cart-quantity-controls">
                               <button
                                 type="button"
-                                aria-label={copy.decreaseQuantity(productName(product, locale))}
+                                aria-label={copy.decreaseQuantity(productOptionLabel(product, locale))}
                                 onClick={() => setQuantity(product.id, (cartQuantities[String(product.id)] ?? 1) - 1)}
                               >
                                 −
@@ -604,7 +668,7 @@ export function Marketplace({
                               </span>
                               <button
                                 type="button"
-                                aria-label={copy.increaseQuantity(productName(product, locale))}
+                                aria-label={copy.increaseQuantity(productOptionLabel(product, locale))}
                                 onClick={() => setQuantity(product.id, (cartQuantities[String(product.id)] ?? 1) + 1)}
                               >
                                 +
@@ -614,7 +678,7 @@ export function Marketplace({
                           <button
                             className="cart-remove-button"
                             type="button"
-                            aria-label={copy.removeFromCart(productName(product, locale))}
+                            aria-label={copy.removeFromCart(productOptionLabel(product, locale))}
                             onClick={() => removeFromCart(product.id)}
                           >
                             <span aria-hidden="true">×</span>
@@ -837,10 +901,17 @@ export function Marketplace({
                   className="product-grid"
                   aria-label={locale === "th" ? "ผลลัพธ์" : "Results"}
                 >
-                  {products.data.items.map((product) => {
+                  {displayProducts.map(({ product, options }) => {
                     const name = productName(product, locale);
+                    const isMultiOption = product.selectionMode === "MULTI_OPTION";
+                    const lowestPrice = options.reduce(
+                      (lowest, option) => Math.min(lowest, option.priceMinor),
+                      product.priceMinor,
+                    );
+                    const hasAvailableOption = options.some((option) => option.stockQuantity > 0);
+                    const hasInstantOption = options.some((option) => option.instantDelivery);
                     return (
-                      <article className="product-card" key={product.id}>
+                      <article className="product-card" key={product.optionGroup ?? product.id}>
                         <div className="card-art-wrap">
                           <ProductArt product={product} />
                         </div>
@@ -852,20 +923,26 @@ export function Marketplace({
                                 {productDescription(product, locale)}
                               </p>
                             </div>
-                            <strong>{formatThb(product.priceMinor, locale)}</strong>
+                            <strong>
+                              {isMultiOption
+                                ? `${copy.fromPrice} ${formatThb(lowestPrice, locale)}`
+                                : formatThb(product.priceMinor, locale)}
+                            </strong>
                           </div>
                           <div className="card-meta">
-                            <span className={product.stockQuantity > 0 ? "in-stock" : "sold-out"}>
+                            <span className={hasAvailableOption ? "in-stock" : "sold-out"}>
                               <span aria-hidden="true" />
-                              {product.stockQuantity > 0 ? copy.available : copy.soldOut}
+                              {hasAvailableOption ? copy.available : copy.soldOut}
                             </span>
-                            {product.instantDelivery ? (
+                            {hasInstantOption ? (
                               <span className="instant-delivery">
                                 <span aria-hidden="true">↯</span>
                                 {copy.instant}
                               </span>
                             ) : null}
-                            {product.bundleItemCount ? (
+                            {isMultiOption ? (
+                              <span>{copy.optionCount(options.length)}</span>
+                            ) : product.bundleItemCount ? (
                               <span>
                                 {product.bundleItemCount} {copy.items}
                               </span>
@@ -875,11 +952,7 @@ export function Marketplace({
                             className="detail-button"
                             type="button"
                             aria-label={copy.viewDetails(name)}
-                            onClick={(event) => {
-                              detailTriggerRef.current = event.currentTarget;
-                              setSelectedProduct(product);
-                              setSelectedQuantity(1);
-                            }}
+                            onClick={(event) => openProduct(product, options, event.currentTarget)}
                           >
                             {copy.view}
                             <span aria-hidden="true">↗</span>
@@ -908,6 +981,68 @@ export function Marketplace({
       </footer>
 
       <Dialog
+        open={optionChooser !== null}
+        onOpenChange={(open) => {
+          if (!open) setOptionChooser(null);
+        }}
+      >
+        {optionChooser ? (
+          <DialogContent
+            className="option-chooser-dialog"
+            onCloseAutoFocus={(event) => event.preventDefault()}
+          >
+            <div className="option-chooser-header">
+              <div>
+                <DialogTitle>{productName(optionChooser.titleProduct, locale)}</DialogTitle>
+                <DialogDescription>
+                  {copy.optionCount(optionChooser.options.length)} · {copy.chooseOptionDescription}
+                </DialogDescription>
+              </div>
+              <DialogClose asChild>
+                <button className="icon-button" type="button" aria-label={copy.closeOptionChooser}>
+                  <span aria-hidden="true">×</span>
+                </button>
+              </DialogClose>
+            </div>
+            <div className="option-choice-list">
+              {optionChooser.options.map((option) => {
+                const optionName = productOptionLabel(option, locale);
+                return (
+                  <button
+                    className="option-choice-card"
+                    key={option.id}
+                    type="button"
+                    aria-label={optionName}
+                    onClick={() => chooseProductOption(option)}
+                  >
+                    <span className="option-choice-art">
+                      <ProductArt product={option} />
+                    </span>
+                    <span className="option-choice-copy">
+                      <strong>{optionName}</strong>
+                      <span className={option.stockQuantity > 0 ? "in-stock" : "sold-out"}>
+                        <span aria-hidden="true" />
+                        {option.stockQuantity > 0
+                          ? `${option.stockQuantity} ${copy.available.toLowerCase()}`
+                          : copy.soldOut}
+                      </span>
+                      {option.instantDelivery ? (
+                        <span className="instant-delivery">
+                          <span aria-hidden="true">↯</span>
+                          {copy.instant}
+                        </span>
+                      ) : null}
+                    </span>
+                    <strong className="option-choice-price">{formatThb(option.priceMinor, locale)}</strong>
+                  </button>
+                );
+              })}
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <Dialog
         open={selectedProduct !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedProduct(null);
@@ -928,7 +1063,7 @@ export function Marketplace({
             <div className="dialog-copy-column">
               <div className="dialog-heading-row">
                 <div>
-                  <DialogTitle>{productName(selectedProduct, locale)}</DialogTitle>
+                  <DialogTitle>{productOptionLabel(selectedProduct, locale)}</DialogTitle>
                 </div>
                 <DialogClose asChild>
                   <button
@@ -963,7 +1098,7 @@ export function Marketplace({
                 <div>
                   <button
                     type="button"
-                    aria-label={`Decrease ${productName(selectedProduct, locale)} quantity`}
+                    aria-label={`Decrease ${productOptionLabel(selectedProduct, locale)} quantity`}
                     disabled={selectedQuantity <= 1 || selectedProductInCart}
                     onClick={() => setSelectedQuantity((value) => Math.max(1, value - 1))}
                   >
@@ -975,7 +1110,7 @@ export function Marketplace({
                     min={1}
                     max={selectedProduct.stockQuantity}
                     value={selectedQuantity}
-                    aria-label={`Quantity for ${productName(selectedProduct, locale)}`}
+                    aria-label={`Quantity for ${productOptionLabel(selectedProduct, locale)}`}
                     disabled={selectedProductInCart || selectedProduct.stockQuantity <= 0}
                     onChange={(event) => {
                       const parsed = Number.parseInt(event.target.value, 10);
@@ -987,7 +1122,7 @@ export function Marketplace({
                   />
                   <button
                     type="button"
-                    aria-label={`Increase ${productName(selectedProduct, locale)} quantity`}
+                    aria-label={`Increase ${productOptionLabel(selectedProduct, locale)} quantity`}
                     disabled={selectedQuantity >= selectedProduct.stockQuantity || selectedProductInCart}
                     onClick={() => setSelectedQuantity((value) => Math.min(selectedProduct.stockQuantity, value + 1))}
                   >

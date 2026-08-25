@@ -9,6 +9,10 @@ const adminProductSchema = z.object({
   descriptionEn: z.string().min(1).max(1000),
   visualCode: z.string().min(1).max(80),
   type: z.enum(["SINGLE", "BUNDLE"]),
+  selectionMode: z.enum(["SINGLE_OPTION", "MULTI_OPTION"]),
+  optionGroup: z.string().min(1).max(120).nullable(),
+  optionLabelTh: z.string().min(1).max(180).nullable(),
+  optionLabelEn: z.string().min(1).max(180).nullable(),
   priceMinor: z.number().int().nonnegative(),
   currency: z.literal("THB"),
   stockQuantity: z.number().int().nonnegative(),
@@ -36,6 +40,10 @@ export type AdminProductWrite = {
   descriptionEn: string;
   visualCode: string;
   type: "SINGLE" | "BUNDLE";
+  selectionMode: "SINGLE_OPTION" | "MULTI_OPTION";
+  optionGroup: string | null;
+  optionLabelTh: string | null;
+  optionLabelEn: string | null;
   priceMinor: number;
   currency: "THB";
   stockQuantity: number;

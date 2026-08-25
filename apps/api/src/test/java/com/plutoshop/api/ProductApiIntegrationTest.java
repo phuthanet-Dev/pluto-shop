@@ -57,10 +57,12 @@ class ProductApiIntegrationTest {
                 .andExpect(jsonPath("$.total").value(36))
                 .andExpect(jsonPath("$.items.length()").value(36))
                 .andExpect(jsonPath("$.items[0]", allOf(
-                        aMapWithSize(14),
+                        aMapWithSize(18),
                         hasKey("id"), hasKey("slug"), hasKey("nameTh"), hasKey("nameEn"),
                         hasKey("descriptionTh"), hasKey("descriptionEn"), hasKey("visualCode"),
-                        hasKey("type"), hasKey("priceMinor"), hasKey("currency"),
+                        hasKey("type"), hasKey("selectionMode"), hasKey("optionGroup"),
+                        hasKey("optionLabelTh"), hasKey("optionLabelEn"),
+                        hasKey("priceMinor"), hasKey("currency"),
                         hasKey("stockQuantity"), hasKey("bundleItemCount"),
                         hasKey("instantDelivery"), hasKey("catalogOrder"))))
                 .andExpect(jsonPath("$.items[0].id").value(1))
@@ -68,6 +70,10 @@ class ProductApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].nameEn").value("Creator Launch Kit"))
                 .andExpect(jsonPath("$.items[0].visualCode").value("CL"))
                 .andExpect(jsonPath("$.items[0].type").value("BUNDLE"))
+                .andExpect(jsonPath("$.items[0].selectionMode").value("SINGLE_OPTION"))
+                .andExpect(jsonPath("$.items[0].optionGroup").doesNotExist())
+                .andExpect(jsonPath("$.items[0].optionLabelTh").doesNotExist())
+                .andExpect(jsonPath("$.items[0].optionLabelEn").doesNotExist())
                 .andExpect(jsonPath("$.items[0].priceMinor").value(101_500))
                 .andExpect(jsonPath("$.items[0].currency").value("THB"))
                 .andExpect(jsonPath("$.items[0].stockQuantity").value(1))

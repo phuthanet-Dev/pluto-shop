@@ -116,6 +116,45 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(page.locator(".card-meta .in-stock")).toHaveCount(36);
   });
 
+  test("opens an option chooser before details for a multi-option group", async ({ page }) => {
+    const base = {
+      nameTh: "Claude (Full Access)",
+      nameEn: "Claude (Full Access)",
+      descriptionTh: "เข้าถึง Claude แบบเต็มรูปแบบ",
+      descriptionEn: "Full Claude access",
+      visualCode: "CLAUDE-FA",
+      type: "SINGLE",
+      selectionMode: "MULTI_OPTION",
+      optionGroup: "claude-full-access",
+      currency: "THB",
+      bundleItemCount: null,
+      instantDelivery: true,
+      catalogOrder: 1,
+    };
+    const items = [
+      { ...base, id: 101, slug: "claude-1-day", optionLabelTh: "Claude FA Unlimited [1 วัน]", optionLabelEn: "Claude FA Unlimited [1 Day]", priceMinor: 232, stockQuantity: 137 },
+      { ...base, id: 102, slug: "claude-7-days", optionLabelTh: "Claude FA Unlimited [7 วัน]", optionLabelEn: "Claude FA Unlimited [7 Days]", priceMinor: 847, stockQuantity: 13, catalogOrder: 2 },
+      { ...base, id: 103, slug: "claude-1-month", optionLabelTh: "Claude FA Unlimited [1 เดือน]", optionLabelEn: "Claude FA Unlimited [1 Month]", priceMinor: 1847, stockQuantity: 16, catalogOrder: 3 },
+    ];
+    await page.route("**/api/v1/products*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items, total: 3, priceRange: { minMinor: 232, maxMinor: 1847, currency: "THB" } }),
+      }),
+    );
+    await page.goto("/en");
+    await expect(page.getByTestId("result-count")).toHaveText("3 results");
+    await expect(page.locator(".product-card")).toHaveCount(1);
+
+    await page.getByRole("button", { name: "View details for Claude (Full Access)" }).click();
+    const chooser = page.getByRole("dialog", { name: "Claude (Full Access)" });
+    await expect(chooser).toBeVisible();
+    await expect(chooser).toContainText("3 products");
+    await chooser.getByRole("button", { name: "Claude FA Unlimited [7 Days]" }).click();
+    await expect(page.getByRole("dialog", { name: "Claude FA Unlimited [7 Days]" })).toBeVisible();
+  });
+
   test("keeps detail artwork inside its grid column", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/en");

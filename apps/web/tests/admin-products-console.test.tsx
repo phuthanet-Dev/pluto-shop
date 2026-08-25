@@ -14,6 +14,10 @@ const product: AdminProduct = {
   descriptionEn: "Description",
   visualCode: "P3-TEST",
   type: "SINGLE",
+  selectionMode: "SINGLE_OPTION",
+  optionGroup: null,
+  optionLabelTh: null,
+  optionLabelEn: null,
   priceMinor: 12345,
   currency: "THB",
   stockQuantity: 5,
@@ -78,20 +82,23 @@ describe("AdminProductsConsole", () => {
 
     await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
     const typeTrigger = screen.getByRole("combobox", { name: "ประเภทสินค้า" });
-    expect(typeTrigger).toHaveTextContent("สินค้าเดี่ยว (SINGLE)");
+    expect(typeTrigger).toHaveTextContent("สินค้าตัวเลือกเดียว (SINGLE_OPTION)");
 
     await user.click(typeTrigger);
     expect(screen.getByRole("listbox", { name: "ประเภทสินค้า" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "ชุดสินค้า (BUNDLE)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("option", { name: "ชุดสินค้า (BUNDLE)" }));
-    expect(typeTrigger).toHaveTextContent("ชุดสินค้า (BUNDLE)");
+    await user.click(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" }));
+    expect(typeTrigger).toHaveTextContent("สินค้าหลายตัวเลือก (MULTI_OPTION)");
+    expect(screen.getByLabelText("กลุ่มตัวเลือก")).toBeInTheDocument();
+    expect(screen.getByLabelText("ชื่อ option (ภาษาไทย)")).toBeInTheDocument();
+    expect(screen.getByLabelText("ชื่อ option (ภาษาอังกฤษ)")).toBeInTheDocument();
     expect(screen.queryByRole("listbox", { name: "ประเภทสินค้า" })).not.toBeInTheDocument();
 
     typeTrigger.focus();
     await user.keyboard(" ");
     await user.keyboard("{ArrowUp}{Enter}");
-    expect(typeTrigger).toHaveTextContent("สินค้าเดี่ยว (SINGLE)");
+    expect(typeTrigger).toHaveTextContent("สินค้าตัวเลือกเดียว (SINGLE_OPTION)");
   });
 
   it("scrolls the edit form into view when editing a product", async () => {

@@ -15,6 +15,10 @@ export const productSchema = z
     descriptionEn: description,
     visualCode: z.string().trim().min(1).max(80),
     type: z.enum(["SINGLE", "BUNDLE"]),
+    selectionMode: z.enum(["SINGLE_OPTION", "MULTI_OPTION"]),
+    optionGroup: z.string().trim().min(1).max(120).nullable(),
+    optionLabelTh: localizedName.nullable(),
+    optionLabelEn: localizedName.nullable(),
     priceMinor: z.number().int().nonnegative().safe(),
     currency: z.literal("THB"),
     stockQuantity: z.number().int().nonnegative().safe(),
@@ -73,4 +77,10 @@ export function productDescription(
   locale: "th" | "en",
 ): string {
   return locale === "th" ? product.descriptionTh : product.descriptionEn;
+}
+
+export function productOptionLabel(product: Product, locale: "th" | "en"): string {
+  if (locale === "th" && product.optionLabelTh) return product.optionLabelTh;
+  if (locale === "en" && product.optionLabelEn) return product.optionLabelEn;
+  return productName(product, locale);
 }

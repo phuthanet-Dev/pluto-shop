@@ -131,6 +131,20 @@ class ProductMigrationIntegrationTest {
         assertThat(products.get(24).priceMinor()).isEqualTo(56_000);
         assertThat(products.get(35).slug()).isEqualTo("digital-product-launch-checklist");
         assertThat(products.get(35).priceMinor()).isEqualTo(21_000);
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select count(*)
+                        from products
+                        where selection_mode = 'SINGLE_OPTION'
+                          and option_group is null
+                          and option_label_th is null
+                          and option_label_en is null
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getInt(1)).isEqualTo(36);
+        }
     }
 
     private void migrate() {

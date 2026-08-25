@@ -147,6 +147,10 @@ curl 'http://127.0.0.1:3000/api/v1/products?q=Aurora&maxPriceMinor=119000&inStoc
       "descriptionEn": "Four coordinated launch assets for creators preparing a polished digital release.",
       "visualCode": "CL",
       "type": "BUNDLE",
+      "selectionMode": "SINGLE_OPTION",
+      "optionGroup": null,
+      "optionLabelTh": null,
+      "optionLabelEn": null,
       "priceMinor": 101500,
       "currency": "THB",
       "stockQuantity": 1,
@@ -181,6 +185,13 @@ reference USD × 35 × 100 = priceMinor (THB satang)
 ```
 
 ระบบไม่เรียก exchange-rate API ภายนอก
+
+`selectionMode` ควบคุม interaction ของหน้าหลัก:
+
+- `SINGLE_OPTION`: กดการ์ดแล้วเปิดรายละเอียดทันที
+- `MULTI_OPTION`: สินค้าที่มี `optionGroup` เดียวกันจะถูกรวมเป็นกลุ่มบนหน้าหลัก และต้องเลือก `optionLabelTh`/`optionLabelEn` ก่อนเปิดรายละเอียดของ option นั้น
+
+ฟิลด์ `type` และ `bundleItemCount` เดิมยังคงอยู่เพื่อรักษาความหมายของ catalog bundle รุ่นเก่า; `selectionMode` เป็นเงื่อนไขใหม่สำหรับการเลือก option โดยเฉพาะ
 
 ## การพัฒนาและตรวจสอบ
 

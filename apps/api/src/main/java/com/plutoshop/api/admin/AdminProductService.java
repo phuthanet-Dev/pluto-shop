@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.plutoshop.api.catalog.ProductType;
+import com.plutoshop.api.catalog.ProductSelectionMode;
 import com.plutoshop.api.error.InvalidRequestParameterException;
 
 @Service
@@ -37,7 +38,8 @@ public class AdminProductService {
         String pattern = searchPattern(query);
         String sql = """
                 SELECT id, slug, name_th, name_en, description_th, description_en,
-                       visual_code, type, price_minor, currency, stock_quantity,
+                       visual_code, type, selection_mode, option_group, option_label_th, option_label_en,
+                       price_minor, currency, stock_quantity,
                        bundle_item_count, instant_delivery, catalog_order, active,
                        updated_at, updated_by, version
                 FROM products
@@ -61,17 +63,20 @@ public class AdminProductService {
             AdminProductResponse product = jdbc.queryForObject("""
                     INSERT INTO products (
                         slug, name_th, name_en, description_th, description_en,
-                        visual_code, type, price_minor, currency, stock_quantity,
+                        visual_code, type, selection_mode, option_group, option_label_th, option_label_en,
+                       price_minor, currency, stock_quantity,
                         bundle_item_count, instant_delivery, catalog_order,
                         active, updated_at, updated_by, version
                     ) VALUES (
                         :slug, :nameTh, :nameEn, :descriptionTh, :descriptionEn,
-                        :visualCode, :type, :priceMinor, :currency, :stockQuantity,
+                        :visualCode, :type, :selectionMode, :optionGroup, :optionLabelTh, :optionLabelEn,
+                        :priceMinor, :currency, :stockQuantity,
                         :bundleItemCount, :instantDelivery, :catalogOrder,
                         :active, CURRENT_TIMESTAMP, :updatedBy, 0
                     )
                     RETURNING id, slug, name_th, name_en, description_th, description_en,
-                              visual_code, type, price_minor, currency, stock_quantity,
+                              visual_code, type, selection_mode, option_group, option_label_th, option_label_en,
+                       price_minor, currency, stock_quantity,
                               bundle_item_count, instant_delivery, catalog_order, active,
                               updated_at, updated_by, version
                     """, writeParams(request, actor), PRODUCT_ROW);
@@ -99,6 +104,10 @@ public class AdminProductService {
                         description_en = :descriptionEn,
                         visual_code = :visualCode,
                         type = :type,
+                        selection_mode = :selectionMode,
+                        option_group = :optionGroup,
+                        option_label_th = :optionLabelTh,
+                        option_label_en = :optionLabelEn,
                         price_minor = :priceMinor,
                         currency = :currency,
                         stock_quantity = :stockQuantity,
@@ -174,7 +183,8 @@ public class AdminProductService {
     private Optional<AdminProductResponse> findById(long id) {
         List<AdminProductResponse> results = jdbc.query("""
                 SELECT id, slug, name_th, name_en, description_th, description_en,
-                       visual_code, type, price_minor, currency, stock_quantity,
+                       visual_code, type, selection_mode, option_group, option_label_th, option_label_en,
+                       price_minor, currency, stock_quantity,
                        bundle_item_count, instant_delivery, catalog_order, active,
                        updated_at, updated_by, version
                 FROM products WHERE id = :id
@@ -208,6 +218,10 @@ public class AdminProductService {
                 .addValue("descriptionEn", request.descriptionEn().trim())
                 .addValue("visualCode", request.visualCode().trim())
                 .addValue("type", request.type().name())
+                .addValue("selectionMode", request.selectionMode().name())
+                .addValue("optionGroup", trimOptional(request.optionGroup()))
+                .addValue("optionLabelTh", trimOptional(request.optionLabelTh()))
+                .addValue("optionLabelEn", trimOptional(request.optionLabelEn()))
                 .addValue("priceMinor", request.priceMinor())
                 .addValue("currency", request.currency())
                 .addValue("stockQuantity", request.stockQuantity())
@@ -219,6 +233,10 @@ public class AdminProductService {
                 .addValue("version", request.version());
     }
 
+    private static String trimOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private static void validateRequest(AdminProductWriteRequest request, boolean create) {
         if (!CURRENCY.equals(request.currency())) {
             throw new InvalidRequestParameterException("currency must be THB");
@@ -226,7 +244,23 @@ public class AdminProductService {
         if (create && request.version() != 0) {
             throw new InvalidRequestParameterException("new products must use version 0");
         }
+        validateSelection(request);
         validateStock(request.type(), request.bundleItemCount());
+    }
+
+    private static void validateSelection(AdminProductWriteRequest request) {
+        boolean hasGroup = request.optionGroup() != null && !request.optionGroup().isBlank();
+        boolean hasThaiLabel = request.optionLabelTh() != null && !request.optionLabelTh().isBlank();
+        boolean hasEnglishLabel = request.optionLabelEn() != null && !request.optionLabelEn().isBlank();
+        if (request.selectionMode() == ProductSelectionMode.SINGLE_OPTION
+                && (hasGroup || hasThaiLabel || hasEnglishLabel)) {
+            throw new InvalidRequestParameterException("SINGLE_OPTION products must not have option metadata");
+        }
+        if (request.selectionMode() == ProductSelectionMode.MULTI_OPTION
+                && (!hasGroup || !hasThaiLabel || !hasEnglishLabel)) {
+            throw new InvalidRequestParameterException(
+                    "MULTI_OPTION products require optionGroup, optionLabelTh, and optionLabelEn");
+        }
     }
 
     private static void validateStock(ProductType type, Integer bundleItemCount) {
@@ -253,6 +287,10 @@ public class AdminProductService {
         if (!current.descriptionEn().equals(request.descriptionEn().trim())) changed.add("descriptionEn");
         if (!current.visualCode().equals(request.visualCode().trim())) changed.add("visualCode");
         if (current.type() != request.type()) changed.add("type");
+        if (current.selectionMode() != request.selectionMode()) changed.add("selectionMode");
+        if (!java.util.Objects.equals(current.optionGroup(), trimOptional(request.optionGroup()))) changed.add("optionGroup");
+        if (!java.util.Objects.equals(current.optionLabelTh(), trimOptional(request.optionLabelTh()))) changed.add("optionLabelTh");
+        if (!java.util.Objects.equals(current.optionLabelEn(), trimOptional(request.optionLabelEn()))) changed.add("optionLabelEn");
         if (current.priceMinor() != request.priceMinor()) changed.add("priceMinor");
         if (current.stockQuantity() != request.stockQuantity()) changed.add("stockQuantity");
         if (!java.util.Objects.equals(current.bundleItemCount(), request.bundleItemCount())) changed.add("bundleItemCount");
@@ -298,6 +336,10 @@ public class AdminProductService {
                 rs.getString("description_en"),
                 rs.getString("visual_code"),
                 ProductType.valueOf(rs.getString("type")),
+                ProductSelectionMode.valueOf(rs.getString("selection_mode")),
+                rs.getString("option_group"),
+                rs.getString("option_label_th"),
+                rs.getString("option_label_en"),
                 rs.getInt("price_minor"),
                 rs.getString("currency"),
                 rs.getInt("stock_quantity"),

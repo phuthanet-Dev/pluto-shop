@@ -1,6 +1,7 @@
 package com.plutoshop.api.admin;
 
 import com.plutoshop.api.catalog.ProductType;
+import com.plutoshop.api.catalog.ProductSelectionMode;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,10 @@ public record AdminProductWriteRequest(
         @NotBlank @Size(max = 1000) String descriptionEn,
         @NotBlank @Size(max = 80) @Pattern(regexp = "[A-Za-z0-9][A-Za-z0-9._-]*") String visualCode,
         @NotNull ProductType type,
+        @NotNull ProductSelectionMode selectionMode,
+        @Size(max = 120) @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*") String optionGroup,
+        @Size(max = 180) String optionLabelTh,
+        @Size(max = 180) String optionLabelEn,
         @Min(0) int priceMinor,
         @NotNull @Pattern(regexp = "THB") String currency,
         @Min(0) int stockQuantity,

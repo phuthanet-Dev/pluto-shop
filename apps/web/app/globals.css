@@ -1288,6 +1288,107 @@ button:disabled {
   padding: 7px;
 }
 
+.option-chooser-dialog {
+  width: min(calc(100vw - 32px), 760px);
+  padding: 0;
+  background: #0b080d;
+}
+
+.option-chooser-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 25px;
+  border-bottom: 1px solid var(--border);
+}
+
+.option-chooser-header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.option-chooser-header [data-radix-dialog-description] {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.option-choice-list {
+  display: grid;
+  gap: 12px;
+  padding: 16px 25px 25px;
+}
+
+.option-choice-card {
+  display: grid;
+  grid-template-columns: minmax(80px, 116px) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 15px;
+  background: #100811;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.option-choice-card:hover {
+  border-color: rgba(173, 139, 255, 0.65);
+  background: #180d1a;
+  transform: translateY(-1px);
+}
+
+.option-choice-card:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+}
+
+.option-choice-art .product-art {
+  min-height: 76px;
+  border-radius: 10px;
+}
+
+.option-choice-art .visual-code {
+  display: none;
+}
+
+.option-choice-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.option-choice-copy > strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.94rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-choice-copy > .in-stock,
+.option-choice-copy > .sold-out,
+.option-choice-copy > .instant-delivery {
+  width: max-content;
+  font-size: 0.72rem;
+}
+
+.option-choice-price {
+  color: #f0a6ff;
+  font-family: "Cascadia Mono", monospace;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
 .dialog-art-column,
 .dialog-copy-column {
   min-width: 0;
@@ -1824,6 +1925,43 @@ button:disabled {
 
   .product-dialog {
     display: block;
+  }
+
+  .option-chooser-dialog {
+    width: calc(100vw - 20px);
+  }
+
+  .option-chooser-header {
+    padding: 20px 16px;
+  }
+
+  .option-choice-list {
+    gap: 8px;
+    padding: 12px 16px 18px;
+  }
+
+  .option-choice-card {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    gap: 10px;
+    min-height: 82px;
+    padding: 9px;
+  }
+
+  .option-choice-art .product-art {
+    min-height: 60px;
+  }
+
+  .option-choice-copy > strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .option-choice-price {
+    font-size: 0.78rem;
   }
 
   .dialog-art-column .product-art {

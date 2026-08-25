@@ -123,6 +123,24 @@ class AdminProductApiIntegrationTest {
     }
 
     @Test
+    void adminCanCreateMultiOptionProductMetadata() throws Exception {
+        String body = productJson("phase3-test-option")
+                .replace("\"selectionMode\":\"SINGLE_OPTION\"", "\"selectionMode\":\"MULTI_OPTION\"")
+                .replace("\"optionGroup\":null", "\"optionGroup\":\"claude-full-access\"")
+                .replace("\"optionLabelTh\":null", "\"optionLabelTh\":\"Claude FA Unlimited [7 วัน]\"")
+                .replace("\"optionLabelEn\":null", "\"optionLabelEn\":\"Claude FA Unlimited [7 Days]\"");
+
+        mockMvc.perform(post("/api/v1/admin/products")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.selectionMode").value("MULTI_OPTION"))
+                .andExpect(jsonPath("$.optionGroup").value("claude-full-access"))
+                .andExpect(jsonPath("$.optionLabelEn").value("Claude FA Unlimited [7 Days]"));
+    }
+
+    @Test
     void invalidPriceReturnsSanitizedBadRequest() throws Exception {
         mockMvc.perform(post("/api/v1/admin/products")
                         .with(adminJwt())
@@ -237,6 +255,10 @@ class AdminProductApiIntegrationTest {
                   "descriptionEn":"Phase 3 product description",
                   "visualCode":"P3-%s",
                   "type":"SINGLE",
+                  "selectionMode":"SINGLE_OPTION",
+                  "optionGroup":null,
+                  "optionLabelTh":null,
+                  "optionLabelEn":null,
                   "priceMinor":12345,
                   "currency":"THB",
                   "stockQuantity":5,

@@ -53,6 +53,10 @@ type ProductFormState = {
   descriptionEn: string;
   visualCode: string;
   type: "SINGLE" | "BUNDLE";
+  selectionMode: "SINGLE_OPTION" | "MULTI_OPTION";
+  optionGroup: string;
+  optionLabelTh: string;
+  optionLabelEn: string;
   priceBaht: string;
   stockQuantity: string;
   bundleItemCount: string;
@@ -62,31 +66,31 @@ type ProductFormState = {
   version: number;
 };
 
-const productTypeOptions: ReadonlyArray<{
-  value: ProductFormState["type"];
+const selectionModeOptions: ReadonlyArray<{
+  value: ProductFormState["selectionMode"];
   label: string;
   description: string;
 }> = [
-  { value: "SINGLE", label: "สินค้าเดี่ยว", description: "ขายเป็นชิ้นเดียว" },
-  { value: "BUNDLE", label: "ชุดสินค้า", description: "รวมหลายรายการไว้ในชุดเดียว" },
+  { value: "SINGLE_OPTION", label: "สินค้าตัวเลือกเดียว", description: "กดแล้วเปิดรายละเอียดได้ทันที" },
+  { value: "MULTI_OPTION", label: "สินค้าหลายตัวเลือก", description: "เลือก option ก่อนดูรายละเอียด" },
 ];
 
-function AdminTypeDropdown({
+function AdminSelectionModeDropdown({
   value,
   onChange,
 }: {
-  value: ProductFormState["type"];
-  onChange: (value: ProductFormState["type"]) => void;
+  value: ProductFormState["selectionMode"];
+  onChange: (value: ProductFormState["selectionMode"]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(() =>
-    Math.max(0, productTypeOptions.findIndex((option) => option.value === value)),
+    Math.max(0, selectionModeOptions.findIndex((option) => option.value === value)),
   );
   const containerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const listboxId = "admin-product-type-listbox";
-  const selectedIndex = Math.max(0, productTypeOptions.findIndex((option) => option.value === value));
-  const selectedOption = productTypeOptions[selectedIndex];
+  const listboxId = "admin-product-selection-mode-listbox";
+  const selectedIndex = Math.max(0, selectionModeOptions.findIndex((option) => option.value === value));
+  const selectedOption = selectionModeOptions[selectedIndex];
 
   useEffect(() => {
     if (!open) return;
@@ -103,7 +107,7 @@ function AdminTypeDropdown({
   }
 
   function chooseOption(index: number) {
-    const option = productTypeOptions[index];
+    const option = selectionModeOptions[index];
     if (!option) return;
     onChange(option.value);
     setHighlightedIndex(index);
@@ -118,7 +122,7 @@ function AdminTypeDropdown({
         openDropdown();
         return;
       }
-      setHighlightedIndex((current) => (current + 1) % productTypeOptions.length);
+      setHighlightedIndex((current) => (current + 1) % selectionModeOptions.length);
       return;
     }
     if (event.key === "ArrowUp") {
@@ -127,7 +131,7 @@ function AdminTypeDropdown({
         openDropdown();
         return;
       }
-      setHighlightedIndex((current) => (current - 1 + productTypeOptions.length) % productTypeOptions.length);
+      setHighlightedIndex((current) => (current - 1 + selectionModeOptions.length) % selectionModeOptions.length);
       return;
     }
     if (event.key === "Home" && open) {
@@ -137,7 +141,7 @@ function AdminTypeDropdown({
     }
     if (event.key === "End" && open) {
       event.preventDefault();
-      setHighlightedIndex(productTypeOptions.length - 1);
+      setHighlightedIndex(selectionModeOptions.length - 1);
       return;
     }
     if (event.key === "Escape" && open) {
@@ -156,7 +160,15 @@ function AdminTypeDropdown({
   }
 
   return (
-    <div ref={containerRef} className={`admin-custom-select-field${open ? " is-open" : ""}`}>
+    <div
+      ref={containerRef}
+      className={`admin-custom-select-field${open ? " is-open" : ""}`}
+      onBlur={() => {
+        window.requestAnimationFrame(() => {
+          if (!containerRef.current?.contains(document.activeElement)) setOpen(false);
+        });
+      }}
+    >
       <span className="admin-field-label">ประเภทสินค้า</span>
       <button
         ref={triggerRef}
@@ -186,7 +198,7 @@ function AdminTypeDropdown({
           role="listbox"
           aria-label="ประเภทสินค้า"
         >
-          {productTypeOptions.map((option, index) => (
+          {selectionModeOptions.map((option, index) => (
             <div
               id={`${listboxId}-${index}`}
               key={option.value}
@@ -218,6 +230,10 @@ function blankForm(catalogOrder: number): ProductFormState {
     descriptionEn: "",
     visualCode: "",
     type: "SINGLE",
+    selectionMode: "SINGLE_OPTION",
+    optionGroup: "",
+    optionLabelTh: "",
+    optionLabelEn: "",
     priceBaht: "0.00",
     stockQuantity: "0",
     bundleItemCount: "",
@@ -237,6 +253,10 @@ function productForm(product: AdminProduct): ProductFormState {
     descriptionEn: product.descriptionEn,
     visualCode: product.visualCode,
     type: product.type,
+    selectionMode: product.selectionMode,
+    optionGroup: product.optionGroup ?? "",
+    optionLabelTh: product.optionLabelTh ?? "",
+    optionLabelEn: product.optionLabelEn ?? "",
     priceBaht: (product.priceMinor / 100).toFixed(2),
     stockQuantity: String(product.stockQuantity),
     bundleItemCount: product.bundleItemCount === null ? "" : String(product.bundleItemCount),
@@ -252,6 +272,9 @@ function formRequest(form: ProductFormState): AdminProductWrite {
   const stockQuantity = Number(form.stockQuantity);
   const catalogOrder = Number(form.catalogOrder);
   const bundleItemCount = form.type === "BUNDLE" ? Number(form.bundleItemCount) : null;
+  const optionGroup = form.selectionMode === "MULTI_OPTION" ? form.optionGroup.trim() : null;
+  const optionLabelTh = form.selectionMode === "MULTI_OPTION" ? form.optionLabelTh.trim() : null;
+  const optionLabelEn = form.selectionMode === "MULTI_OPTION" ? form.optionLabelEn.trim() : null;
   return {
     slug: form.slug.trim(),
     nameTh: form.nameTh.trim(),
@@ -260,6 +283,10 @@ function formRequest(form: ProductFormState): AdminProductWrite {
     descriptionEn: form.descriptionEn.trim(),
     visualCode: form.visualCode.trim(),
     type: form.type,
+    selectionMode: form.selectionMode,
+    optionGroup,
+    optionLabelTh,
+    optionLabelEn,
     priceMinor,
     currency: "THB",
     stockQuantity,
@@ -276,6 +303,10 @@ function validateForm(form: ProductFormState): string | null {
   if (!form.nameTh.trim() || !form.nameEn.trim()) return "กรุณากรอกชื่อสินค้าทั้งภาษาไทยและภาษาอังกฤษ";
   if (!form.descriptionTh.trim() || !form.descriptionEn.trim()) return "กรุณากรอกคำอธิบายสินค้าทั้งภาษาไทยและภาษาอังกฤษ";
   if (!visualCodePattern.test(form.visualCode.trim())) return "รหัสภาพมีอักขระที่ไม่รองรับ";
+  if (form.selectionMode === "MULTI_OPTION") {
+    if (!slugPattern.test(form.optionGroup.trim())) return "กลุ่มตัวเลือกต้องใช้ตัวอักษรภาษาอังกฤษตัวพิมพ์เล็ก ตัวเลข และขีดกลางเท่านั้น";
+    if (!form.optionLabelTh.trim() || !form.optionLabelEn.trim()) return "กรุณากรอกชื่อ option ทั้งภาษาไทยและภาษาอังกฤษ";
+  }
   if (bahtToMinor(form.priceBaht) === null) return "ราคาต้องเป็นจำนวนบาทที่มีทศนิยมไม่เกิน 2 ตำแหน่ง";
   if (!Number.isInteger(Number(form.stockQuantity)) || Number(form.stockQuantity) < 0) return "สต็อกต้องเป็นจำนวนเต็มที่ไม่ติดลบ";
   if (!Number.isInteger(Number(form.catalogOrder)) || Number(form.catalogOrder) <= 0) return "ลำดับแคตตาล็อกต้องเป็นจำนวนเต็มบวก";
@@ -505,7 +536,14 @@ export function AdminProductsConsole() {
             <label>ชื่อสินค้า (ภาษาอังกฤษ)<input value={form.nameEn} onChange={(event) => updateForm("nameEn", event.target.value)} required /></label>
             <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาไทย)<textarea value={form.descriptionTh} onChange={(event) => updateForm("descriptionTh", event.target.value)} required /></label>
             <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาอังกฤษ)<textarea value={form.descriptionEn} onChange={(event) => updateForm("descriptionEn", event.target.value)} required /></label>
-            <AdminTypeDropdown value={form.type} onChange={(value) => updateForm("type", value)} />
+            <AdminSelectionModeDropdown value={form.selectionMode} onChange={(value) => updateForm("selectionMode", value)} />
+            {form.selectionMode === "MULTI_OPTION" ? (
+              <>
+                <label>กลุ่มตัวเลือก<input value={form.optionGroup} onChange={(event) => updateForm("optionGroup", event.target.value)} placeholder="เช่น claude-full-access" required /></label>
+                <label>ชื่อ option (ภาษาไทย)<input value={form.optionLabelTh} onChange={(event) => updateForm("optionLabelTh", event.target.value)} required /></label>
+                <label>ชื่อ option (ภาษาอังกฤษ)<input value={form.optionLabelEn} onChange={(event) => updateForm("optionLabelEn", event.target.value)} required /></label>
+              </>
+            ) : null}
             <label>ราคา (บาท)<input type="text" inputMode="decimal" value={form.priceBaht} onChange={(event) => updateForm("priceBaht", event.target.value)} required /></label>
             <label>จำนวนสต็อก<input type="number" min="0" step="1" value={form.stockQuantity} onChange={(event) => updateForm("stockQuantity", event.target.value)} required /></label>
             <label>จำนวนรายการในชุด<input type="number" min="2" step="1" value={form.bundleItemCount} disabled={form.type === "SINGLE"} onChange={(event) => updateForm("bundleItemCount", event.target.value)} /></label>
@@ -530,7 +568,7 @@ export function AdminProductsConsole() {
             {!loading ? products.map((product) => (
               <tr key={product.id} className={!product.active ? "is-archived" : undefined}>
                 <th scope="row"><strong>{product.nameTh}</strong><span>{product.slug}</span></th>
-                <td>{product.type}</td>
+                <td>{product.selectionMode === "MULTI_OPTION" ? "หลายตัวเลือก" : "ตัวเลือกเดียว"}</td>
                 <td>฿{(product.priceMinor / 100).toFixed(2)}</td>
                 <td>{product.stockQuantity}{product.bundleItemCount ? ` / ${product.bundleItemCount} รายการ` : ""}</td>
                 <td>{product.catalogOrder}</td>

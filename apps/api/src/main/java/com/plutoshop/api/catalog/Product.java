@@ -41,6 +41,19 @@ public class Product {
     @Column(nullable = false, length = 16)
     private ProductType type;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "selection_mode", nullable = false, length = 16)
+    private ProductSelectionMode selectionMode;
+
+    @Column(name = "option_group", length = 120)
+    private String optionGroup;
+
+    @Column(name = "option_label_th", length = 180)
+    private String optionLabelTh;
+
+    @Column(name = "option_label_en", length = 180)
+    private String optionLabelEn;
+
     @Column(name = "price_minor", nullable = false)
     private int priceMinor;
 
@@ -105,6 +118,22 @@ public class Product {
 
     public ProductType getType() {
         return type;
+    }
+
+    public ProductSelectionMode getSelectionMode() {
+        return selectionMode;
+    }
+
+    public String getOptionGroup() {
+        return optionGroup;
+    }
+
+    public String getOptionLabelTh() {
+        return optionLabelTh;
+    }
+
+    public String getOptionLabelEn() {
+        return optionLabelEn;
     }
 
     public int getPriceMinor() {

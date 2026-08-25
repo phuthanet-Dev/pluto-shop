@@ -3,6 +3,7 @@ package com.plutoshop.api.admin;
 import java.time.Instant;
 
 import com.plutoshop.api.catalog.ProductType;
+import com.plutoshop.api.catalog.ProductSelectionMode;
 
 public record AdminProductResponse(
         Long id,
@@ -13,6 +14,10 @@ public record AdminProductResponse(
         String descriptionEn,
         String visualCode,
         ProductType type,
+        ProductSelectionMode selectionMode,
+        String optionGroup,
+        String optionLabelTh,
+        String optionLabelEn,
         int priceMinor,
         String currency,
         int stockQuantity,
