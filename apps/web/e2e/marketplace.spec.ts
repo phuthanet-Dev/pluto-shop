@@ -238,4 +238,13 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(dialog).toBeHidden();
     await expect(detailButton).toBeFocused();
   });
+
+  test("keeps primary navbar text at one consistent font size", async ({ page }) => {
+    await page.goto("/en");
+    const fontSizes = await page.locator(".locale-switch, .auth-link, .cart-label").evaluateAll(
+      (elements) => elements.map((element) => getComputedStyle(element).fontSize),
+    );
+    expect(fontSizes.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(fontSizes).size).toBe(1);
+  });
 });
