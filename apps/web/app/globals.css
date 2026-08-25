@@ -1848,7 +1848,7 @@ button:disabled {
 #main-content.admin-page {
   width: min(calc(100% - 48px), var(--content-width));
   margin: 0 auto;
-  padding: 88px 0 88px;
+  padding: 61.6px 0 88px;
 }
 
 .admin-page > .primary-button {
@@ -2099,7 +2099,7 @@ button:disabled {
 @media (max-width: 760px) {
   #main-content.admin-page {
     width: min(calc(100% - 32px), var(--content-width));
-    padding-top: 56px;
+    padding-top: 39.2px;
   }
 
   .admin-console-header {
