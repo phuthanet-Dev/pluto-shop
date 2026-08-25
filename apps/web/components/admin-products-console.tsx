@@ -15,6 +15,16 @@ import {
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const visualCodePattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
+function bahtToMinor(value: string): number | null {
+  const normalized = value.trim().replace(/,/gu, "");
+  if (!/^\d+(?:\.\d{0,2})?$/u.test(normalized)) return null;
+  const [whole, fraction = ""] = normalized.split(".");
+  const wholeMinor = Number(whole) * 100;
+  const fractionMinor = Number((fraction + "00").slice(0, 2));
+  const result = wholeMinor + fractionMinor;
+  return Number.isSafeInteger(result) ? result : null;
+}
+
 function AdminIcon({ kind }: { kind: "plus" | "edit" | "archive" | "search" | "save" | "cancel" }) {
   if (kind === "plus") {
     return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 4v12M4 10h12" /></svg>;
@@ -42,7 +52,7 @@ type ProductFormState = {
   descriptionEn: string;
   visualCode: string;
   type: "SINGLE" | "BUNDLE";
-  priceMinor: string;
+  priceBaht: string;
   stockQuantity: string;
   bundleItemCount: string;
   instantDelivery: boolean;
@@ -60,7 +70,7 @@ function blankForm(catalogOrder: number): ProductFormState {
     descriptionEn: "",
     visualCode: "",
     type: "SINGLE",
-    priceMinor: "0",
+    priceBaht: "0.00",
     stockQuantity: "0",
     bundleItemCount: "",
     instantDelivery: true,
@@ -79,7 +89,7 @@ function productForm(product: AdminProduct): ProductFormState {
     descriptionEn: product.descriptionEn,
     visualCode: product.visualCode,
     type: product.type,
-    priceMinor: String(product.priceMinor),
+    priceBaht: (product.priceMinor / 100).toFixed(2),
     stockQuantity: String(product.stockQuantity),
     bundleItemCount: product.bundleItemCount === null ? "" : String(product.bundleItemCount),
     instantDelivery: product.instantDelivery,
@@ -90,7 +100,7 @@ function productForm(product: AdminProduct): ProductFormState {
 }
 
 function formRequest(form: ProductFormState): AdminProductWrite {
-  const priceMinor = Number(form.priceMinor);
+  const priceMinor = bahtToMinor(form.priceBaht) ?? 0;
   const stockQuantity = Number(form.stockQuantity);
   const catalogOrder = Number(form.catalogOrder);
   const bundleItemCount = form.type === "BUNDLE" ? Number(form.bundleItemCount) : null;
@@ -118,7 +128,7 @@ function validateForm(form: ProductFormState): string | null {
   if (!form.nameTh.trim() || !form.nameEn.trim()) return "กรุณากรอกชื่อสินค้าทั้งภาษาไทยและภาษาอังกฤษ";
   if (!form.descriptionTh.trim() || !form.descriptionEn.trim()) return "กรุณากรอกคำอธิบายสินค้าทั้งภาษาไทยและภาษาอังกฤษ";
   if (!visualCodePattern.test(form.visualCode.trim())) return "รหัสภาพมีอักขระที่ไม่รองรับ";
-  if (!Number.isInteger(Number(form.priceMinor)) || Number(form.priceMinor) < 0) return "ราคาต้องเป็นจำนวนเต็มสตางค์ที่ไม่ติดลบ";
+  if (bahtToMinor(form.priceBaht) === null) return "ราคาต้องเป็นจำนวนบาทที่มีทศนิยมไม่เกิน 2 ตำแหน่ง";
   if (!Number.isInteger(Number(form.stockQuantity)) || Number(form.stockQuantity) < 0) return "สต็อกต้องเป็นจำนวนเต็มที่ไม่ติดลบ";
   if (!Number.isInteger(Number(form.catalogOrder)) || Number(form.catalogOrder) <= 0) return "ลำดับแคตตาล็อกต้องเป็นจำนวนเต็มบวก";
   if (form.type === "BUNDLE" && (!Number.isInteger(Number(form.bundleItemCount)) || Number(form.bundleItemCount) < 2)) {
@@ -332,7 +342,7 @@ export function AdminProductsConsole() {
             <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาไทย)<textarea value={form.descriptionTh} onChange={(event) => updateForm("descriptionTh", event.target.value)} required /></label>
             <label className="admin-form-wide">คำอธิบายสินค้า (ภาษาอังกฤษ)<textarea value={form.descriptionEn} onChange={(event) => updateForm("descriptionEn", event.target.value)} required /></label>
             <label>ประเภทสินค้า<select value={form.type} onChange={(event) => updateForm("type", event.target.value as ProductFormState["type"])}><option value="SINGLE">สินค้าเดี่ยว (SINGLE)</option><option value="BUNDLE">ชุดสินค้า (BUNDLE)</option></select></label>
-            <label>ราคา (สตางค์)<input type="number" min="0" step="1" value={form.priceMinor} onChange={(event) => updateForm("priceMinor", event.target.value)} required /></label>
+            <label>ราคา (บาท)<input type="text" inputMode="decimal" value={form.priceBaht} onChange={(event) => updateForm("priceBaht", event.target.value)} required /></label>
             <label>จำนวนสต็อก<input type="number" min="0" step="1" value={form.stockQuantity} onChange={(event) => updateForm("stockQuantity", event.target.value)} required /></label>
             <label>จำนวนรายการในชุด<input type="number" min="2" step="1" value={form.bundleItemCount} disabled={form.type === "SINGLE"} onChange={(event) => updateForm("bundleItemCount", event.target.value)} /></label>
             <label>ลำดับแคตตาล็อก<input type="number" min="1" step="1" value={form.catalogOrder} onChange={(event) => updateForm("catalogOrder", event.target.value)} required /></label>

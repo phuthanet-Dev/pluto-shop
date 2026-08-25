@@ -92,6 +92,8 @@ describe("AdminProductsConsole", () => {
     await user.type(screen.getByLabelText("ชื่อสินค้า (ภาษาอังกฤษ)"), "New product");
     await user.type(screen.getByLabelText("คำอธิบายสินค้า (ภาษาไทย)"), "คำอธิบายใหม่");
     await user.type(screen.getByLabelText("คำอธิบายสินค้า (ภาษาอังกฤษ)"), "New description");
+    await user.clear(screen.getByLabelText("ราคา (บาท)"));
+    await user.type(screen.getByLabelText("ราคา (บาท)"), "1299.50");
     await user.click(screen.getByRole("button", { name: "บันทึกสินค้า" }));
 
     await waitFor(() =>
@@ -99,7 +101,7 @@ describe("AdminProductsConsole", () => {
         slug: "new-phase3-product",
         visualCode: "P3-NEW",
         nameEn: "New product",
-        priceMinor: 0,
+        priceMinor: 129950,
         stockQuantity: 0,
         currency: "THB",
         version: 0,
