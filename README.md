@@ -124,7 +124,7 @@ POST /api/v1/checkout/promptpay
 POST /api/v1/payments/promptpay/{transactionId}/check
 ```
 
-ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser, ใช้ `Idempotency-Key` กันการกดสร้าง QR ซ้ำ, reserve stock ระหว่างรอชำระ และคืน stock เมื่อ QR หมดอายุหรือ payment ล้มเหลว
+ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser, ใช้ `Idempotency-Key` กันการกดสร้าง QR ซ้ำ, reserve stock ระหว่างรอชำระ และคืน stock เมื่อ QR หมดอายุหรือ payment ล้มเหลว ทั้งจากการตรวจสถานะและ scheduled expiry sweep
 
 ตั้งค่า key จาก Dashboard ของ inwcloud ใน `.env` เท่านั้น:
 

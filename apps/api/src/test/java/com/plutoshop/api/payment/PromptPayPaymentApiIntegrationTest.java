@@ -58,6 +58,7 @@ class PromptPayPaymentApiIntegrationTest {
         registry.add("spring.flyway.user", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("payment.inwcloud.api-key", () -> "test-api-key");
+        registry.add("payment.inwcloud.expiry-sweep-enabled", () -> false);
     }
 
     @Autowired
@@ -68,6 +69,9 @@ class PromptPayPaymentApiIntegrationTest {
 
     @Autowired
     private InwcloudPaymentGatewayClient gateway;
+
+    @Autowired
+    private PromptPayPaymentService paymentService;
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TestGatewayConfiguration {
@@ -201,6 +205,32 @@ class PromptPayPaymentApiIntegrationTest {
 
         Integer restoredStock = jdbcTemplate.queryForObject(
                 "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(88, restoredStock);
+    }
+
+    @Test
+    void expirySweepReleasesAbandonedPaymentReservations() throws Exception {
+        when(gateway.generate(any())).thenReturn(new InwcloudPaymentGatewayClient.GeneratedPayment(
+                "Market-test-sweep",
+                URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
+                "000201010212",
+                Instant.now().minusSeconds(1)));
+        addToCart("payment-test-sweep", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-sweep"))
+                        .header("Idempotency-Key", "payment-test-sweep-key"))
+                .andExpect(status().isOk());
+
+        paymentService.sweepExpiredPayments();
+
+        String paymentStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM payment_transactions WHERE transaction_id = ?",
+                String.class,
+                "Market-test-sweep");
+        Integer restoredStock = jdbcTemplate.queryForObject(
+                "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals("EXPIRED", paymentStatus);
         org.junit.jupiter.api.Assertions.assertEquals(88, restoredStock);
     }
 

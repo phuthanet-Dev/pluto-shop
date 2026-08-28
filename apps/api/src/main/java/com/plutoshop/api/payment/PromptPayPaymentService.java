@@ -179,6 +179,26 @@ public class PromptPayPaymentService {
         };
     }
 
+    @Transactional
+    public void sweepExpiredPayments() {
+        List<PaymentSnapshot> expiredPayments = jdbc.query("""
+                SELECT p.id AS payment_id, o.id AS order_id, o.user_id,
+                       p.transaction_id, p.status, p.amount_minor, o.currency,
+                       p.qr_url, p.payload, p.expires_at
+                FROM payment_transactions p
+                JOIN shop_orders o ON o.id = p.order_id
+                WHERE p.status = 'PENDING'
+                  AND p.expires_at IS NOT NULL
+                  AND p.expires_at <= CURRENT_TIMESTAMP
+                ORDER BY p.id
+                LIMIT 100
+                FOR UPDATE OF p SKIP LOCKED
+                """, new MapSqlParameterSource(), PAYMENT_ROW);
+        for (PaymentSnapshot payment : expiredPayments) {
+            transition(payment, PaymentStatus.EXPIRED, "Payment QR code expired");
+        }
+    }
+
     private PromptPayStatusResponse transition(PaymentSnapshot current, PaymentStatus status, String message) {
         int changed = jdbc.update("""
                 UPDATE payment_transactions
