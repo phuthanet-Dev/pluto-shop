@@ -15,6 +15,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import com.plutoshop.api.admin.AdminProductConflictException;
 import com.plutoshop.api.admin.AdminProductNotFoundException;
+import com.plutoshop.api.payment.PaymentConfigurationException;
+import com.plutoshop.api.payment.PaymentConflictException;
+import com.plutoshop.api.payment.PaymentGatewayException;
+import com.plutoshop.api.payment.PaymentNotFoundException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -46,6 +50,26 @@ class ApiExceptionHandler {
     @ExceptionHandler(AdminProductNotFoundException.class)
     ResponseEntity<SanitizedProblemDetail> handleAdminNotFound(AdminProductNotFoundException exception) {
         return problem(HttpStatus.NOT_FOUND, "Product not found", exception.getMessage());
+    }
+
+    @ExceptionHandler(PaymentConfigurationException.class)
+    ResponseEntity<SanitizedProblemDetail> handlePaymentConfiguration(PaymentConfigurationException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Payment service unavailable", "Payment service is not configured");
+    }
+
+    @ExceptionHandler(PaymentGatewayException.class)
+    ResponseEntity<SanitizedProblemDetail> handlePaymentGateway(PaymentGatewayException exception) {
+        return problem(HttpStatus.BAD_GATEWAY, "Payment gateway unavailable", "Payment provider request failed");
+    }
+
+    @ExceptionHandler(PaymentConflictException.class)
+    ResponseEntity<SanitizedProblemDetail> handlePaymentConflict(PaymentConflictException exception) {
+        return problem(HttpStatus.CONFLICT, "Payment conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    ResponseEntity<SanitizedProblemDetail> handlePaymentNotFound(PaymentNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Payment not found", exception.getMessage());
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

@@ -46,6 +46,19 @@ test.describe("Pluto Shop marketplace", () => {
       data: {},
     });
     expect(csrfAdmin.status()).toBe(403);
+    const csrfCheckout = await page.request.post("/api/v1/checkout/promptpay", {
+      headers: {
+        origin: "http://evil.invalid",
+        "idempotency-key": "payment-e2e-csrf-0001",
+      },
+      data: {},
+    });
+    expect(csrfCheckout.status()).toBe(403);
+    const csrfPaymentCheck = await page.request.post(
+      "/api/v1/payments/promptpay/Market-test-1/check",
+      { headers: { origin: "http://evil.invalid" } },
+    );
+    expect(csrfPaymentCheck.status()).toBe(403);
 
     const login = await page.request.get("/api/auth/login?callbackUrl=%2Fadmin", {
       maxRedirects: 0,

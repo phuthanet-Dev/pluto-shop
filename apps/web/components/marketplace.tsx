@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -19,6 +20,12 @@ import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { fetchAuthSession } from "@/lib/auth-client";
 import { fetchCart, mergeCart, replaceCart } from "@/lib/cart-api";
+import {
+  checkPromptPayPayment,
+  createPromptPayPayment,
+  type PromptPayCheckout,
+  type PromptPayStatus,
+} from "@/lib/payment-api";
 import {
   fetchProducts,
   productDescription,
@@ -39,6 +46,7 @@ type MarketplaceProps = {
   fetcher?: typeof fetch;
   authFetcher?: typeof fetch;
   cartFetcher?: typeof fetch;
+  paymentFetcher?: typeof fetch;
 };
 
 type SearchForm = {
@@ -103,6 +111,20 @@ const copyByLocale = {
     chooseOptionDescription: "เลือกตัวเลือกที่ต้องการก่อนดูรายละเอียด",
     closeOptionChooser: "ปิดตัวเลือก",
     fromPrice: "เริ่มต้น",
+    checkout: "ชำระเงินด้วย PromptPay",
+    loginToCheckout: "เข้าสู่ระบบเพื่อชำระเงิน",
+    continuePayment: "ดูการชำระเงินต่อ",
+    paymentTitle: "ชำระเงินด้วย PromptPay",
+    paymentDescription: "สแกน QR เพื่อชำระเงิน แล้วกดตรวจสอบสถานะ",
+    paymentPending: "กำลังรอตรวจสอบการชำระเงิน",
+    paymentPaid: "ชำระเงินสำเร็จ",
+    paymentExpired: "QR หมดอายุแล้ว",
+    paymentFailed: "การชำระเงินไม่สำเร็จ",
+    paymentCheck: "ตรวจสอบการชำระเงิน",
+    paymentTransaction: "Transaction ID",
+    paymentExpires: "หมดอายุ",
+    closePayment: "ปิดหน้าชำระเงิน",
+    paymentError: "ไม่สามารถเริ่มการชำระเงินได้ กรุณาลองอีกครั้ง",
     view: "ดูรายละเอียด",
     switchLocale: "Switch to English",
     localeShort: "EN",
@@ -156,6 +178,20 @@ const copyByLocale = {
     chooseOptionDescription: "Choose an option before opening the product details.",
     closeOptionChooser: "Close option chooser",
     fromPrice: "From",
+    checkout: "Pay with PromptPay",
+    loginToCheckout: "Log in to pay",
+    continuePayment: "Continue payment",
+    paymentTitle: "Pay with PromptPay",
+    paymentDescription: "Scan the QR code, then check the payment status.",
+    paymentPending: "Waiting for payment confirmation",
+    paymentPaid: "Payment completed",
+    paymentExpired: "This QR code has expired",
+    paymentFailed: "Payment was not completed",
+    paymentCheck: "Check payment",
+    paymentTransaction: "Transaction ID",
+    paymentExpires: "Expires",
+    closePayment: "Close payment",
+    paymentError: "Could not start payment. Please try again.",
     view: "View details",
     switchLocale: "เปลี่ยนเป็นภาษาไทย",
     localeShort: "TH",
@@ -194,6 +230,10 @@ type ProductDisplayGroup = {
 type OptionChooserState = {
   titleProduct: Product;
   options: Product[];
+};
+
+type PaymentViewState = PromptPayCheckout & {
+  message?: PromptPayStatus["message"];
 };
 
 function groupProductsForDisplay(items: Product[]): ProductDisplayGroup[] {
@@ -238,6 +278,7 @@ export function Marketplace({
   fetcher = fetch,
   authFetcher = fetch,
   cartFetcher = fetch,
+  paymentFetcher = fetch,
 }: MarketplaceProps) {
   const copy = copyByLocale[locale];
   const pathname = usePathname();
@@ -251,6 +292,11 @@ export function Marketplace({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [optionChooser, setOptionChooser] = useState<OptionChooserState | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [payment, setPayment] = useState<PaymentViewState | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentChecking, setPaymentChecking] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const cartIds = useCartStore((state) => state.cartIds);
@@ -499,6 +545,43 @@ export function Marketplace({
     setSelectedProduct(product);
   }
 
+  async function startPromptPayPayment() {
+    if (!authSession.data?.authenticated || cartIds.length === 0) return;
+    setPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      const created = await createPromptPayPayment(paymentFetcher);
+      setPayment({ ...created });
+      setPaymentOpen(true);
+      setCartOpen(false);
+    } catch {
+      setPaymentError(copy.paymentError);
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
+  const checkPaymentStatus = useCallback(async () => {
+    if (!payment) return;
+    setPaymentChecking(true);
+    try {
+      const next = await checkPromptPayPayment(payment.transactionId, paymentFetcher);
+      setPayment((current) => current ? { ...current, ...next } : current);
+      setPaymentError(null);
+      if (next.status === "PAID") clearCart();
+    } catch {
+      setPaymentError(copy.paymentError);
+    } finally {
+      setPaymentChecking(false);
+    }
+  }, [clearCart, copy.paymentError, payment, paymentFetcher]);
+
+  useEffect(() => {
+    if (!paymentOpen || !payment || payment.status !== "PENDING") return;
+    const timer = window.setInterval(() => void checkPaymentStatus(), 5_000);
+    return () => window.clearInterval(timer);
+  }, [checkPaymentStatus, payment, paymentOpen]);
+
   const priceControl = (
     <>
       <label className="field-label">
@@ -693,6 +776,41 @@ export function Marketplace({
                       <strong>{formatThb(cartTotalMinor, locale)}</strong>
                     </div>
                   ) : null}
+                  {cartProductsInView.length > 0 && !authSession.isPending ? (
+                    <div className="cart-checkout-actions">
+                      {authSession.data?.authenticated ? (
+                        <button
+                          className="primary-button"
+                          type="button"
+                          disabled={paymentLoading}
+                          onClick={() => {
+                            if (payment?.status === "PENDING") {
+                              setPaymentOpen(true);
+                            } else {
+                              void startPromptPayPayment();
+                            }
+                          }}
+                        >
+                          {paymentLoading
+                            ? copy.paymentPending
+                            : payment?.status === "PENDING"
+                              ? copy.continuePayment
+                              : copy.checkout}
+                        </button>
+                      ) : (
+                        <Link
+                          className="primary-button"
+                          href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                          prefetch={false}
+                        >
+                          {copy.loginToCheckout}
+                        </Link>
+                      )}
+                      {paymentError && !paymentOpen ? (
+                        <p className="payment-inline-error" role="alert">{paymentError}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {cartIds.length === 0 ||
                   (!cartProducts.isPending &&
                     !cartProducts.isError &&
@@ -701,6 +819,73 @@ export function Marketplace({
                   ) : null}
                 </div>
               </DialogContent>
+            </Dialog>
+            <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+              {payment ? (
+                <DialogContent className="payment-dialog">
+                  <div className="payment-dialog-header">
+                    <div>
+                      <p className="eyebrow">Pluto / PromptPay</p>
+                      <DialogTitle>{copy.paymentTitle}</DialogTitle>
+                      <DialogDescription>{copy.paymentDescription}</DialogDescription>
+                    </div>
+                    <DialogClose asChild>
+                      <button className="icon-button" type="button" aria-label={copy.closePayment}>
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    </DialogClose>
+                  </div>
+                  <div className="payment-dialog-body">
+                    <div className="payment-qr-shell">
+                      <Image
+                        src={payment.qrUrl}
+                        alt="PromptPay QR code"
+                        width={270}
+                        height={270}
+                        sizes="(max-width: 639px) 100vw, 270px"
+                        unoptimized
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    <div className="payment-summary">
+                      <span className={`payment-status payment-status-${payment.status.toLowerCase()}`} role="status">
+                        {payment.status === "PENDING"
+                          ? copy.paymentPending
+                          : payment.status === "PAID"
+                            ? copy.paymentPaid
+                            : payment.status === "EXPIRED"
+                              ? copy.paymentExpired
+                              : copy.paymentFailed}
+                      </span>
+                      <div className="payment-amount-row">
+                        <span>{copy.cartTotal}</span>
+                        <strong>{formatThb(payment.amountMinor, locale)}</strong>
+                      </div>
+                      <dl className="payment-facts">
+                        <div>
+                          <dt>{copy.paymentTransaction}</dt>
+                          <dd>{payment.transactionId}</dd>
+                        </div>
+                        <div>
+                          <dt>{copy.paymentExpires}</dt>
+                          <dd>{new Date(payment.expiresAt).toLocaleString(locale === "th" ? "th-TH" : "en-US")}</dd>
+                        </div>
+                      </dl>
+                      {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
+                      {payment.status === "PENDING" ? (
+                        <button
+                          className="primary-button payment-check-button"
+                          type="button"
+                          disabled={paymentChecking}
+                          onClick={() => void checkPaymentStatus()}
+                        >
+                          {paymentChecking ? copy.paymentPending : copy.paymentCheck}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </DialogContent>
+              ) : null}
             </Dialog>
           </nav>
         </div>

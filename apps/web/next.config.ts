@@ -24,6 +24,11 @@ const nextConfig: NextConfig = {
   turbopack: { root: monorepoRoot },
   poweredByHeader: false,
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "api.qrserver.com", pathname: "/**" },
+    ],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

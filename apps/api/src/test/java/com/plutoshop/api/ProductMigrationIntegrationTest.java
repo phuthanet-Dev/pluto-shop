@@ -41,6 +41,23 @@ class ProductMigrationIntegrationTest {
     }
 
     @Test
+    void migrationCreatesPaymentTables() throws Exception {
+        migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select count(*)
+                        from information_schema.tables
+                        where table_schema = 'public'
+                          and table_name in ('shop_orders', 'shop_order_items', 'payment_transactions')
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getInt(1)).isEqualTo(3);
+        }
+    }
+
+    @Test
     void migrationSeedsExactlyThirtySixProductsInOriginalCatalogOrder() throws Exception {
         migrate();
 

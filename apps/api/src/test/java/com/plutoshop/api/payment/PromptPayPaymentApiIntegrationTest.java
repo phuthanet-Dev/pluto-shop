@@ -1,0 +1,246 @@
+package com.plutoshop.api.payment;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.net.URI;
+import java.time.Instant;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Import(PromptPayPaymentApiIntegrationTest.TestGatewayConfiguration.class)
+@Testcontainers
+class PromptPayPaymentApiIntegrationTest {
+
+    @Container
+    private static final PostgreSQLContainer POSTGRES =
+            new PostgreSQLContainer("postgres:18.6-alpine");
+
+    @DynamicPropertySource
+    static void databaseProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.hikari.read-only", () -> false);
+        registry.add("spring.flyway.enabled", () -> true);
+        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.password", POSTGRES::getPassword);
+        registry.add("payment.inwcloud.api-key", () -> "test-api-key");
+    }
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private InwcloudPaymentGatewayClient gateway;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TestGatewayConfiguration {
+
+        @Bean
+        @Primary
+        InwcloudPaymentGatewayClient gateway() {
+            return mock(InwcloudPaymentGatewayClient.class);
+        }
+    }
+
+    @AfterEach
+    void cleanPaymentFixtures() {
+        jdbcTemplate.update("DELETE FROM payment_transactions");
+        jdbcTemplate.update("DELETE FROM shop_order_items");
+        jdbcTemplate.update("DELETE FROM shop_orders");
+        jdbcTemplate.update("DELETE FROM cart_items");
+        jdbcTemplate.update("DELETE FROM carts");
+        jdbcTemplate.update("DELETE FROM app_users WHERE subject LIKE 'payment-test-%'");
+        jdbcTemplate.update("UPDATE products SET stock_quantity = 88 WHERE id = 2");
+        reset(gateway);
+    }
+
+    @Test
+    void anonymousCannotStartOrCheckPayment() throws Exception {
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .header("Idempotency-Key", "payment-test-anonymous-1"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-1/check"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void checkoutUsesServerCartPricesAndIdempotency() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-create"));
+        addToCart("payment-test-create", 2);
+
+        String response = mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-create"))
+                        .header("Idempotency-Key", "payment-test-idempotency-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transactionId").value("Market-test-create"))
+                .andExpect(jsonPath("$.amountMinor").value(238000))
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Integer storedOrders = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM shop_orders WHERE idempotency_key = ?",
+                Integer.class,
+                "payment-test-idempotency-1");
+        Integer storedPayments = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM payment_transactions WHERE transaction_id = ?",
+                Integer.class,
+                "Market-test-create");
+        org.junit.jupiter.api.Assertions.assertEquals(1, storedOrders);
+        org.junit.jupiter.api.Assertions.assertEquals(1, storedPayments);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-create"))
+                        .header("Idempotency-Key", "payment-test-idempotency-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transactionId").value("Market-test-create"))
+                .andExpect(jsonPath("$.orderId").value(org.hamcrest.Matchers.notNullValue()));
+
+        verify(gateway, times(1)).generate(any());
+        org.junit.jupiter.api.Assertions.assertNotNull(response);
+        Integer remainingStock = jdbcTemplate.queryForObject(
+                "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(86, remainingStock);
+    }
+
+    @Test
+    void pendingPaymentCanBecomePaidAndClearsOnlyOwnedCartItems() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-paid"));
+        when(gateway.check("Market-test-paid"))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PENDING, ""))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PAID, ""));
+        addToCart("payment-test-paid", 2);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-paid"))
+                        .header("Idempotency-Key", "payment-test-paid-key"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/v1/cart")
+                        .with(customer("payment-test-paid"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productId\":2,\"quantity\":3}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].quantity").value(3));
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-paid/check")
+                        .with(customer("payment-test-paid")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-paid/check")
+                        .with(customer("payment-test-paid")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        mockMvc.perform(get("/api/v1/cart").with(customer("payment-test-paid")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].quantity").value(1));
+        String orderStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM shop_orders WHERE id = (SELECT order_id FROM payment_transactions WHERE transaction_id = ?)",
+                String.class,
+                "Market-test-paid");
+        org.junit.jupiter.api.Assertions.assertEquals("PAID", orderStatus);
+    }
+
+    @Test
+    void expiredPaymentReleasesReservedStock() throws Exception {
+        when(gateway.generate(any())).thenReturn(new InwcloudPaymentGatewayClient.GeneratedPayment(
+                "Market-test-expired",
+                URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
+                "000201010212",
+                Instant.now().minusSeconds(1)));
+        addToCart("payment-test-expired", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-expired"))
+                        .header("Idempotency-Key", "payment-test-expired-key"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-expired/check")
+                        .with(customer("payment-test-expired")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EXPIRED"));
+
+        Integer restoredStock = jdbcTemplate.queryForObject(
+                "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(88, restoredStock);
+    }
+
+    @Test
+    void anotherUserCannotCheckSomeoneElsesTransaction() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-owner"));
+        addToCart("payment-test-owner", 1);
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-owner"))
+                        .header("Idempotency-Key", "payment-test-owner-key"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-owner/check")
+                        .with(customer("payment-test-other")))
+                .andExpect(status().isNotFound());
+        verify(gateway, never()).check("Market-test-owner");
+    }
+
+    private void addToCart(String subject, int quantity) throws Exception {
+        mockMvc.perform(post("/api/v1/cart/merge")
+                        .with(customer(subject))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productId\":2,\"quantity\":" + quantity + "}]}"))
+                .andExpect(status().isOk());
+    }
+
+    private static InwcloudPaymentGatewayClient.GeneratedPayment generatedPayment(String transactionId) {
+        return new InwcloudPaymentGatewayClient.GeneratedPayment(
+                transactionId,
+                URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
+                "000201010212",
+                Instant.now().plusSeconds(600));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor customer(String subject) {
+        return jwt().jwt(jwt -> jwt
+                .issuer("http://127.0.0.1:8081/realms/pluto")
+                .subject(subject)
+                .claim("email", subject + "@example.invalid")
+                .claim("name", subject))
+                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
+    }
+}

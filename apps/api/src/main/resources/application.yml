@@ -46,3 +46,8 @@ logging:
   level:
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: OFF
+
+payment:
+  inwcloud:
+    api-base-url: ${INWCLOUD_API_BASE_URL:https://api.inwcloud.shop}
+    api-key: ${INWCLOUD_API_KEY:}

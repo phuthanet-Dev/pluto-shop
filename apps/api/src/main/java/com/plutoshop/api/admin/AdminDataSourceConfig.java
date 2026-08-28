@@ -37,6 +37,11 @@ public class AdminDataSourceConfig {
         return new JpaTransactionManager(entityManagerFactory);
     }
 
+    @Bean(name = "userJdbcTemplate")
+    NamedParameterJdbcTemplate userJdbcTemplate(@Qualifier("dataSource") DataSource dataSource) {
+        return new NamedParameterJdbcTemplate(dataSource);
+    }
+
     @Bean(name = "adminDataSource")
     DataSource adminDataSource(
             @Value("${spring.datasource.admin.url}") String url,

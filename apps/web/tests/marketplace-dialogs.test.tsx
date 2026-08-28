@@ -120,6 +120,65 @@ describe("cart and product details", () => {
     expect(screen.queryByRole("link", { name: "Log in" })).not.toBeInTheDocument();
   });
 
+  it("starts PromptPay checkout from an authenticated cart and shows the QR dialog", async () => {
+    const user = userEvent.setup();
+    const authFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({
+        authenticated: true,
+        user: { sub: "payment-user", email: "payment@example.invalid", name: "Payment User", roles: ["CUSTOMER"] },
+      }), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), { status: 200 }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment",
+        amountMinor: 129900,
+        currency: "THB",
+        qrUrl: "https://api.qrserver.com/v1/create-qr-code/?data=promptpay",
+        payload: "000201010212",
+        expiresAt: "2026-08-29T02:00:00Z",
+        status: "PENDING",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment",
+        amountMinor: 129900,
+        currency: "THB",
+        expiresAt: "2026-08-29T02:00:00Z",
+        status: "PAID",
+        message: "Payment completed",
+      }), { status: 200 }));
+    useCartStore.setState({ cartIds: [1], quantities: { "1": 1 }, mode: "account", hasHydrated: true });
+
+    render(
+      <Marketplace
+        locale="en"
+        fetcher={fetcher}
+        authFetcher={authFetcher}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await screen.findByText("Pluto Glyph Set");
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    expect(await within(drawer).findByText("Pluto Glyph Set")).toBeInTheDocument();
+    await user.click(within(drawer).getByRole("button", { name: "Pay with PromptPay" }));
+
+    const paymentDialog = await screen.findByRole("dialog", { name: "Pay with PromptPay" });
+    expect(within(paymentDialog).getByRole("img", { name: "PromptPay QR code" })).toBeInTheDocument();
+    expect(within(paymentDialog).getByText("Market-test-payment")).toBeInTheDocument();
+    expect(paymentFetcher).toHaveBeenCalledWith("/api/v1/checkout/promptpay", expect.objectContaining({ method: "POST" }));
+    await user.click(within(paymentDialog).getByRole("button", { name: "Check payment" }));
+    expect(await within(paymentDialog).findByText("Payment completed")).toBeInTheDocument();
+    expect(useCartStore.getState().cartIds).toEqual([]);
+  });
+
   it("does not show the bundle type label on product cards", async () => {
     render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
 

@@ -95,7 +95,7 @@ POST   /api/v1/cart/merge
 DELETE /api/v1/cart
 ```
 
-Guest cart ยังคงอยู่ใน browser เฉพาะ numeric product IDs/quantities และจะ merge หลัง login โดย API ตรวจ product/stock/quantity จากฐานข้อมูลจริงเสมอ Next.js แนบ access token ผ่าน encrypted HttpOnly cookie ไปยัง BFF เท่านั้น ไม่ส่ง token ให้ client JavaScript หรือ `localStorage`; refresh token ถ้ามีจะอยู่ใน encrypted HttpOnly cookie แยกต่างหากและใช้ refresh server-side เท่านั้น ส่วน `pluto_app` ยังคง read-only และ `pluto_user` เขียนได้เฉพาะตาราง identity/cart
+Guest cart ยังคงอยู่ใน browser เฉพาะ numeric product IDs/quantities และจะ merge หลัง login โดย API ตรวจ product/stock/quantity จากฐานข้อมูลจริงเสมอ Next.js แนบ access token ผ่าน encrypted HttpOnly cookie ไปยัง BFF เท่านั้น ไม่ส่ง token ให้ client JavaScript หรือ `localStorage`; refresh token ถ้ามีจะอยู่ใน encrypted HttpOnly cookie แยกต่างหากและใช้ refresh server-side เท่านั้น ส่วน `pluto_app` ยังคง read-only และ `pluto_user` เขียนได้เฉพาะตาราง identity/cart/order/payment กับเรียกฟังก์ชัน reserve/release stock ที่จำกัดสิทธิ์
 
 ### Phase 3 admin catalog slice
 
@@ -114,6 +114,26 @@ Admin เพิ่ม/แก้สินค้าและ stock ได้ ร�
 การ signup ใน dev realm ปิด email verification เพื่อให้ local flow ใช้ได้โดยไม่ต้องมี SMTP; production ต้องเปิด verification, ตั้ง HTTPS และใช้ secret manager ก่อนเปิดใช้งานจริง
 
 สำหรับทดสอบ admin ให้เปิด `http://127.0.0.1:8081/admin` ใช้ค่า `KEYCLOAK_ADMIN` และ `KEYCLOAK_ADMIN_PASSWORD` จาก `.env` จากนั้นสร้าง user ทดสอบและ assign realm role `ADMIN` ใน realm `pluto` โดยไม่ใส่ credential ลง Git
+
+### PromptPay checkout/payment slice
+
+ระบบชำระเงินใช้ PromptPay ผ่าน inwcloud โดยเรียก gateway จาก Spring API เท่านั้น:
+
+```text
+POST /api/v1/checkout/promptpay
+POST /api/v1/payments/promptpay/{transactionId}/check
+```
+
+ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser, ใช้ `Idempotency-Key` กันการกดสร้าง QR ซ้ำ, reserve stock ระหว่างรอชำระ และคืน stock เมื่อ QR หมดอายุหรือ payment ล้มเหลว
+
+ตั้งค่า key จาก Dashboard ของ inwcloud ใน `.env` เท่านั้น:
+
+```text
+INWCLOUD_API_BASE_URL=https://api.inwcloud.shop
+INWCLOUD_API_KEY=[ใส่ key ใน .env เท่านั้น]
+```
+
+API key ถูกส่งเข้าเฉพาะ container `api`; web container และ browser ไม่ได้รับ key การตรวจ payment ใช้ `transactionId` ที่ผูกกับ order/user เดิมเพื่อป้องกันการตรวจ transaction ของผู้ใช้อื่น
 
 ## Public API
 
@@ -253,4 +273,4 @@ GitHub Actions ภายนอกถูก pin ด้วย commit SHA และ
 
 ## ยังไม่รวมในรอบนี้
 
-Checkout/payment, order lifecycle, user profile UI, download delivery, Redis, object storage/R2, deployment, Sites และ VPS ยังไม่รวมในเฟสนี้ ปุ่มที่ยังไม่เปิดใช้จะแสดงเป็น phase ถัดไปโดยไม่มี broken links
+Order lifecycle ขั้นสูง, refund/webhook, user profile UI, download delivery, Redis, object storage/R2, deployment, Sites และ VPS ยังไม่รวมในเฟสนี้
