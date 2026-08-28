@@ -63,11 +63,12 @@ public class AdminProductController {
     }
 
     @DeleteMapping("/{id}")
-    public AdminProductResponse archive(
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(
             @PathVariable long id,
             @RequestParam long version,
             @AuthenticationPrincipal Jwt jwt) {
-        return service.archive(id, version, actor(jwt));
+        service.delete(id, version, actor(jwt));
     }
 
     private static AdminProductService.AdminActor actor(Jwt jwt) {

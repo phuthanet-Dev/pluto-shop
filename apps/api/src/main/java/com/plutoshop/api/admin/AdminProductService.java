@@ -155,25 +155,23 @@ public class AdminProductService {
     }
 
     @Transactional(transactionManager = "adminTransactionManager")
-    public AdminProductResponse archive(long id, long version, AdminActor actor) {
-        AdminProductResponse current = required(id);
-        requireVersion(current, version);
-        if (!current.active()) return current;
-        int updated = jdbc.update("""
-                UPDATE products
-                SET active = FALSE,
-                    updated_at = CURRENT_TIMESTAMP,
-                    updated_by = :updatedBy,
-                    version = version + 1
-                WHERE id = :id AND version = :version
+    public void delete(long id, long version, AdminActor actor) {
+        String result = jdbc.queryForObject("""
+                SELECT delete_product_and_carts(
+                    :productId, :version, :actorIssuer, :actorSubject
+                )
                 """, new MapSqlParameterSource()
-                .addValue("updatedBy", actor.subject())
-                .addValue("id", id)
-                .addValue("version", version));
-        if (updated == 0) throw new AdminProductConflictException("Product was changed by another admin");
-        AdminProductResponse result = required(id);
-        writeAudit(id, "ARCHIVE", actor, fields("active"));
-        return result;
+                .addValue("productId", id)
+                .addValue("version", version)
+                .addValue("actorIssuer", actor.issuer())
+                .addValue("actorSubject", actor.subject()), String.class);
+        if ("NOT_FOUND".equals(result)) throw new AdminProductNotFoundException(id);
+        if ("VERSION_CONFLICT".equals(result)) {
+            throw new AdminProductConflictException("Product was changed by another admin");
+        }
+        if (!"DELETED".equals(result)) {
+            throw new AdminProductConflictException("Product could not be deleted");
+        }
     }
 
     private AdminProductResponse required(long id) {

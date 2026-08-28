@@ -131,7 +131,7 @@ PATCH  /api/v1/admin/products/{id}/stock
 DELETE /api/v1/admin/products/{id}?version={version}
 ```
 
-Admin เพิ่ม/แก้สินค้าและ stock ได้ รวมถึง archive สินค้าแบบ soft delete สินค้าที่ archive จะหายจาก public catalog และเพิ่มเข้า cart ใหม่ไม่ได้ แต่ยังเก็บข้อมูลสำหรับ cart/order/audit ส่วน `pluto_admin` เป็น database role แยกสำหรับ catalog/audit mutations; `pluto_user` และ `pluto_app` ไม่มีสิทธิ์เขียน products
+Admin เพิ่ม/แก้สินค้าและ stock ได้ และสามารถลบสินค้าออกจาก `products` แบบถาวรผ่าน DELETE ที่ตรวจ optimistic-lock version ก่อนทำรายการ การลบจะนำสินค้าออกจาก cart ของผู้ใช้ทุกคนแบบ atomic; order snapshot และ audit trail เดิมยังคงอยู่ โดย reference ไปยัง product ที่ถูกลบจะเป็น `NULL` ส่วน `pluto_admin` เป็น database role แยกสำหรับ catalog/audit mutations และ hard-delete function; `pluto_user` และ `pluto_app` ไม่มีสิทธิ์เขียน products
 
 การ signup ใน dev realm ปิด email verification เพื่อให้ local flow ใช้ได้โดยไม่ต้องมี SMTP; production ต้องเปิด verification, ตั้ง HTTPS และใช้ secret manager ก่อนเปิดใช้งานจริง
 

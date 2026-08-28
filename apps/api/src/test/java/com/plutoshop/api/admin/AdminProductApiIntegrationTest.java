@@ -63,6 +63,17 @@ class AdminProductApiIntegrationTest {
 
     @AfterEach
     void removeTestProducts() {
+        jdbcTemplate.update("DELETE FROM shop_order_items WHERE product_slug LIKE 'phase3-test-%'");
+        jdbcTemplate.update("DELETE FROM shop_orders WHERE idempotency_key LIKE 'phase3-test-%'");
+        jdbcTemplate.update("""
+                DELETE FROM cart_items
+                WHERE cart_id IN (SELECT id FROM carts WHERE user_id IN (
+                    SELECT id FROM app_users WHERE subject LIKE 'phase3-delete-user-%'
+                ))
+                """);
+        jdbcTemplate.update("DELETE FROM carts WHERE user_id IN (SELECT id FROM app_users WHERE subject LIKE 'phase3-delete-user-%')");
+        jdbcTemplate.update("DELETE FROM app_users WHERE subject LIKE 'phase3-delete-user-%'");
+        jdbcTemplate.update("DELETE FROM product_audit_log WHERE changed_fields ->> 'slug' LIKE 'phase3-test-%'");
         jdbcTemplate.update("""
                 DELETE FROM product_audit_log
                 WHERE product_id IN (SELECT id FROM products WHERE slug LIKE 'phase3-test-%')
@@ -84,6 +95,16 @@ class AdminProductApiIntegrationTest {
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(productJson("phase3-test-customer")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anonymousAndCustomerCannotDeleteProducts() throws Exception {
+        mockMvc.perform(delete("/api/v1/admin/products/1").param("version", "0"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/admin/products/1")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                        .param("version", "0"))
                 .andExpect(status().isForbidden());
     }
 
@@ -198,7 +219,7 @@ class AdminProductApiIntegrationTest {
     }
 
     @Test
-    void staleUpdateReturnsConflictAndArchiveHidesProductFromPublicCatalog() throws Exception {
+    void staleUpdateReturnsConflictAndHardDeleteHidesProductFromPublicCatalog() throws Exception {
         String slug = "phase3-test-archive";
         mockMvc.perform(post("/api/v1/admin/products")
                         .with(adminJwt())
@@ -226,17 +247,84 @@ class AdminProductApiIntegrationTest {
         mockMvc.perform(delete("/api/v1/admin/products/{id}", id)
                         .with(adminJwt())
                         .param("version", "1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.active").value(false))
-                .andExpect(jsonPath("$.version").value(2));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         mockMvc.perform(get("/api/v1/products").param("q", slug))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(0));
 
         Integer auditCount = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM product_audit_log WHERE product_id = ?", Integer.class, id);
-        assertThat(auditCount).isGreaterThanOrEqualTo(3);
+                "SELECT count(*) FROM product_audit_log WHERE action = 'DELETE' AND changed_fields ->> 'slug' = ?",
+                Integer.class,
+                slug);
+        assertThat(auditCount).isEqualTo(1);
+    }
+
+    @Test
+    void adminHardDeleteRemovesProductFromEveryCartAndPreservesOrderSnapshot() throws Exception {
+        String slug = "phase3-test-hard-delete";
+        mockMvc.perform(post("/api/v1/admin/products")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(productJson(slug)))
+                .andExpect(status().isCreated());
+        long productId = jdbcTemplate.queryForObject(
+                "SELECT id FROM products WHERE slug = ?", Long.class, slug);
+
+        long firstUserId = createTestUser("phase3-delete-user-1");
+        long secondUserId = createTestUser("phase3-delete-user-2");
+        long firstCartId = createActiveCart(firstUserId);
+        long secondCartId = createActiveCart(secondUserId);
+        jdbcTemplate.update("INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, 1)", firstCartId, productId);
+        jdbcTemplate.update("INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, 2)", secondCartId, productId);
+
+        long orderId = jdbcTemplate.queryForObject("""
+                INSERT INTO shop_orders (user_id, status, payment_method, currency, total_minor, idempotency_key)
+                VALUES (?, 'PAID', 'PROMPTPAY', 'THB', 12345, ?)
+                RETURNING id
+                """, Long.class, firstUserId, slug);
+        jdbcTemplate.update("""
+                INSERT INTO shop_order_items (order_id, product_id, product_slug, name_th, name_en, unit_price_minor, quantity)
+                VALUES (?, ?, ?, 'สินค้าที่ลบ', 'Deleted product', 12345, 1)
+                """, orderId, productId, slug);
+
+        mockMvc.perform(delete("/api/v1/admin/products/{id}", productId)
+                        .with(adminJwt())
+                        .param("version", "0"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM products WHERE id = ?", Integer.class, productId))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM cart_items WHERE product_id = ?", Integer.class, productId))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM shop_order_items WHERE order_id = ?", Integer.class, orderId))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT product_id FROM shop_order_items WHERE order_id = ?", Long.class, orderId))
+                .isNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT product_slug FROM shop_order_items WHERE order_id = ?", String.class, orderId))
+                .isEqualTo(slug);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_audit_log
+                WHERE action = 'DELETE' AND changed_fields ->> 'slug' = ?
+                """, Integer.class, slug)).isEqualTo(1);
+    }
+
+    private long createTestUser(String subject) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO app_users (issuer, subject, email, display_name)
+                VALUES ('https://issuer.example/realms/pluto', ?, ?, ?)
+                RETURNING id
+                """, Long.class, subject, subject + "@example.invalid", subject);
+    }
+
+    private long createActiveCart(long userId) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO carts (user_id, status)
+                VALUES (?, 'ACTIVE')
+                RETURNING id
+                """, Long.class, userId);
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {

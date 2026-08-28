@@ -5,8 +5,8 @@ import Link from "next/link";
 
 import {
   AdminProductsApiError,
-  archiveAdminProduct,
   createAdminProduct,
+  deleteAdminProduct,
   fetchAdminProducts,
   updateAdminProduct,
   type AdminProduct,
@@ -26,7 +26,7 @@ function bahtToMinor(value: string): number | null {
   return Number.isSafeInteger(result) ? result : null;
 }
 
-function AdminIcon({ kind }: { kind: "plus" | "edit" | "archive" | "search" | "save" | "cancel" }) {
+function AdminIcon({ kind }: { kind: "plus" | "edit" | "trash" | "search" | "save" | "cancel" }) {
   if (kind === "plus") {
     return <svg className="admin-action-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 4v12M4 10h12" /></svg>;
   }
@@ -449,17 +449,17 @@ export function AdminProductsConsole() {
     }
   }
 
-  async function archiveProduct(product: AdminProduct) {
-    if (!product.active || !window.confirm(`ต้องการเก็บถาวร ${product.nameTh} ใช่หรือไม่ สินค้าจะหายจากแคตตาล็อกสาธารณะ`)) return;
+  async function deleteProduct(product: AdminProduct) {
+    if (!window.confirm(`ต้องการลบ ${product.nameTh} ออกจากฐานข้อมูลถาวรหรือไม่ สินค้าจะถูกนำออกจากรถเข็นของผู้ใช้ทุกคนและไม่สามารถกู้คืนได้`)) return;
     setError(null);
     setNotice(null);
     try {
-      await archiveAdminProduct(product.id, product.version);
-      setNotice(`เก็บถาวร ${product.nameTh} แล้ว`);
+      await deleteAdminProduct(product.id, product.version);
+      setNotice(`ลบ ${product.nameTh} และนำออกจากรถเข็นทั้งหมดแล้ว`);
       await reload();
-    } catch (archiveError) {
-      setSessionExpired(archiveError instanceof AdminProductsApiError && archiveError.status === 401);
-      setError(errorMessage(archiveError));
+    } catch (deleteError) {
+      setSessionExpired(deleteError instanceof AdminProductsApiError && deleteError.status === 401);
+      setError(errorMessage(deleteError));
     }
   }
 
@@ -469,7 +469,7 @@ export function AdminProductsConsole() {
         <div>
           <span className="state-code">แอดมิน / แคตตาล็อก</span>
           <h1 id="admin-products-title">แคตตาล็อกสินค้า</h1>
-          <p>เพิ่ม แก้ไข จัดการสต็อก และเก็บสินค้าโดยไม่กระทบข้อมูลอ้างอิงเดิม</p>
+          <p>เพิ่ม แก้ไข จัดการสต็อก และลบสินค้าออกจากฐานข้อมูลพร้อมรถเข็นของผู้ใช้ทุกคน</p>
         </div>
         <button className="primary-button" type="button" onClick={openCreate}>
           <AdminIcon kind="plus" />
@@ -575,7 +575,7 @@ export function AdminProductsConsole() {
                 <td><span className={product.active ? "admin-status active" : "admin-status archived"}>{product.active ? "ใช้งาน" : "เก็บถาวร"}</span></td>
                 <td className="admin-row-actions">
                   <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไข ${product.nameTh}`} onClick={() => openEdit(product)}><AdminIcon kind="edit" /></button>
-                  <button className="text-button danger admin-icon-button" type="button" disabled={!product.active} aria-label={`เก็บถาวร ${product.nameTh}`} onClick={() => void archiveProduct(product)}><AdminIcon kind="archive" /></button>
+                  <button className="text-button danger admin-icon-button" type="button" aria-label={`ลบ ${product.nameTh}`} onClick={() => void deleteProduct(product)}><AdminIcon kind="trash" /></button>
                 </td>
               </tr>
             )) : null}

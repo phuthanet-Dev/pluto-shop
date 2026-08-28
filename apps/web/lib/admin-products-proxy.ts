@@ -34,7 +34,7 @@ export async function proxyAdminProductsRequest(
   });
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
-  const body = request.method === "GET" || request.method === "DELETE"
+  const requestBody = request.method === "GET" || request.method === "DELETE"
     ? undefined
     : await request.text();
 
@@ -46,7 +46,7 @@ export async function proxyAdminProductsRequest(
       return fetch(upstreamUrl, {
         method: request.method,
         headers: retryHeaders,
-        body,
+        body: requestBody,
         cache: "no-store",
       });
     };
@@ -60,7 +60,8 @@ export async function proxyAdminProductsRequest(
     const responseHeaders = new Headers();
     const upstreamContentType = upstream.headers.get("content-type");
     if (upstreamContentType) responseHeaders.set("content-type", upstreamContentType);
-    return new NextResponse(await upstream.text(), {
+    const responseBody = upstream.status === 204 ? undefined : await upstream.text();
+    return new NextResponse(responseBody, {
       status: upstream.status,
       headers: responseHeaders,
     });

@@ -83,6 +83,19 @@ async function requestJson<T>(
   return parsed.data;
 }
 
+async function requestNoContent(
+  input: string,
+  init: RequestInit,
+  fetcher: typeof fetch,
+): Promise<void> {
+  const response = await fetcher(input, init);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail = typeof body?.detail === "string" ? body.detail : "Admin product request failed";
+    throw new AdminProductsApiError(response.status, detail);
+  }
+}
+
 export async function fetchAdminProducts(
   query = "",
   fetcher: typeof fetch = fetch,
@@ -136,15 +149,14 @@ export async function updateAdminStock(
   );
 }
 
-export async function archiveAdminProduct(
+export async function deleteAdminProduct(
   id: number,
   version: number,
   fetcher: typeof fetch = fetch,
-): Promise<AdminProduct> {
-  return requestJson(
+): Promise<void> {
+  return requestNoContent(
     `/api/v1/admin/products/${id}?version=${version}`,
     { method: "DELETE", headers: { accept: "application/json" } },
-    adminProductSchema,
     fetcher,
   );
 }

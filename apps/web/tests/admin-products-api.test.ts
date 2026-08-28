@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  archiveAdminProduct,
+  deleteAdminProduct,
   fetchAdminProducts,
   type AdminProduct,
 } from "@/lib/admin-products";
@@ -46,7 +46,7 @@ describe("admin products API client", () => {
     });
   });
 
-  it("archives with the server version and reports sanitized errors", async () => {
+  it("deletes with the server version and reports sanitized errors", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ type: "about:blank", title: "Product conflict", status: 409 }), {
         status: 409,
@@ -54,9 +54,19 @@ describe("admin products API client", () => {
       }),
     );
 
-    await expect(archiveAdminProduct(product.id, product.version, fetcher)).rejects.toMatchObject({
+    await expect(deleteAdminProduct(product.id, product.version, fetcher)).rejects.toMatchObject({
       status: 409,
     });
+    expect(fetcher).toHaveBeenCalledWith("/api/v1/admin/products/37?version=0", {
+      method: "DELETE",
+      headers: { accept: "application/json" },
+    });
+  });
+
+  it("accepts the empty 204 hard-delete response", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(deleteAdminProduct(product.id, product.version, fetcher)).resolves.toBeUndefined();
     expect(fetcher).toHaveBeenCalledWith("/api/v1/admin/products/37?version=0", {
       method: "DELETE",
       headers: { accept: "application/json" },

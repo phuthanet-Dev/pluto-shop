@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   fetchAdminProducts: vi.fn(),
   createAdminProduct: vi.fn(),
   updateAdminProduct: vi.fn(),
-  archiveAdminProduct: vi.fn(),
+  deleteAdminProduct: vi.fn(),
   scrollIntoView: vi.fn(),
 }));
 
@@ -51,7 +51,7 @@ describe("AdminProductsConsole", () => {
     mocks.fetchAdminProducts.mockReset().mockResolvedValue({ items: [product], total: 1 });
     mocks.createAdminProduct.mockReset().mockResolvedValue(product);
     mocks.updateAdminProduct.mockReset().mockResolvedValue(product);
-    mocks.archiveAdminProduct.mockReset().mockResolvedValue({ ...product, active: false, version: 1 });
+    mocks.deleteAdminProduct.mockReset().mockResolvedValue(undefined);
     mocks.scrollIntoView.mockReset();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -66,7 +66,7 @@ describe("AdminProductsConsole", () => {
 
     expect(await screen.findByRole("row", { name: /สินค้า Phase 3/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "เก็บถาวร สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ลบ สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
     expect(screen.getByRole("heading", { name: "เพิ่มสินค้า" })).toBeInTheDocument();
     expect(screen.getByLabelText("รหัส URL")).toBeInTheDocument();
@@ -148,14 +148,14 @@ describe("AdminProductsConsole", () => {
     );
   });
 
-  it("requires confirmation before archiving a product", async () => {
+  it("requires confirmation before hard-deleting a product", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "เก็บถาวร สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "ลบ สินค้า Phase 3" }));
     expect(confirm).toHaveBeenCalled();
     await waitFor(() =>
-      expect(mocks.archiveAdminProduct).toHaveBeenCalledWith(product.id, product.version),
+      expect(mocks.deleteAdminProduct).toHaveBeenCalledWith(product.id, product.version),
     );
   });
 });
