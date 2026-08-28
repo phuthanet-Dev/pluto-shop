@@ -96,4 +96,67 @@ describe("payment method dialog", () => {
     expect(within(chooser).queryByLabelText("TrueMoney voucher link")).not.toBeInTheDocument();
     expect(paymentFetcher).not.toHaveBeenCalled();
   });
+
+  it("renders the PromptPay QR payment card with amount, timer, and actions", async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), {
+        status: 200,
+      }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment",
+        amountMinor: 129900,
+        currency: "THB",
+        qrUrl: "https://api.qrserver.com/v1/create-qr-code/?data=promptpay",
+        payload: "000201010212",
+        expiresAt: "2099-08-29T02:00:00Z",
+        status: "PENDING",
+      }), { status: 200 }),
+    );
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(
+      <Marketplace
+        locale="en"
+        fetcher={fetcher}
+        authFetcher={authFetcher()}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooser = await findPaymentMethodDialog();
+    await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
+
+    const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    const qrCode = within(paymentDialog).getByRole("img", { name: "PromptPay QR code" });
+    expect(qrCode).toBeInTheDocument();
+    expect(qrCode).toHaveAttribute("loading", "eager");
+    expect(within(paymentDialog).getByText("Amount due")).toBeInTheDocument();
+    expect(within(paymentDialog).getByRole("button", { name: "Copy payment payload" })).toBeInTheDocument();
+    expect(within(paymentDialog).getByText("Time remaining")).toBeInTheDocument();
+    expect(within(paymentDialog).getByText("Automatic status check every 5 seconds")).toBeInTheDocument();
+    expect(within(paymentDialog).getByTestId("payment-countdown")).toHaveTextContent(/^\d{2}:\d{2}$/u);
+    expect(within(paymentDialog).getByRole("button", { name: "Check payment" })).toBeInTheDocument();
+    expect(within(paymentDialog).getByRole("button", { name: "Close payment window" })).toBeInTheDocument();
+    await user.click(within(paymentDialog).getByRole("button", { name: "Copy payment payload" }));
+    await waitFor(() =>
+      expect(within(paymentDialog).getByRole("button", { name: "Copy payment payload" })).toHaveTextContent("Copied"),
+    );
+    expect(writeText).toHaveBeenCalledWith("000201010212");
+  });
 });

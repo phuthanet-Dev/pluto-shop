@@ -174,7 +174,7 @@ describe("cart and product details", () => {
     if (!(chooser instanceof HTMLElement)) throw new Error("Payment method dialog is not mounted");
     await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
 
-    const paymentDialog = await screen.findByRole("dialog", { name: "Pay with PromptPay" });
+    const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
     expect(within(paymentDialog).getByRole("img", { name: "PromptPay QR code" })).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Market-test-payment")).toBeInTheDocument();
     expect(paymentFetcher).toHaveBeenCalledWith("/api/v1/checkout/promptpay", expect.objectContaining({ method: "POST" }));

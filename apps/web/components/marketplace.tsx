@@ -124,6 +124,18 @@ const copyByLocale = {
     trueMoneyContractPending: "รอยืนยัน contract ก่อนเปิดรับ voucher",
     loginToCheckout: "เข้าสู่ระบบเพื่อชำระเงิน",
     continuePayment: "ดูการชำระเงินต่อ",
+    paymentPayeeLabel: "ระบบรับชำระ",
+    paymentPayeeName: "Pluto Shop",
+    paymentPayeeDetail: "PromptPay checkout",
+    paymentDialogName: "หน้าชำระเงิน Pluto Shop PromptPay",
+    paymentAmountLabel: "ยอดที่ต้องชำระ",
+    paymentCopy: "คัดลอก",
+    paymentCopied: "คัดลอกแล้ว",
+    paymentCopyPayload: "คัดลอกข้อมูล PromptPay",
+    paymentCopyError: "ไม่สามารถคัดลอกข้อมูลการชำระเงินได้",
+    paymentRemaining: "เวลาที่เหลือ",
+    paymentAutoCheck: "ตรวจสอบอัตโนมัติทุก 5 วินาที",
+    paymentDismiss: "ปิดหน้าต่าง",
     paymentTitle: "ชำระเงินด้วย PromptPay",
     paymentDescription: "สแกน QR เพื่อชำระเงิน แล้วกดตรวจสอบสถานะ",
     paymentPending: "กำลังรอตรวจสอบการชำระเงิน",
@@ -200,6 +212,18 @@ const copyByLocale = {
     trueMoneyContractPending: "Provider contract verification is required before voucher redemption",
     loginToCheckout: "Log in to pay",
     continuePayment: "Continue payment",
+    paymentPayeeLabel: "Payment receiver",
+    paymentPayeeName: "Pluto Shop",
+    paymentPayeeDetail: "PromptPay checkout",
+    paymentDialogName: "Pluto Shop PromptPay payment",
+    paymentAmountLabel: "Amount due",
+    paymentCopy: "Copy",
+    paymentCopied: "Copied",
+    paymentCopyPayload: "Copy payment payload",
+    paymentCopyError: "Could not copy the payment payload",
+    paymentRemaining: "Time remaining",
+    paymentAutoCheck: "Automatic status check every 5 seconds",
+    paymentDismiss: "Close payment window",
     paymentTitle: "Pay with PromptPay",
     paymentDescription: "Scan the QR code, then check the payment status.",
     paymentPending: "Waiting for payment confirmation",
@@ -254,6 +278,13 @@ type OptionChooserState = {
 type PaymentViewState = PromptPayCheckout & {
   message?: PromptPayStatus["message"];
 };
+
+function formatPaymentCountdown(totalSeconds: number): string {
+  const boundedSeconds = Math.min(99 * 60 + 59, Math.max(0, totalSeconds));
+  const minutes = Math.floor(boundedSeconds / 60).toString().padStart(2, "0");
+  const seconds = (boundedSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
 
 function groupProductsForDisplay(items: Product[]): ProductDisplayGroup[] {
   const groups = new Map<string, ProductDisplayGroup>();
@@ -317,6 +348,8 @@ export function Marketplace({
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentChecking, setPaymentChecking] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentNow, setPaymentNow] = useState(() => Date.now());
+  const [paymentCopied, setPaymentCopied] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const cartIds = useCartStore((state) => state.cartIds);
@@ -547,6 +580,9 @@ export function Marketplace({
     [products.data?.items],
   );
   const promptPayAvailable = isPromptPayAvailableAt(new Date());
+  const paymentRemainingSeconds = payment
+    ? Math.max(0, Math.ceil((new Date(payment.expiresAt).getTime() - paymentNow) / 1_000))
+    : 0;
 
   function openProduct(product: Product, options: Product[], trigger: HTMLButtonElement) {
     detailTriggerRef.current = trigger;
@@ -577,6 +613,8 @@ export function Marketplace({
     try {
       const created = await createPromptPayPayment(paymentFetcher);
       setPayment({ ...created });
+      setPaymentNow(Date.now());
+      setPaymentCopied(false);
       setPaymentMethodOpen(false);
       setPaymentOpen(true);
       setCartOpen(false);
@@ -591,6 +629,17 @@ export function Marketplace({
     setPaymentError(null);
     setCartOpen(false);
     window.setTimeout(() => setPaymentMethodOpen(true), 0);
+  }
+
+  async function copyPaymentPayload() {
+    if (!payment) return;
+    try {
+      await navigator.clipboard.writeText(payment.payload);
+      setPaymentCopied(true);
+      setPaymentError(null);
+    } catch {
+      setPaymentError(copy.paymentCopyError);
+    }
   }
 
   const checkPaymentStatus = useCallback(async () => {
@@ -613,6 +662,14 @@ export function Marketplace({
     const timer = window.setInterval(() => void checkPaymentStatus(), 5_000);
     return () => window.clearInterval(timer);
   }, [checkPaymentStatus, payment, paymentOpen]);
+
+  useEffect(() => {
+    if (!paymentOpen || payment?.status !== "PENDING") return;
+    const tick = () => setPaymentNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 1_000);
+    return () => window.clearInterval(timer);
+  }, [payment?.status, paymentOpen]);
 
   const priceControl = (
     <>
@@ -905,12 +962,27 @@ export function Marketplace({
             </Dialog>
             <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
               {payment ? (
-                <DialogContent className="payment-dialog">
+                <DialogContent className="payment-dialog" aria-label={copy.paymentDialogName}>
                   <div className="payment-dialog-header">
-                    <div>
-                      <p className="eyebrow">Pluto / PromptPay</p>
-                      <DialogTitle>{copy.paymentTitle}</DialogTitle>
-                      <DialogDescription>{copy.paymentDescription}</DialogDescription>
+                    <div className="payment-payee">
+                      <div className="payment-payee-mark" aria-hidden="true">
+                        <span>PP</span>
+                      </div>
+                      <div className="payment-payee-copy">
+                        <span className="payment-payee-label">{copy.paymentPayeeLabel}</span>
+                        <DialogTitle>
+                          <span className="sr-only">{copy.paymentDialogName}</span>
+                          <span aria-hidden="true">{copy.paymentPayeeName}</span>
+                        </DialogTitle>
+                        <DialogDescription>
+                          <span>{copy.paymentPayeeDetail}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span className="payment-transaction-line">
+                            <span className="sr-only">{copy.paymentTransaction}: </span>
+                            <code>{payment.transactionId}</code>
+                          </span>
+                        </DialogDescription>
+                      </div>
                     </div>
                     <DialogClose asChild>
                       <button className="icon-button" type="button" aria-label={copy.closePayment}>
@@ -919,52 +991,96 @@ export function Marketplace({
                     </DialogClose>
                   </div>
                   <div className="payment-dialog-body">
-                    <div className="payment-qr-shell">
-                      <Image
-                        src={payment.qrUrl}
-                        alt="PromptPay QR code"
-                        width={270}
-                        height={270}
-                        sizes="(max-width: 639px) 100vw, 270px"
-                        unoptimized
-                        referrerPolicy="no-referrer"
-                      />
+                    <div className="payment-qr-column">
+                      <div className="payment-qr-shell">
+                        <div className="payment-qr-frame">
+                          <Image
+                            src={payment.qrUrl}
+                            alt="PromptPay QR code"
+                            width={270}
+                            height={270}
+                            sizes="(max-width: 639px) 100vw, 270px"
+                            loading="eager"
+                            unoptimized
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      </div>
+                      <div className="payment-qr-badge" aria-label={copy.paymentPayeeName}>
+                        <span className="payment-badge-mark" aria-hidden="true">✦</span>
+                        <span>{copy.paymentPayeeName}</span>
+                        <span className="payment-badge-separator" aria-hidden="true">•</span>
+                        <span>{copy.paymentPayeeDetail}</span>
+                      </div>
                     </div>
                     <div className="payment-summary">
-                      <span className={`payment-status payment-status-${payment.status.toLowerCase()}`} role="status">
-                        {payment.status === "PENDING"
-                          ? copy.paymentPending
-                          : payment.status === "PAID"
-                            ? copy.paymentPaid
-                            : payment.status === "EXPIRED"
-                              ? copy.paymentExpired
-                              : copy.paymentFailed}
-                      </span>
-                      <div className="payment-amount-row">
-                        <span>{copy.cartTotal}</span>
-                        <strong>{formatThb(payment.amountMinor, locale)}</strong>
-                      </div>
-                      <dl className="payment-facts">
+                      <p className="payment-instruction">{copy.paymentDescription}</p>
+                      <div className="payment-amount-card">
                         <div>
-                          <dt>{copy.paymentTransaction}</dt>
-                          <dd>{payment.transactionId}</dd>
+                          <span className="payment-amount-label">{copy.paymentAmountLabel}</span>
+                          <strong>{formatThb(payment.amountMinor, locale)}</strong>
                         </div>
-                        <div>
-                          <dt>{copy.paymentExpires}</dt>
-                          <dd>{new Date(payment.expiresAt).toLocaleString(locale === "th" ? "th-TH" : "en-US")}</dd>
-                        </div>
-                      </dl>
-                      {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
-                      {payment.status === "PENDING" ? (
                         <button
-                          className="primary-button payment-check-button"
+                          className="payment-copy-button"
                           type="button"
-                          disabled={paymentChecking}
-                          onClick={() => void checkPaymentStatus()}
+                          aria-label={copy.paymentCopyPayload}
+                          aria-live="polite"
+                          onClick={() => void copyPaymentPayload()}
                         >
-                          {paymentChecking ? copy.paymentPending : copy.paymentCheck}
+                          <span aria-hidden="true">▣</span>
+                          {paymentCopied ? copy.paymentCopied : copy.paymentCopy}
                         </button>
-                      ) : null}
+                      </div>
+                      {payment.status === "PENDING" ? (
+                        <div className="payment-timer-card" role="status" aria-live="polite">
+                          <span className="payment-timer-icon" aria-hidden="true">◷</span>
+                          <div className="payment-timer-copy">
+                            <span>{copy.paymentRemaining}</span>
+                            <strong data-testid="payment-countdown">
+                              {formatPaymentCountdown(paymentRemainingSeconds)}
+                            </strong>
+                          </div>
+                          <span className="payment-auto-check">{copy.paymentAutoCheck}</span>
+                          <span className="payment-timer-bar" aria-hidden="true" />
+                        </div>
+                      ) : (
+                        <div className={`payment-state-card payment-state-${payment.status.toLowerCase()}`} role="status">
+                          <span className={`payment-status payment-status-${payment.status.toLowerCase()}`}>
+                            {payment.status === "PAID"
+                              ? copy.paymentPaid
+                              : payment.status === "EXPIRED"
+                                ? copy.paymentExpired
+                                : copy.paymentFailed}
+                          </span>
+                          <p>
+                            {payment.status === "PAID"
+                              ? copy.paymentPaid
+                              : payment.status === "EXPIRED"
+                                ? copy.paymentExpired
+                                : copy.paymentFailed}
+                          </p>
+                        </div>
+                      )}
+                      {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
+                      <div className="payment-action-row">
+                        {payment.status === "PENDING" ? (
+                          <button
+                            className="payment-check-button"
+                            type="button"
+                            disabled={paymentChecking}
+                            onClick={() => void checkPaymentStatus()}
+                          >
+                            <span aria-hidden="true">⟳</span>
+                            {paymentChecking ? copy.paymentPending : copy.paymentCheck}
+                          </button>
+                        ) : null}
+                        <DialogClose asChild>
+                          <button className="payment-dismiss-button" type="button">
+                            <span aria-hidden="true">⊗</span>
+                            {copy.paymentDismiss}
+                          </button>
+                        </DialogClose>
+                      </div>
                     </div>
                   </div>
                 </DialogContent>
