@@ -45,22 +45,28 @@ public class PromptPayPaymentService {
     private final ProductRepository productRepository;
     private final NamedParameterJdbcTemplate jdbc;
     private final InwcloudPaymentGatewayClient gateway;
+    private final boolean promptPayBlackoutEnforced;
 
     PromptPayPaymentService(
             AppUserRepository userRepository,
             CartRepository cartRepository,
             ProductRepository productRepository,
             @org.springframework.beans.factory.annotation.Qualifier("userJdbcTemplate") NamedParameterJdbcTemplate jdbc,
-            InwcloudPaymentGatewayClient gateway) {
+            InwcloudPaymentGatewayClient gateway,
+            @org.springframework.beans.factory.annotation.Value("${payment.inwcloud.promptpay-blackout-enforced:true}") boolean promptPayBlackoutEnforced) {
         this.userRepository = userRepository;
         this.cartRepository = cartRepository;
         this.productRepository = productRepository;
         this.jdbc = jdbc;
         this.gateway = gateway;
+        this.promptPayBlackoutEnforced = promptPayBlackoutEnforced;
     }
 
     @Transactional
     public PromptPayCheckoutResponse createPromptPay(Jwt jwt, String idempotencyKey) {
+        if (promptPayBlackoutEnforced && !PromptPayAvailability.isAvailableAt(Instant.now())) {
+            throw new PromptPayUnavailableException();
+        }
         validateIdempotencyKey(idempotencyKey);
         AppUser user = resolveUser(jwt);
         Optional<PaymentSnapshot> existing = findByIdempotencyKey(user.getId(), idempotencyKey);

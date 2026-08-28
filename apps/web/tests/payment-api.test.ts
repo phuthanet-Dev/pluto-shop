@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { checkPromptPayPayment, createPromptPayPayment } from "@/lib/payment-api";
+import { checkPromptPayPayment, createPromptPayPayment, isPromptPayAvailableAt } from "@/lib/payment-api";
 
 const checkoutResponse = {
   orderId: 17,
@@ -24,6 +24,13 @@ const statusResponse = {
 };
 
 describe("PromptPay client", () => {
+  it("uses Bangkok time for the PromptPay blackout window", () => {
+    expect(isPromptPayAvailableAt(new Date("2026-08-29T16:29:59Z"))).toBe(true);
+    expect(isPromptPayAvailableAt(new Date("2026-08-29T16:30:00Z"))).toBe(false);
+    expect(isPromptPayAvailableAt(new Date("2026-08-29T18:29:59Z"))).toBe(false);
+    expect(isPromptPayAvailableAt(new Date("2026-08-29T18:30:00Z"))).toBe(true);
+  });
+
   it("creates a payment through the same-origin BFF with an idempotency key", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify(checkoutResponse), { status: 200 }),

@@ -1405,6 +1405,70 @@ button:disabled {
   width: 100%;
 }
 
+.payment-method-dialog {
+  width: min(calc(100vw - 32px), 620px);
+  padding: 0;
+  background: #0b080d;
+}
+
+.payment-method-body {
+  display: grid;
+  gap: 18px;
+  padding: 25px;
+}
+
+.payment-method-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.payment-method-option {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 132px;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--ink);
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.payment-method-option:hover:not(:disabled),
+.payment-method-option:focus-visible {
+  border-color: rgba(173, 139, 255, 0.65);
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.payment-method-option:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.payment-method-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.payment-method-option-title {
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.payment-method-option-description {
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.55;
+}
+
+.payment-method-option-note {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
 .cart-loading-line {
   display: block;
   height: 70px;
@@ -2087,6 +2151,22 @@ button:disabled {
 
   .payment-dialog {
     width: calc(100vw - 20px);
+  }
+
+  .payment-method-dialog {
+    width: calc(100vw - 20px);
+  }
+
+  .payment-method-body {
+    padding: 16px;
+  }
+
+  .payment-method-options {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-method-option {
+    min-height: 100px;
   }
 
   .payment-dialog-header {

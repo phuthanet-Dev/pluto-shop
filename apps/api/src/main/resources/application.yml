@@ -51,6 +51,7 @@ payment:
   inwcloud:
     api-base-url: ${INWCLOUD_API_BASE_URL:https://api.inwcloud.shop}
     api-key: ${INWCLOUD_API_KEY:}
+    promptpay-blackout-enforced: ${INWCLOUD_PROMPTPAY_BLACKOUT_ENFORCED:true}
     expiry-sweep-enabled: ${INWCLOUD_PAYMENT_EXPIRY_SWEEP_ENABLED:true}
     expiry-sweep-delay-ms: ${INWCLOUD_PAYMENT_EXPIRY_SWEEP_DELAY_MS:60000}
     expiry-sweep-initial-delay-ms: ${INWCLOUD_PAYMENT_EXPIRY_SWEEP_INITIAL_DELAY_MS:60000}

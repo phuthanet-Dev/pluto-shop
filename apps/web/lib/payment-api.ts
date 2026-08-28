@@ -59,6 +59,19 @@ export function validTransactionId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/u.test(value);
 }
 
+export function isPromptPayAvailableAt(value: Date): boolean {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(value);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  const minutesSinceMidnight = hour * 60 + minute;
+  return minutesSinceMidnight >= 90 && minutesSinceMidnight < 1_410;
+}
+
 export async function createPromptPayPayment(
   fetcher: typeof fetch = fetch,
   idempotencyKey = globalThis.crypto.randomUUID(),

@@ -58,6 +58,7 @@ class PromptPayPaymentApiIntegrationTest {
         registry.add("spring.flyway.user", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("payment.inwcloud.api-key", () -> "test-api-key");
+        registry.add("payment.inwcloud.promptpay-blackout-enforced", () -> false);
         registry.add("payment.inwcloud.expiry-sweep-enabled", () -> false);
     }
 

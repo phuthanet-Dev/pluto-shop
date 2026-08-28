@@ -19,6 +19,7 @@ import com.plutoshop.api.payment.PaymentConfigurationException;
 import com.plutoshop.api.payment.PaymentConflictException;
 import com.plutoshop.api.payment.PaymentGatewayException;
 import com.plutoshop.api.payment.PaymentNotFoundException;
+import com.plutoshop.api.payment.PromptPayUnavailableException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -70,6 +71,11 @@ class ApiExceptionHandler {
     @ExceptionHandler(PaymentNotFoundException.class)
     ResponseEntity<SanitizedProblemDetail> handlePaymentNotFound(PaymentNotFoundException exception) {
         return problem(HttpStatus.NOT_FOUND, "Payment not found", exception.getMessage());
+    }
+
+    @ExceptionHandler(PromptPayUnavailableException.class)
+    ResponseEntity<SanitizedProblemDetail> handlePromptPayUnavailable(PromptPayUnavailableException exception) {
+        return problem(HttpStatus.CONFLICT, "PromptPay temporarily unavailable", "PromptPay is unavailable during the scheduled window");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

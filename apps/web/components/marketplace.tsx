@@ -23,6 +23,7 @@ import { fetchCart, mergeCart, replaceCart } from "@/lib/cart-api";
 import {
   checkPromptPayPayment,
   createPromptPayPayment,
+  isPromptPayAvailableAt,
   type PromptPayCheckout,
   type PromptPayStatus,
 } from "@/lib/payment-api";
@@ -111,7 +112,16 @@ const copyByLocale = {
     chooseOptionDescription: "เลือกตัวเลือกที่ต้องการก่อนดูรายละเอียด",
     closeOptionChooser: "ปิดตัวเลือก",
     fromPrice: "เริ่มต้น",
-    checkout: "ชำระเงินด้วย PromptPay",
+    checkout: "เลือกวิธีชำระเงิน",
+    choosePaymentMethod: "เลือกวิธีชำระเงิน",
+    choosePaymentDescription: "เลือกช่องทางชำระเงินที่ต้องการใช้กับรายการนี้",
+    promptPay: "PromptPay",
+    payWithPromptPay: "ชำระด้วย PromptPay",
+    promptPayHours: "เปิดให้บริการ 01:30–23:30 น. (เวลาไทย)",
+    promptPayClosed: "ปิดบริการ 23:30–01:30 น. (เวลาไทย)",
+    trueMoney: "TrueMoney Wallet",
+    trueMoneyUnavailable: "ยังไม่พร้อมใช้งาน",
+    trueMoneyContractPending: "รอยืนยัน contract ก่อนเปิดรับ voucher",
     loginToCheckout: "เข้าสู่ระบบเพื่อชำระเงิน",
     continuePayment: "ดูการชำระเงินต่อ",
     paymentTitle: "ชำระเงินด้วย PromptPay",
@@ -178,7 +188,16 @@ const copyByLocale = {
     chooseOptionDescription: "Choose an option before opening the product details.",
     closeOptionChooser: "Close option chooser",
     fromPrice: "From",
-    checkout: "Pay with PromptPay",
+    checkout: "Choose payment method",
+    choosePaymentMethod: "Choose a payment method",
+    choosePaymentDescription: "Select how you want to pay for this order.",
+    promptPay: "PromptPay",
+    payWithPromptPay: "Pay with PromptPay",
+    promptPayHours: "Available 01:30–23:30 (Bangkok time)",
+    promptPayClosed: "Closed 23:30–01:30 (Bangkok time)",
+    trueMoney: "TrueMoney Wallet",
+    trueMoneyUnavailable: "Not available yet",
+    trueMoneyContractPending: "Provider contract verification is required before voucher redemption",
     loginToCheckout: "Log in to pay",
     continuePayment: "Continue payment",
     paymentTitle: "Pay with PromptPay",
@@ -294,6 +313,7 @@ export function Marketplace({
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [payment, setPayment] = useState<PaymentViewState | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentMethodOpen, setPaymentMethodOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentChecking, setPaymentChecking] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -526,6 +546,7 @@ export function Marketplace({
     () => groupProductsForDisplay(products.data?.items ?? []),
     [products.data?.items],
   );
+  const promptPayAvailable = isPromptPayAvailableAt(new Date());
 
   function openProduct(product: Product, options: Product[], trigger: HTMLButtonElement) {
     detailTriggerRef.current = trigger;
@@ -547,11 +568,16 @@ export function Marketplace({
 
   async function startPromptPayPayment() {
     if (!authSession.data?.authenticated || cartIds.length === 0) return;
+    if (!promptPayAvailable) {
+      setPaymentError(copy.promptPayClosed);
+      return;
+    }
     setPaymentLoading(true);
     setPaymentError(null);
     try {
       const created = await createPromptPayPayment(paymentFetcher);
       setPayment({ ...created });
+      setPaymentMethodOpen(false);
       setPaymentOpen(true);
       setCartOpen(false);
     } catch {
@@ -559,6 +585,12 @@ export function Marketplace({
     } finally {
       setPaymentLoading(false);
     }
+  }
+
+  function openPaymentMethodDialog() {
+    setPaymentError(null);
+    setCartOpen(false);
+    window.setTimeout(() => setPaymentMethodOpen(true), 0);
   }
 
   const checkPaymentStatus = useCallback(async () => {
@@ -787,7 +819,7 @@ export function Marketplace({
                             if (payment?.status === "PENDING") {
                               setPaymentOpen(true);
                             } else {
-                              void startPromptPayPayment();
+                              openPaymentMethodDialog();
                             }
                           }}
                         >
@@ -817,6 +849,57 @@ export function Marketplace({
                     cartProductsInView.length === 0) ? (
                     <p className="empty-cart">{copy.cartEmpty}</p>
                   ) : null}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Dialog
+              open={paymentMethodOpen}
+              onOpenChange={(open) => {
+                setPaymentMethodOpen(open);
+                if (!open) {
+                  setPaymentError(null);
+                }
+              }}
+            >
+              <DialogContent className="payment-method-dialog">
+                <div className="payment-dialog-header">
+                  <div>
+                    <p className="eyebrow">Pluto / Checkout</p>
+                    <DialogTitle>{copy.choosePaymentMethod}</DialogTitle>
+                    <DialogDescription>{copy.choosePaymentDescription}</DialogDescription>
+                  </div>
+                  <DialogClose asChild>
+                    <button className="icon-button" type="button" aria-label={copy.closePayment}>
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </DialogClose>
+                </div>
+                <div className="payment-method-body">
+                  <div className="payment-method-options">
+                    <button
+                      className="payment-method-option"
+                      type="button"
+                      aria-label={copy.payWithPromptPay}
+                      disabled={!promptPayAvailable || paymentLoading}
+                      onClick={() => void startPromptPayPayment()}
+                    >
+                      <span className="payment-method-option-title">{copy.promptPay}</span>
+                      <span className="payment-method-option-description">
+                        {promptPayAvailable ? copy.promptPayHours : copy.promptPayClosed}
+                      </span>
+                    </button>
+                    <button
+                      className="payment-method-option payment-method-option-disabled"
+                      type="button"
+                      aria-label={copy.trueMoney}
+                      disabled
+                    >
+                      <span className="payment-method-option-title">{copy.trueMoney}</span>
+                      <span className="payment-method-option-description">{copy.trueMoneyUnavailable}</span>
+                      <span className="payment-method-option-note">{copy.trueMoneyContractPending}</span>
+                    </button>
+                  </div>
+                  {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
                 </div>
               </DialogContent>
             </Dialog>

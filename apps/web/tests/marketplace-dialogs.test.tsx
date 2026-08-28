@@ -168,14 +168,18 @@ describe("cart and product details", () => {
     await user.click(screen.getByRole("button", { name: "Cart" }));
     const drawer = screen.getByRole("dialog", { name: "Cart" });
     expect(await within(drawer).findByText("Pluto Glyph Set")).toBeInTheDocument();
-    await user.click(within(drawer).getByRole("button", { name: "Pay with PromptPay" }));
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooserTitle = await screen.findByText("Choose a payment method");
+    const chooser = chooserTitle.closest('[role="dialog"]');
+    if (!(chooser instanceof HTMLElement)) throw new Error("Payment method dialog is not mounted");
+    await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
 
     const paymentDialog = await screen.findByRole("dialog", { name: "Pay with PromptPay" });
     expect(within(paymentDialog).getByRole("img", { name: "PromptPay QR code" })).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Market-test-payment")).toBeInTheDocument();
     expect(paymentFetcher).toHaveBeenCalledWith("/api/v1/checkout/promptpay", expect.objectContaining({ method: "POST" }));
     await user.click(within(paymentDialog).getByRole("button", { name: "Check payment" }));
-    expect(await within(paymentDialog).findByText("Payment completed")).toBeInTheDocument();
+    expect(await within(paymentDialog).findByRole("status")).toHaveTextContent("Payment completed");
     expect(useCartStore.getState().cartIds).toEqual([]);
   });
 

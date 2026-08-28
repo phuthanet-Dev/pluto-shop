@@ -12,7 +12,7 @@ npm run dev:docker -- --detach --wait
 
 คำสั่งนี้จะ:
 
-1. สร้าง `.env` ครั้งแรกด้วยรหัสผ่าน PostgreSQL แบบสุ่มสองชุด (owner/migration และ runtime read-only) โดยไม่แสดงรหัสผ่านใน log
+1. สร้าง `.env` ครั้งแรกด้วยรหัสผ่าน PostgreSQL แยกกันสำหรับ owner, application, write, admin และ inspector โดยไม่แสดงรหัสผ่านใน log
 2. build `api` image แล้ว start `postgres` → one-shot `migrate` → read-only `api` → `web`
 3. รอ health checks ตาม dependency order
 
@@ -29,7 +29,29 @@ docker compose down
 > [!CAUTION]
 > `docker compose down --volumes` จะลบฐานข้อมูล local ทั้งหมด ใช้เฉพาะเมื่อตั้งใจ reset seed/migration ใหม่เท่านั้น
 
-หากต้องการกำหนดค่าเอง ให้คัดลอก `.env.example` เป็น `.env` และเปลี่ยน placeholder ทั้งสองค่าเป็น secret แบบสุ่มยาว ๆ ก่อนรัน Compose
+หากต้องการกำหนดค่าเอง ให้คัดลอก `.env.example` เป็น `.env` และเปลี่ยน placeholder ของ secret ทุกตัวเป็นค่าที่สุ่มและยาวก่อนรัน Compose
+
+### เชื่อมต่อ PostgreSQL จาก Windows GUI
+
+ชื่อ host `postgres` ใช้ได้เฉพาะระหว่าง container ใน Compose เท่านั้น หากใช้ DBeaver/pgAdmin บน Windows ให้เปิด proxy สำหรับงานพัฒนาชั่วคราว:
+
+```bash
+docker compose --profile db-client up -d postgres-gui
+```
+
+ใช้ค่าต่อไปนี้ใน GUI:
+
+| Field | Value |
+|---|---|
+| Host | `127.0.0.1` |
+| Port | `5432` |
+| Database | `plutoshop` |
+| Username (read-only) | `pluto_inspector` |
+| Password (read-only) | ค่าจาก `POSTGRES_INSPECTOR_PASSWORD` ใน `.env` |
+
+สำหรับงาน catalog/admin ที่ต้องใช้สิทธิ์เขียน ให้ใช้ `pluto_admin` กับค่า `POSTGRES_ADMIN_PASSWORD` แทน โดย role นี้ไม่ได้รับสิทธิ์อ่านข้อมูลผู้ใช้ทั้งหมด
+
+ถ้าต้องการหยุด proxy ให้รัน `docker compose --profile db-client stop postgres-gui` โดย PostgreSQL และ named volume จะไม่ถูกลบ โปรไฟล์นี้ bind เฉพาะ loopback และไม่เริ่มเองใน stack ปกติ
 
 ## โครงสร้าง
 
@@ -54,7 +76,7 @@ Owner secret ──one-shot migrate/Flyway────────────�
 ```
 
 - Browser ไม่เห็น database credentials และไม่เรียก PostgreSQL โดยตรง
-- PostgreSQL และ Spring API ไม่ publish port ออก host; มีเพียง web ที่ bind `127.0.0.1` และ proxy `/api/*` ไป API ผ่าน private Compose network
+- PostgreSQL และ Spring API ไม่ publish port ออก host ใน stack ปกติ; มีเพียง web ที่ bind `127.0.0.1` และ proxy `/api/*` ไป API ผ่าน private Compose network การเปิด profile `db-client` จะเพิ่มเฉพาะ TCP proxy ที่ bind `127.0.0.1:5432` โดย PostgreSQL ยังอยู่บน `data` network แบบ internal
 - Flyway owner credentials อยู่เฉพาะ one-shot `migrate` container ที่จบก่อน API เริ่ม; long-running API ได้เพียง `pluto_app` และปิด Flyway โดย role นี้มี `SELECT` เฉพาะตาราง `products`
 - API ไม่มี CORS เพราะ browser ใช้ same-origin proxy
 - Response จาก API ถูกตรวจ schema ก่อน render และไม่ใช้ `dangerouslySetInnerHTML`
@@ -115,16 +137,22 @@ Admin เพิ่ม/แก้สินค้าและ stock ได้ ร�
 
 สำหรับทดสอบ admin ให้เปิด `http://127.0.0.1:8081/admin` ใช้ค่า `KEYCLOAK_ADMIN` และ `KEYCLOAK_ADMIN_PASSWORD` จาก `.env` จากนั้นสร้าง user ทดสอบและ assign realm role `ADMIN` ใน realm `pluto` โดยไม่ใส่ credential ลง Git
 
-### PromptPay checkout/payment slice
+### PromptPay/TrueMoney payment-method selection
 
-ระบบชำระเงินใช้ PromptPay ผ่าน inwcloud โดยเรียก gateway จาก Spring API เท่านั้น:
+หน้า checkout เปิด modal ให้เลือก PromptPay หรือ TrueMoney Wallet แต่ TrueMoney จะแสดงเป็นตัวเลือกที่ปิดใช้งานไว้ก่อนจนกว่าจะยืนยัน provider contract ครบถ้วน ระบบจึงยังไม่รับหรือส่ง voucher link ใด ๆ
+
+PromptPay endpoints ที่เปิดใช้งาน:
 
 ```text
 POST /api/v1/checkout/promptpay
 POST /api/v1/payments/promptpay/{transactionId}/check
 ```
 
-ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser, ใช้ `Idempotency-Key` กันการกดสร้าง QR ซ้ำ, reserve stock ระหว่างรอชำระ และคืน stock เมื่อ QR หมดอายุหรือ payment ล้มเหลว ทั้งจากการตรวจสถานะและ scheduled expiry sweep
+ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser และใช้ `Idempotency-Key` กับ PromptPay หน้า checkout ปิด PromptPay เวลา 23:30–01:30 ตามเวลา `Asia/Bangkok` พร้อม backend enforcement ซ้ำอีกชั้น โดยช่วงปิดยังเลือกช่องทาง TrueMoney ใน modal ได้ แต่ช่องทางนี้ยังไม่พร้อมใช้งาน
+
+จาก contract ที่ตรวจสอบได้ของ TrueMoney ยืนยันเพียง request เบื้องต้นไปยัง `POST https://api.inwcloud.shop/v1/truewallet/redeem` ด้วย Bearer credential ฝั่ง server และ body ที่มี `voucher_link` เท่านั้น ยังไม่มีข้อมูลที่ยืนยันได้เรื่อง provider idempotency, redemption reference, amount unit/currency, status polling, callback, refund หรือ reconciliation จึงยังไม่สร้าง adapter หรือ live charge เพื่อป้องกันการตัด voucher แล้วบันทึก order ไม่ครบ
+
+ระบบ PromptPay reserve stock ระหว่างรอชำระ คืน stock เมื่อ QR หมดอายุหรือ payment ล้มเหลว ทั้งจากการตรวจสถานะและ scheduled expiry sweep; เมื่อชำระสำเร็จจะลบเฉพาะจำนวนที่ถูกซื้อจาก cart ปัจจุบัน
 
 ตั้งค่า key จาก Dashboard ของ inwcloud ใน `.env` เท่านั้น:
 
