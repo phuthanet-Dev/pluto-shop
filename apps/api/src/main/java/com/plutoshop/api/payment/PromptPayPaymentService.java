@@ -135,6 +135,9 @@ public class PromptPayPaymentService {
 
         InwcloudPaymentGatewayClient.GeneratedPayment generated = gateway.generate(
                 BigDecimal.valueOf(totalMinor, 2));
+        if (generated.amountMinor() != totalMinor) {
+            throw new PaymentGatewayException("Payment gateway amount does not match order total");
+        }
         jdbc.update("""
                 INSERT INTO payment_transactions (
                     order_id, provider, transaction_id, status, amount_minor,
@@ -147,7 +150,7 @@ public class PromptPayPaymentService {
                 .addValue("orderId", orderId)
                 .addValue("provider", PROVIDER)
                 .addValue("transactionId", generated.transactionId())
-                .addValue("amountMinor", totalMinor)
+                .addValue("amountMinor", generated.amountMinor())
                 .addValue("qrUrl", generated.qrUrl().toString())
                 .addValue("payload", generated.payload())
                 .addValue("expiresAt", Timestamp.from(generated.expiresAt())));

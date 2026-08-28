@@ -107,7 +107,7 @@ class PromptPayPaymentApiIntegrationTest {
 
     @Test
     void checkoutUsesServerCartPricesAndIdempotency() throws Exception {
-        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-create"));
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-create", 238000));
         addToCart("payment-test-create", 2);
 
         String response = mockMvc.perform(post("/api/v1/checkout/promptpay")
@@ -147,8 +147,34 @@ class PromptPayPaymentApiIntegrationTest {
     }
 
     @Test
+    void rejectsProviderAmountThatDoesNotMatchServerOrderTotal() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-amount-mismatch", 1098));
+        addToCart("payment-test-amount-mismatch", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-amount-mismatch"))
+                        .header("Idempotency-Key", "payment-test-amount-mismatch-key"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.detail").value("Payment provider request failed"));
+
+        Integer orders = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM shop_orders WHERE idempotency_key = ?",
+                Integer.class,
+                "payment-test-amount-mismatch-key");
+        Integer payments = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM payment_transactions WHERE transaction_id = ?",
+                Integer.class,
+                "Market-test-amount-mismatch");
+        Integer remainingStock = jdbcTemplate.queryForObject(
+                "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(0, orders);
+        org.junit.jupiter.api.Assertions.assertEquals(0, payments);
+        org.junit.jupiter.api.Assertions.assertEquals(88, remainingStock);
+    }
+
+    @Test
     void pendingPaymentCanBecomePaidAndClearsOnlyOwnedCartItems() throws Exception {
-        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-paid"));
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-paid", 238000));
         when(gateway.check("Market-test-paid"))
                 .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PENDING, ""))
                 .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PAID, ""));
@@ -191,6 +217,7 @@ class PromptPayPaymentApiIntegrationTest {
                 "Market-test-expired",
                 URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
                 "000201010212",
+                119000,
                 Instant.now().minusSeconds(1)));
         addToCart("payment-test-expired", 1);
 
@@ -215,6 +242,7 @@ class PromptPayPaymentApiIntegrationTest {
                 "Market-test-sweep",
                 URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
                 "000201010212",
+                119000,
                 Instant.now().minusSeconds(1)));
         addToCart("payment-test-sweep", 1);
 
@@ -237,7 +265,7 @@ class PromptPayPaymentApiIntegrationTest {
 
     @Test
     void anotherUserCannotCheckSomeoneElsesTransaction() throws Exception {
-        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-owner"));
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-owner", 119000));
         addToCart("payment-test-owner", 1);
         mockMvc.perform(post("/api/v1/checkout/promptpay")
                         .with(customer("payment-test-owner"))
@@ -258,11 +286,12 @@ class PromptPayPaymentApiIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    private static InwcloudPaymentGatewayClient.GeneratedPayment generatedPayment(String transactionId) {
+    private static InwcloudPaymentGatewayClient.GeneratedPayment generatedPayment(String transactionId, long amountMinor) {
         return new InwcloudPaymentGatewayClient.GeneratedPayment(
                 transactionId,
                 URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
                 "000201010212",
+                amountMinor,
                 Instant.now().plusSeconds(600));
     }
 

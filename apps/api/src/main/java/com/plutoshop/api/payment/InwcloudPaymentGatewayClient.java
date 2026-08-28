@@ -39,11 +39,12 @@ public class InwcloudPaymentGatewayClient {
         requireSuccess(root);
         Map<?, ?> data = requiredMap(root, "data");
         String transactionId = requiredText(data, "transactionId", 120);
+        long amountMinor = amountMinorValue(data);
         URI qrUrl = requiredQrUrl(data);
         String payload = requiredText(data, "payload", 20_000);
         long expiresAt = numberValue(data, "expires_at");
         if (expiresAt <= 0) throw new PaymentGatewayException("Payment gateway response is incomplete");
-        return new GeneratedPayment(transactionId, qrUrl, payload, Instant.ofEpochSecond(expiresAt));
+        return new GeneratedPayment(transactionId, qrUrl, payload, amountMinor, Instant.ofEpochSecond(expiresAt));
     }
 
     public CheckedPayment check(String transactionId) {
@@ -128,6 +129,17 @@ public class InwcloudPaymentGatewayClient {
         return 0;
     }
 
+    private static long amountMinorValue(Map<?, ?> data) {
+        String value = requiredText(data, "amount", 64);
+        try {
+            BigDecimal amount = new BigDecimal(value);
+            if (amount.signum() <= 0) throw new ArithmeticException("amount must be positive");
+            return amount.movePointRight(2).longValueExact();
+        } catch (NumberFormatException | ArithmeticException exception) {
+            throw new PaymentGatewayException("Payment gateway amount is invalid", exception);
+        }
+    }
+
     private static URI requiredQrUrl(Map<?, ?> data) {
         String value = requiredText(data, "qr_url", 2_000);
         try {
@@ -141,7 +153,7 @@ public class InwcloudPaymentGatewayClient {
         }
     }
 
-    public record GeneratedPayment(String transactionId, URI qrUrl, String payload, Instant expiresAt) {
+    public record GeneratedPayment(String transactionId, URI qrUrl, String payload, long amountMinor, Instant expiresAt) {
     }
 
     public record CheckedPayment(ProviderPaymentStatus status, String message) {

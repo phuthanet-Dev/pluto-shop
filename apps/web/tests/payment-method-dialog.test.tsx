@@ -111,7 +111,7 @@ describe("payment method dialog", () => {
       new Response(JSON.stringify({
         orderId: 17,
         transactionId: "Market-test-payment",
-        amountMinor: 129900,
+        amountMinor: 1098,
         currency: "THB",
         qrUrl: "https://api.qrserver.com/v1/create-qr-code/?data=promptpay",
         payload: "000201010212",
@@ -147,6 +147,7 @@ describe("payment method dialog", () => {
     expect(qrCode).toBeInTheDocument();
     expect(qrCode).toHaveAttribute("loading", "eager");
     expect(within(paymentDialog).getByText("Amount due")).toBeInTheDocument();
+    expect(within(paymentDialog).getByText(/10\.98/u)).toBeInTheDocument();
     expect(within(paymentDialog).getByRole("button", { name: "Copy payment payload" })).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Time remaining")).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Automatic status check every 5 seconds")).toBeInTheDocument();

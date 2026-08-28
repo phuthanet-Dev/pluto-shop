@@ -39,6 +39,7 @@ class InwcloudPaymentGatewayClientTest {
         InwcloudPaymentGatewayClient.GeneratedPayment payment = client.generate(new BigDecimal("123.45"));
 
         assertThat(payment.transactionId()).isEqualTo("Market-test-123");
+        assertThat(payment.amountMinor()).isEqualTo(12345L);
         assertThat(payment.qrUrl().toString()).startsWith("https://api.qrserver.com/");
         assertThat(payment.payload()).isEqualTo("000201010212");
         assertThat(payment.expiresAt().getEpochSecond()).isEqualTo(1893456000L);
