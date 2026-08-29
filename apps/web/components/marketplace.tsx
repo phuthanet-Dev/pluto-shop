@@ -84,6 +84,7 @@ const copyByLocale = {
     cartLoading: "กำลังโหลดรถเข็น",
     cartError: "ไม่สามารถโหลดรถเข็นได้",
     cartTotal: "รวมทั้งหมด",
+    cartPaymentLocked: "รถเข็นถูกล็อกชั่วคราวขณะรอชำระเงินจาก QR นี้ กรุณายกเลิกการชำระเงินก่อนแก้ไขรถเข็น",
     detailTotal: "รวมสินค้า",
     closeCart: "ปิดรถเข็น",
     cartEmpty: "รถเข็นยังว่างอยู่",
@@ -182,6 +183,7 @@ const copyByLocale = {
     cartLoading: "Loading cart",
     cartError: "Could not load cart",
     cartTotal: "Cart total",
+    cartPaymentLocked: "This cart is locked while the current QR payment is pending. Cancel the payment before editing your cart.",
     detailTotal: "Item total",
     closeCart: "Close cart",
     cartEmpty: "Your cart is empty.",
@@ -589,6 +591,7 @@ export function Marketplace({
     (total, product) => total + product.priceMinor * (cartQuantities[String(product.id)] ?? 1),
     0,
   );
+  const cartLockedForPayment = payment?.status === "PENDING";
   const selectedProductInCart =
     selectedProduct !== null && cartIds.includes(selectedProduct.id);
   const hasFilters =
@@ -849,6 +852,11 @@ export function Marketplace({
                   </DialogClose>
                 </div>
                 <div className="drawer-body">
+                  {cartLockedForPayment ? (
+                    <p className="cart-payment-lock-notice" role="status">
+                      {copy.cartPaymentLocked}
+                    </p>
+                  ) : null}
                   {cartProducts.isPending && cartIds.length > 0 ? (
                     <div role="status" aria-label={copy.cartLoading}>
                       <span className="cart-loading-line" />
@@ -884,6 +892,7 @@ export function Marketplace({
                               <button
                                 type="button"
                                 aria-label={copy.decreaseQuantity(productOptionLabel(product, locale))}
+                                disabled={cartLockedForPayment}
                                 onClick={() => setQuantity(product.id, (cartQuantities[String(product.id)] ?? 1) - 1)}
                               >
                                 −
@@ -894,6 +903,7 @@ export function Marketplace({
                               <button
                                 type="button"
                                 aria-label={copy.increaseQuantity(productOptionLabel(product, locale))}
+                                disabled={cartLockedForPayment}
                                 onClick={() => setQuantity(product.id, (cartQuantities[String(product.id)] ?? 1) + 1)}
                               >
                                 +
@@ -904,6 +914,7 @@ export function Marketplace({
                             className="cart-remove-button"
                             type="button"
                             aria-label={copy.removeFromCart(productOptionLabel(product, locale))}
+                            disabled={cartLockedForPayment}
                             onClick={() => removeFromCart(product.id)}
                           >
                             <span aria-hidden="true">×</span>
@@ -927,6 +938,7 @@ export function Marketplace({
                           disabled={paymentLoading}
                           onClick={() => {
                             if (payment?.status === "PENDING") {
+                              setCartOpen(false);
                               setPaymentOpen(true);
                             } else {
                               openPaymentMethodDialog();

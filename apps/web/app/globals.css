@@ -1324,9 +1324,15 @@ button:disabled {
   line-height: 1;
 }
 
-.cart-quantity-controls button:hover {
+.cart-quantity-controls button:hover:not(:disabled) {
   border-color: var(--border-strong);
   color: var(--ink);
+}
+
+.cart-quantity-controls button:disabled,
+.cart-remove-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .cart-quantity-controls span {
@@ -1374,10 +1380,22 @@ button:disabled {
   font-size: 1.1rem;
 }
 
-.cart-remove-button:hover {
+.cart-remove-button:hover:not(:disabled) {
   border-color: var(--border-strong);
   background: rgba(255, 255, 255, 0.04);
   color: var(--ink);
+}
+
+.cart-payment-lock-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 196, 108, 0.28);
+  border-radius: 9px;
+  background: rgba(255, 196, 108, 0.08);
+  color: #f4d99d;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .empty-cart {

@@ -74,6 +74,19 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     contentType: "application/json",
     body: JSON.stringify(checkoutResponse()),
   }));
+  await page.route("**/api/v1/payments/promptpay/responsive-payment/cancel", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      orderId: 17,
+      transactionId: "responsive-payment",
+      amountMinor: 1098,
+      currency: "THB",
+      expiresAt: "2099-08-29T02:00:00Z",
+      status: "CANCELLED",
+      message: "Payment cancelled",
+    }),
+  }));
 
   for (const viewport of [
     { width: 320, height: 700 },
@@ -125,7 +138,18 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight);
     expect(layout.bodyColumns).toBe(viewport.width < 760 ? 1 : 2);
 
-    await dialog.getByRole("button", { name: "Cancel payment" }).click();
+    await dialog.getByRole("button", { name: "Close payment" }).click();
+    await page.getByRole("button", { name: "Cart" }).click();
+    const lockedDrawer = page.getByRole("dialog", { name: "Cart" });
+    await expect(lockedDrawer).toBeVisible();
+    await expect(lockedDrawer.getByText("This cart is locked while the current QR payment is pending. Cancel the payment before editing your cart.")).toBeVisible();
+    await expect(lockedDrawer.getByRole("button", { name: "Increase Pluto Glyph Set quantity" })).toBeDisabled();
+    await expect(lockedDrawer.getByRole("button", { name: "Remove Pluto Glyph Set from cart" })).toBeDisabled();
+    await lockedDrawer.getByRole("button", { name: "Continue payment" }).click();
+
+    const resumedDialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    await expect(resumedDialog).toBeVisible();
+    await resumedDialog.getByRole("button", { name: "Cancel payment" }).click();
     const confirmation = page.getByRole("dialog", { name: "Cancel payment?" });
     await expect(confirmation).toBeVisible();
     await expect(confirmation).toHaveAttribute("data-tone", "danger");
@@ -150,8 +174,12 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     expect(confirmationLayout.scrollWidth).toBeLessThanOrEqual(confirmationLayout.clientWidth);
     expect(confirmationLayout.scrollHeight).toBeLessThanOrEqual(confirmationLayout.clientHeight);
 
-    await confirmation.getByRole("button", { name: "Keep payment" }).click();
-    await expect(confirmation).not.toBeVisible();
-    await dialog.getByRole("button", { name: "Close payment" }).click();
+    await confirmation.getByRole("button", { name: "Confirm cancellation" }).click();
+    await expect(resumedDialog).toContainText("Payment cancelled");
+    await resumedDialog.getByRole("button", { name: "Close payment window" }).click();
+    await page.getByRole("button", { name: "Cart" }).click();
+    const unlockedDrawer = page.getByRole("dialog", { name: "Cart" });
+    await expect(unlockedDrawer.getByRole("button", { name: "Increase Pluto Glyph Set quantity" })).toBeEnabled();
+    await expect(unlockedDrawer.getByRole("button", { name: "Remove Pluto Glyph Set from cart" })).toBeEnabled();
   }
 });

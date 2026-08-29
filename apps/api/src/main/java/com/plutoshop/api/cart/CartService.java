@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,16 +29,19 @@ public class CartService {
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
     private final EntityManager entityManager;
+    private final NamedParameterJdbcTemplate jdbc;
 
     CartService(
             AppUserRepository userRepository,
             CartRepository cartRepository,
             ProductRepository productRepository,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            @Qualifier("userJdbcTemplate") NamedParameterJdbcTemplate jdbc) {
         this.userRepository = userRepository;
         this.cartRepository = cartRepository;
         this.productRepository = productRepository;
         this.entityManager = entityManager;
+        this.jdbc = jdbc;
     }
 
     @Transactional
@@ -49,7 +54,9 @@ public class CartService {
 
     @Transactional
     public CartResponse replace(Jwt jwt, CartWriteRequest request) {
-        Cart cart = activeCart(resolveUser(jwt));
+        AppUser user = resolveUser(jwt);
+        ensureCartEditable(user);
+        Cart cart = activeCart(user);
         return replaceItems(cart, request.items().stream().collect(Collectors.toMap(
                 CartItemRequest::productId,
                 CartItemRequest::quantity,
@@ -59,7 +66,9 @@ public class CartService {
 
     @Transactional
     public CartResponse merge(Jwt jwt, CartWriteRequest request) {
-        Cart cart = activeCart(resolveUser(jwt));
+        AppUser user = resolveUser(jwt);
+        ensureCartEditable(user);
+        Cart cart = activeCart(user);
         Map<Long, Integer> merged = cart.getItems().stream()
                 .collect(Collectors.toMap(CartItem::getProductId, CartItem::getQuantity, Integer::sum, LinkedHashMap::new));
         for (CartItemRequest item : request.items()) {
@@ -71,9 +80,25 @@ public class CartService {
 
     @Transactional
     public void clear(Jwt jwt) {
-        Cart cart = activeCart(resolveUser(jwt));
+        AppUser user = resolveUser(jwt);
+        ensureCartEditable(user);
+        Cart cart = activeCart(user);
         cart.clearItems();
         cartRepository.save(cart);
+    }
+
+    private void ensureCartEditable(AppUser user) {
+        Boolean pendingPayment = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM payment_transactions payment
+                    JOIN shop_orders order_record ON order_record.id = payment.order_id
+                    WHERE order_record.user_id = :userId
+                      AND payment.status = 'PENDING'
+                      AND order_record.status = 'PAYMENT_PENDING'
+                )
+                """, Map.of("userId", user.getId()), Boolean.class);
+        if (Boolean.TRUE.equals(pendingPayment)) throw new CartLockedException();
     }
 
     private CartResponse replaceItems(Cart cart, Map<Long, Integer> requested) {

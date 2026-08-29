@@ -16,6 +16,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import com.plutoshop.api.admin.AdminProductConflictException;
 import com.plutoshop.api.admin.AdminProductNotFoundException;
+import com.plutoshop.api.cart.CartLockedException;
 import com.plutoshop.api.payment.PaymentConfigurationException;
 import com.plutoshop.api.payment.PaymentConflictException;
 import com.plutoshop.api.payment.PaymentGatewayException;
@@ -67,6 +68,11 @@ class ApiExceptionHandler {
     @ExceptionHandler(PaymentConflictException.class)
     ResponseEntity<SanitizedProblemDetail> handlePaymentConflict(PaymentConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Payment conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(CartLockedException.class)
+    ResponseEntity<SanitizedProblemDetail> handleCartLocked(CartLockedException exception) {
+        return problem(HttpStatus.CONFLICT, "Cart is locked", "Cart is locked while a payment is pending");
     }
 
     @ExceptionHandler(PaymentNotFoundException.class)

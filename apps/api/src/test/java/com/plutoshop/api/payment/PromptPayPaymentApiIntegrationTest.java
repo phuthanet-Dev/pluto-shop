@@ -215,7 +215,7 @@ class PromptPayPaymentApiIntegrationTest {
     }
 
     @Test
-    void pendingPaymentCanBecomePaidAndClearsOnlyOwnedCartItems() throws Exception {
+    void pendingPaymentLocksCartUntilPaymentCompletes() throws Exception {
         when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-paid", 238000));
         when(gateway.check("Market-test-paid"))
                 .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PENDING, ""))
@@ -230,8 +230,8 @@ class PromptPayPaymentApiIntegrationTest {
                         .with(customer("payment-test-paid"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[{\"productId\":2,\"quantity\":3}]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].quantity").value(3));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Cart is locked while a payment is pending"));
 
         mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-paid/check")
                         .with(customer("payment-test-paid")))
@@ -244,8 +244,7 @@ class PromptPayPaymentApiIntegrationTest {
 
         mockMvc.perform(get("/api/v1/cart").with(customer("payment-test-paid")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].quantity").value(1));
+                .andExpect(jsonPath("$.items", hasSize(0)));
         String orderStatus = jdbcTemplate.queryForObject(
                 "SELECT status FROM shop_orders WHERE id = (SELECT order_id FROM payment_transactions WHERE transaction_id = ?)",
                 String.class,
@@ -278,10 +277,16 @@ class PromptPayPaymentApiIntegrationTest {
                         .with(customer("payment-test-cancel")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
+        mockMvc.perform(put("/api/v1/cart")
+                        .with(customer("payment-test-cancel"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productId\":2,\"quantity\":2}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].quantity").value(2));
         mockMvc.perform(get("/api/v1/cart").with(customer("payment-test-cancel")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].quantity").value(1));
+                .andExpect(jsonPath("$.items[0].quantity").value(2));
 
         String paymentStatus = jdbcTemplate.queryForObject(
                 "SELECT status FROM payment_transactions WHERE transaction_id = ?",

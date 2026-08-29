@@ -187,6 +187,12 @@ describe("payment method dialog", () => {
     });
     expect(within(paymentDialog).queryByRole("button", { name: "Cancel payment" })).not.toBeInTheDocument();
     expect(within(paymentDialog).getByRole("button", { name: "Close payment window" })).toBeInTheDocument();
+
+    await user.click(within(paymentDialog).getByRole("button", { name: "Close payment window" }));
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const unlockedDrawer = screen.getByRole("dialog", { name: "Cart" });
+    expect(within(unlockedDrawer).getByRole("button", { name: "Increase Pluto Glyph Set quantity" })).not.toBeDisabled();
+    expect(within(unlockedDrawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" })).not.toBeDisabled();
   });
 
   it("offers a fresh login when checkout authorization expires", async () => {
@@ -225,6 +231,57 @@ describe("payment method dialog", () => {
       "href",
       "/api/auth/login?callbackUrl=%2Fen",
     );
+  });
+
+  it("locks cart editing while a PromptPay payment is pending", async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), {
+        status: 200,
+      }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment-lock",
+        amountMinor: 1098,
+        currency: "THB",
+        qrUrl: "https://api.qrserver.com/v1/create-qr-code/?data=promptpay",
+        payload: "000201010212",
+        expiresAt: "2099-08-29T02:00:00Z",
+        status: "PENDING",
+      }), { status: 200 }),
+    );
+
+    render(
+      <Marketplace
+        locale="en"
+        fetcher={fetcher}
+        authFetcher={authFetcher()}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooser = await findPaymentMethodDialog();
+    await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
+
+    const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    await user.click(within(paymentDialog).getByRole("button", { name: "Close payment" }));
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+
+    const lockedDrawer = screen.getByRole("dialog", { name: "Cart" });
+    expect(await within(lockedDrawer).findByText("This cart is locked while the current QR payment is pending. Cancel the payment before editing your cart.")).toBeInTheDocument();
+    expect(within(lockedDrawer).getByRole("button", { name: "Increase Pluto Glyph Set quantity" })).toBeDisabled();
+    expect(within(lockedDrawer).getByRole("button", { name: "Remove Pluto Glyph Set from cart" })).toBeDisabled();
+    expect(paymentFetcher).toHaveBeenCalledTimes(1);
   });
 
   it("shows a sanitized gateway detail when checkout returns 502", async () => {
