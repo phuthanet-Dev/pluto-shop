@@ -166,6 +166,9 @@ describe("payment method dialog", () => {
     expect(qrCode).toHaveAttribute("loading", "eager");
     expect(within(paymentDialog).getByText("Amount due")).toBeInTheDocument();
     expect(within(paymentDialog).getByText(/10\.98/u)).toBeInTheDocument();
+    const accountCard = within(paymentDialog).getByRole("region", { name: "PromptPay account verification" });
+    expect(within(accountCard).getByText("ภูธเนศ สง่าชาติ")).toBeInTheDocument();
+    expect(within(accountCard).getByText("0842191195")).toBeInTheDocument();
     expect(within(paymentDialog).getByRole("button", { name: "Copy payment payload" })).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Time remaining")).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Automatic status check every 5 seconds")).toBeInTheDocument();

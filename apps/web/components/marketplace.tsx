@@ -148,6 +148,11 @@ const copyByLocale = {
     paymentPayeeDetail: "PromptPay checkout",
     paymentDialogName: "หน้าชำระเงิน Pluto Shop PromptPay",
     paymentAmountLabel: "ยอดที่ต้องชำระ",
+    paymentAccountVerification: "ตรวจสอบบัญชีก่อนโอน",
+    paymentAccountNameLabel: "ชื่อบัญชี",
+    paymentAccountName: "ภูธเนศ สง่าชาติ",
+    paymentAccountNumberLabel: "เลขพร้อมเพย์",
+    paymentAccountNumber: "0842191195",
     paymentCopy: "คัดลอก",
     paymentCopied: "คัดลอกแล้ว",
     paymentCopyPayload: "คัดลอกข้อมูล PromptPay",
@@ -260,6 +265,11 @@ const copyByLocale = {
     paymentPayeeDetail: "PromptPay checkout",
     paymentDialogName: "Pluto Shop PromptPay payment",
     paymentAmountLabel: "Amount due",
+    paymentAccountVerification: "PromptPay account verification",
+    paymentAccountNameLabel: "Account name",
+    paymentAccountName: "ภูธเนศ สง่าชาติ",
+    paymentAccountNumberLabel: "PromptPay number",
+    paymentAccountNumber: "0842191195",
     paymentCopy: "Copy",
     paymentCopied: "Copied",
     paymentCopyPayload: "Copy payment payload",
@@ -1165,6 +1175,22 @@ export function Marketplace({
                           {paymentCopied ? copy.paymentCopied : copy.paymentCopy}
                         </button>
                       </div>
+                      <section className="payment-account-card" aria-label={copy.paymentAccountVerification}>
+                        <div className="payment-account-card-header">
+                          <span className="payment-account-label">{copy.paymentAccountVerification}</span>
+                          <span className="payment-account-check" aria-hidden="true">✓</span>
+                        </div>
+                        <dl className="payment-account-details">
+                          <div>
+                            <dt>{copy.paymentAccountNameLabel}</dt>
+                            <dd>{copy.paymentAccountName}</dd>
+                          </div>
+                          <div>
+                            <dt>{copy.paymentAccountNumberLabel}</dt>
+                            <dd><code>{copy.paymentAccountNumber}</code></dd>
+                          </div>
+                        </dl>
+                      </section>
                       {payment.status === "PENDING" ? (
                         <div className="payment-timer-card" role="status" aria-live="polite">
                           <span className="payment-timer-icon" aria-hidden="true">◷</span>

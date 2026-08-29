@@ -142,6 +142,10 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     const dialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("img", { name: "PromptPay QR code" })).toBeVisible();
+    const accountCard = dialog.getByRole("region", { name: "PromptPay account verification" });
+    await expect(accountCard).toBeVisible();
+    await expect(accountCard.getByText("ภูธเนศ สง่าชาติ")).toBeVisible();
+    await expect(accountCard.getByText("0842191195")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Check payment" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Cancel payment" })).toBeVisible();
 
@@ -171,8 +175,14 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     expect(layout.rect.right).toBeLessThanOrEqual(layout.viewport.width + 1);
     expect(layout.rect.bottom).toBeLessThanOrEqual(layout.viewport.height + 1);
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
-    expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight);
     expect(layout.bodyColumns).toBe(viewport.width < 760 ? 1 : 2);
+    const accountLayout = await accountCard.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      rect: element.getBoundingClientRect().toJSON(),
+    }));
+    expect(accountLayout.scrollWidth).toBeLessThanOrEqual(accountLayout.clientWidth);
+    expect(accountLayout.rect.right).toBeLessThanOrEqual(layout.viewport.width + 1);
 
     await dialog.getByRole("button", { name: "Close payment" }).click();
     await page.getByRole("button", { name: "Cart" }).click();

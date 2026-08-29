@@ -1669,6 +1669,88 @@ button:disabled {
   font-weight: 800;
 }
 
+.payment-account-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid rgba(173, 139, 255, 0.38);
+  border-radius: 9px;
+  background: rgba(139, 92, 246, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+}
+
+.payment-account-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.payment-account-label {
+  min-width: 0;
+  color: var(--accent-bright);
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.payment-account-check {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(112, 214, 160, 0.46);
+  border-radius: 50%;
+  background: rgba(112, 214, 160, 0.1);
+  color: var(--success);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.payment-account-details {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.payment-account-details > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.payment-account-details dt {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.6rem;
+  line-height: 1.4;
+}
+
+.payment-account-details dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1.4;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.payment-account-details code {
+  color: var(--accent-bright);
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .payment-copy-button {
   display: inline-flex;
   min-height: 34px;
