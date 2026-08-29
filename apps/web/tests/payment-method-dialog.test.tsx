@@ -189,4 +189,42 @@ describe("payment method dialog", () => {
     expect(within(paymentDialog).getByRole("button", { name: "Close payment window" })).toBeInTheDocument();
     confirm.mockRestore();
   });
+
+  it("offers a fresh login when checkout authorization expires", async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), {
+        status: 200,
+      }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ type: "about:blank", title: "Unauthorized", status: 401 }), { status: 401 }),
+    );
+
+    render(
+      <Marketplace
+        locale="en"
+        fetcher={fetcher}
+        authFetcher={authFetcher()}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooser = await findPaymentMethodDialog();
+    await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
+
+    expect(await within(chooser).findByText("Your payment session expired. Please log in again.")).toBeInTheDocument();
+    expect(within(chooser).getByRole("link", { name: "Log in" })).toHaveAttribute(
+      "href",
+      "/api/auth/login?callbackUrl=%2Fen",
+    );
+  });
 });

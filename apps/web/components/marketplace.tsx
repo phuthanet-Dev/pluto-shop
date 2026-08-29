@@ -25,6 +25,7 @@ import {
   checkPromptPayPayment,
   createPromptPayPayment,
   isPromptPayAvailableAt,
+  PaymentApiError,
   type PromptPayCheckout,
   type PromptPayStatus,
 } from "@/lib/payment-api";
@@ -152,6 +153,7 @@ const copyByLocale = {
     paymentTransaction: "Transaction ID",
     paymentExpires: "หมดอายุ",
     closePayment: "ปิดหน้าชำระเงิน",
+    paymentSessionExpired: "เซสชันชำระเงินหมดอายุ กรุณาเข้าสู่ระบบใหม่",
     paymentError: "ไม่สามารถเริ่มการชำระเงินได้ กรุณาลองอีกครั้ง",
     view: "ดูรายละเอียด",
     switchLocale: "Switch to English",
@@ -245,6 +247,7 @@ const copyByLocale = {
     paymentTransaction: "Transaction ID",
     paymentExpires: "Expires",
     closePayment: "Close payment",
+    paymentSessionExpired: "Your payment session expired. Please log in again.",
     paymentError: "Could not start payment. Please try again.",
     view: "View details",
     switchLocale: "เปลี่ยนเป็นภาษาไทย",
@@ -630,8 +633,12 @@ export function Marketplace({
       setPaymentMethodOpen(false);
       setPaymentOpen(true);
       setCartOpen(false);
-    } catch {
-      setPaymentError(copy.paymentError);
+    } catch (error) {
+      setPaymentError(
+        error instanceof PaymentApiError && error.status === 401
+          ? copy.paymentSessionExpired
+          : copy.paymentError,
+      );
     } finally {
       setPaymentLoading(false);
     }
@@ -985,7 +992,23 @@ export function Marketplace({
                       <span className="payment-method-option-note">{copy.trueMoneyContractPending}</span>
                     </button>
                   </div>
-                  {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
+                  {paymentError ? (
+                    <p className="payment-dialog-error" role="alert">
+                      {paymentError}
+                      {paymentError === copy.paymentSessionExpired ? (
+                        <>
+                          {" "}
+                          <Link
+                            className="auth-link payment-relogin-link"
+                            href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
+                            prefetch={false}
+                          >
+                            {copy.login}
+                          </Link>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </div>
               </DialogContent>
             </Dialog>
