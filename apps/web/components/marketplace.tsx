@@ -637,7 +637,9 @@ export function Marketplace({
       setPaymentError(
         error instanceof PaymentApiError && error.status === 401
           ? copy.paymentSessionExpired
-          : copy.paymentError,
+          : error instanceof PaymentApiError && error.message !== "Payment request failed"
+            ? error.message
+            : copy.paymentError,
       );
     } finally {
       setPaymentLoading(false);

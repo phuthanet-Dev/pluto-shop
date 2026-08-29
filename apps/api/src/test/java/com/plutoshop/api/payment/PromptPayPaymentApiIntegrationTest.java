@@ -157,7 +157,7 @@ class PromptPayPaymentApiIntegrationTest {
                         .with(customer("payment-test-amount-mismatch"))
                         .header("Idempotency-Key", "payment-test-amount-mismatch-key"))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.detail").value("Payment provider request failed"));
+                .andExpect(jsonPath("$.detail").value("Payment amount does not match order total"));
 
         Integer orders = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM shop_orders WHERE idempotency_key = ?",

@@ -227,4 +227,47 @@ describe("payment method dialog", () => {
       "/api/auth/login?callbackUrl=%2Fen",
     );
   });
+
+  it("shows a sanitized gateway detail when checkout returns 502", async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), {
+        status: 200,
+      }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(
+        JSON.stringify({
+          type: "about:blank",
+          title: "Payment gateway unavailable",
+          status: 502,
+          detail: "Payment provider returned an incomplete response",
+        }),
+        { status: 502 },
+      ),
+    );
+
+    render(
+      <Marketplace
+        locale="en"
+        fetcher={fetcher}
+        authFetcher={authFetcher()}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooser = await findPaymentMethodDialog();
+    await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
+
+    expect(await within(chooser).findByText("Payment provider returned an incomplete response")).toBeInTheDocument();
+    expect(within(chooser).queryByText("Could not start payment. Please try again.")).not.toBeInTheDocument();
+  });
 });
