@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { fetchAuthSession } from "@/lib/auth-client";
@@ -138,6 +139,10 @@ const copyByLocale = {
     paymentRemaining: "เวลาที่เหลือ",
     paymentAutoCheck: "ตรวจสอบอัตโนมัติทุก 5 วินาที",
     paymentCancel: "ยกเลิกการชำระเงิน",
+    paymentCancelTitle: "ยืนยันการยกเลิก",
+    paymentCancelConfirmAction: "ยืนยันยกเลิก",
+    paymentCancelKeep: "กลับไปชำระเงิน",
+    paymentCancelBusy: "กำลังยกเลิก…",
     paymentCancelConfirm: "ต้องการยกเลิกการชำระเงินนี้หรือไม่? ระบบจะหยุดตรวจสอบ QR นี้ สินค้าจะยังอยู่ในรถเข็นของคุณ และการยกเลิกนี้ไม่ใช่การคืนเงินจากผู้ให้บริการ",
     paymentCancelPending: "กำลังยกเลิกการชำระเงิน",
     paymentCancelled: "ยกเลิกการชำระเงินแล้ว",
@@ -232,6 +237,10 @@ const copyByLocale = {
     paymentRemaining: "Time remaining",
     paymentAutoCheck: "Automatic status check every 5 seconds",
     paymentCancel: "Cancel payment",
+    paymentCancelTitle: "Cancel payment?",
+    paymentCancelConfirmAction: "Confirm cancellation",
+    paymentCancelKeep: "Keep payment",
+    paymentCancelBusy: "Cancelling…",
     paymentCancelConfirm: "Cancel this payment? The system will stop checking this QR, the items will remain in your cart, and this is not a provider refund.",
     paymentCancelPending: "Cancelling payment",
     paymentCancelled: "Payment cancelled",
@@ -362,6 +371,7 @@ export function Marketplace({
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentChecking, setPaymentChecking] = useState(false);
   const [paymentCancelling, setPaymentCancelling] = useState(false);
+  const [paymentCancelConfirmOpen, setPaymentCancelConfirmOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentNow, setPaymentNow] = useState(() => Date.now());
   const [paymentCopied, setPaymentCopied] = useState(false);
@@ -678,10 +688,15 @@ export function Marketplace({
     }
   }, [clearCart, copy.paymentError, payment, paymentFetcher]);
 
-  const cancelPayment = useCallback(async () => {
+  const requestCancelPayment = useCallback(() => {
     if (!payment || payment.status !== "PENDING" || paymentCancelling) return;
-    if (!window.confirm(copy.paymentCancelConfirm)) return;
+    setPaymentCancelConfirmOpen(true);
+  }, [payment, paymentCancelling]);
 
+  const confirmCancelPayment = useCallback(async () => {
+    if (!payment || payment.status !== "PENDING" || paymentCancelling) return;
+
+    setPaymentCancelConfirmOpen(false);
     setPaymentCancelling(true);
     setPaymentError(null);
     try {
@@ -693,7 +708,7 @@ export function Marketplace({
     } finally {
       setPaymentCancelling(false);
     }
-  }, [copy.paymentCancelConfirm, copy.paymentCancelError, payment, paymentCancelling, paymentFetcher]);
+  }, [copy.paymentCancelError, payment, paymentCancelling, paymentFetcher]);
 
   useEffect(() => {
     if (!paymentOpen || !payment || payment.status !== "PENDING") return;
@@ -1136,7 +1151,7 @@ export function Marketplace({
                               className="payment-cancel-button"
                               type="button"
                               disabled={paymentChecking || paymentCancelling}
-                              onClick={() => void cancelPayment()}
+                              onClick={requestCancelPayment}
                             >
                               <span aria-hidden="true">⊗</span>
                               {paymentCancelling ? copy.paymentCancelPending : copy.paymentCancel}
@@ -1157,6 +1172,19 @@ export function Marketplace({
                 </DialogContent>
               ) : null}
             </Dialog>
+            <FeedbackDialog
+              open={paymentCancelConfirmOpen && payment?.status === "PENDING"}
+              onOpenChange={setPaymentCancelConfirmOpen}
+              tone="danger"
+              title={copy.paymentCancelTitle}
+              description={copy.paymentCancelConfirm}
+              closeLabel={copy.paymentDismiss}
+              cancelLabel={copy.paymentCancelKeep}
+              confirmLabel={copy.paymentCancelConfirmAction}
+              busy={paymentCancelling}
+              busyLabel={copy.paymentCancelBusy}
+              onConfirm={confirmCancelPayment}
+            />
           </nav>
         </div>
       </header>

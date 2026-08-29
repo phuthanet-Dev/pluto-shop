@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,7 +57,7 @@ describe("AdminProductsConsole", () => {
       configurable: true,
       value: mocks.scrollIntoView,
     });
-    vi.stubGlobal("confirm", vi.fn(() => true));
+
   });
 
   it("renders the product table and opens the create form", async () => {
@@ -153,7 +153,9 @@ describe("AdminProductsConsole", () => {
     render(<AdminProductsConsole />);
 
     await user.click(await screen.findByRole("button", { name: "ลบ สินค้า Phase 3" }));
-    expect(confirm).toHaveBeenCalled();
+    const confirmation = screen.getByRole("dialog", { name: "ยืนยันการลบสินค้า" });
+    expect(confirmation).toHaveTextContent("สินค้า Phase 3");
+    await user.click(within(confirmation).getByRole("button", { name: "ลบสินค้า" }));
     await waitFor(() =>
       expect(mocks.deleteAdminProduct).toHaveBeenCalledWith(product.id, product.version),
     );

@@ -161,7 +161,6 @@ describe("payment method dialog", () => {
     );
     expect(writeText).toHaveBeenCalledWith("000201010212");
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     paymentFetcher.mockResolvedValueOnce(
       new Response(JSON.stringify({
         orderId: 17,
@@ -175,19 +174,19 @@ describe("payment method dialog", () => {
     );
     await user.click(within(paymentDialog).getByRole("button", { name: "Cancel payment" }));
 
-    await waitFor(() =>
-      expect(paymentDialog.querySelector(".payment-state-card")).toHaveTextContent("Payment cancelled"),
-    );
-    expect(confirm).toHaveBeenCalledWith(
-      "Cancel this payment? The system will stop checking this QR, the items will remain in your cart, and this is not a provider refund.",
-    );
+    const confirmation = await screen.findByRole("dialog", { name: "Cancel payment?" });
+    expect(within(confirmation).getByText(/stop checking this QR/u)).toBeInTheDocument();
+    await user.click(within(confirmation).getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => {
+      expect(paymentDialog.querySelector(".payment-state-card")).toHaveTextContent("Payment cancelled");
+    });
     expect(paymentFetcher).toHaveBeenLastCalledWith("/api/v1/payments/promptpay/Market-test-payment/cancel", {
       method: "POST",
       headers: { accept: "application/json" },
     });
     expect(within(paymentDialog).queryByRole("button", { name: "Cancel payment" })).not.toBeInTheDocument();
     expect(within(paymentDialog).getByRole("button", { name: "Close payment window" })).toBeInTheDocument();
-    confirm.mockRestore();
   });
 
   it("offers a fresh login when checkout authorization expires", async () => {

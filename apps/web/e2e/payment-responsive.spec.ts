@@ -125,6 +125,33 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight);
     expect(layout.bodyColumns).toBe(viewport.width < 760 ? 1 : 2);
 
+    await dialog.getByRole("button", { name: "Cancel payment" }).click();
+    const confirmation = page.getByRole("dialog", { name: "Cancel payment?" });
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation).toHaveAttribute("data-tone", "danger");
+    await expect(confirmation.getByRole("button", { name: "Keep payment" })).toBeVisible();
+    await expect(confirmation.getByRole("button", { name: "Confirm cancellation" })).toBeVisible();
+
+    const confirmationLayout = await confirmation.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        rect: { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+      };
+    });
+    expect(confirmationLayout.rect.x).toBeGreaterThanOrEqual(0);
+    expect(confirmationLayout.rect.y).toBeGreaterThanOrEqual(0);
+    expect(confirmationLayout.rect.right).toBeLessThanOrEqual(confirmationLayout.viewport.width + 1);
+    expect(confirmationLayout.rect.bottom).toBeLessThanOrEqual(confirmationLayout.viewport.height + 1);
+    expect(confirmationLayout.scrollWidth).toBeLessThanOrEqual(confirmationLayout.clientWidth);
+    expect(confirmationLayout.scrollHeight).toBeLessThanOrEqual(confirmationLayout.clientHeight);
+
+    await confirmation.getByRole("button", { name: "Keep payment" }).click();
+    await expect(confirmation).not.toBeVisible();
     await dialog.getByRole("button", { name: "Close payment" }).click();
   }
 });

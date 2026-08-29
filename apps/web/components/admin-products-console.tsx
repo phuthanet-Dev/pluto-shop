@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
+import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 import {
   AdminProductsApiError,
   createAdminProduct,
@@ -337,6 +338,8 @@ export function AdminProductsConsole() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<AdminProduct | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const revealFormRef = useRef(false);
 
@@ -449,17 +452,29 @@ export function AdminProductsConsole() {
     }
   }
 
-  async function deleteProduct(product: AdminProduct) {
-    if (!window.confirm(`ต้องการลบ ${product.nameTh} ออกจากฐานข้อมูลถาวรหรือไม่ สินค้าจะถูกนำออกจากรถเข็นของผู้ใช้ทุกคนและไม่สามารถกู้คืนได้`)) return;
+  function requestDeleteProduct(product: AdminProduct) {
+    setError(null);
+    setNotice(null);
+    setDeleteCandidate(product);
+  }
+
+  async function confirmDeleteProduct() {
+    if (!deleteCandidate || deleting) return;
+    const product = deleteCandidate;
+    setDeleting(true);
     setError(null);
     setNotice(null);
     try {
       await deleteAdminProduct(product.id, product.version);
       setNotice(`ลบ ${product.nameTh} และนำออกจากรถเข็นทั้งหมดแล้ว`);
+      setDeleteCandidate(null);
       await reload();
     } catch (deleteError) {
       setSessionExpired(deleteError instanceof AdminProductsApiError && deleteError.status === 401);
       setError(errorMessage(deleteError));
+      setDeleteCandidate(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -520,6 +535,24 @@ export function AdminProductsConsole() {
       ) : null}
       {notice ? <p className="admin-feedback success" role="status">{notice}</p> : null}
 
+      <FeedbackDialog
+        open={deleteCandidate !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteCandidate(null);
+        }}
+        tone="danger"
+        title="ยืนยันการลบสินค้า"
+        description={deleteCandidate
+          ? `ต้องการลบ ${deleteCandidate.nameTh} ออกจากฐานข้อมูลถาวรหรือไม่ สินค้าจะถูกนำออกจากรถเข็นของผู้ใช้ทุกคนและไม่สามารถกู้คืนได้`
+          : ""}
+        closeLabel="ปิดหน้าต่างยืนยัน"
+        cancelLabel="ยกเลิก"
+        confirmLabel="ลบสินค้า"
+        busy={deleting}
+        busyLabel="กำลังลบ…"
+        onConfirm={confirmDeleteProduct}
+      />
+
       {form ? (
         <form ref={formRef} className="admin-product-form" onSubmit={submitForm} aria-labelledby="admin-product-form-title">
           <div className="admin-form-heading">
@@ -575,7 +608,7 @@ export function AdminProductsConsole() {
                 <td><span className={product.active ? "admin-status active" : "admin-status archived"}>{product.active ? "ใช้งาน" : "เก็บถาวร"}</span></td>
                 <td className="admin-row-actions">
                   <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไข ${product.nameTh}`} onClick={() => openEdit(product)}><AdminIcon kind="edit" /></button>
-                  <button className="text-button danger admin-icon-button" type="button" aria-label={`ลบ ${product.nameTh}`} onClick={() => void deleteProduct(product)}><AdminIcon kind="trash" /></button>
+                  <button className="text-button danger admin-icon-button" type="button" aria-label={`ลบ ${product.nameTh}`} onClick={() => requestDeleteProduct(product)}><AdminIcon kind="trash" /></button>
                 </td>
               </tr>
             )) : null}
