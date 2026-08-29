@@ -10,15 +10,19 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class InwcloudPaymentGatewayClient {
 
     private static final String QR_HOST = "api.qrserver.com";
     private static final Pattern TRANSACTION_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,119}");
+    private static final Logger LOGGER = LoggerFactory.getLogger(InwcloudPaymentGatewayClient.class);
 
     private final RestClient restClient;
     private final String apiKey;
@@ -35,16 +39,21 @@ public class InwcloudPaymentGatewayClient {
         if (amount == null || amount.signum() <= 0 || amount.scale() > 2) {
             throw new PaymentGatewayException("Payment amount is invalid");
         }
-        Map<?, ?> root = post("/v1/promptpay/generate", Map.of("amount", amount));
-        requireSuccess(root);
-        Map<?, ?> data = requiredMap(root, "data");
-        String transactionId = requiredText(data, "transactionId", 120);
-        long amountMinor = amountMinorValue(data);
-        URI qrUrl = requiredQrUrl(data);
-        String payload = requiredText(data, "payload", 20_000);
-        long expiresAt = numberValue(data, "expires_at");
-        if (expiresAt <= 0) throw new PaymentGatewayException("Payment gateway response is incomplete");
-        return new GeneratedPayment(transactionId, qrUrl, payload, amountMinor, Instant.ofEpochSecond(expiresAt));
+        try {
+            Map<?, ?> root = post("/v1/promptpay/generate", Map.of("amount", amount));
+            requireSuccess(root);
+            Map<?, ?> data = requiredMap(root, "data");
+            String transactionId = requiredText(data, "transactionId", 120);
+            long amountMinor = amountMinorValue(data);
+            URI qrUrl = requiredQrUrl(data);
+            String payload = requiredText(data, "payload", 20_000);
+            long expiresAt = numberValue(data, "expires_at");
+            if (expiresAt <= 0) throw new PaymentGatewayException("Payment gateway response is incomplete");
+            return new GeneratedPayment(transactionId, qrUrl, payload, amountMinor, Instant.ofEpochSecond(expiresAt));
+        } catch (PaymentGatewayException exception) {
+            LOGGER.warn("PromptPay generate failed reason={}", safeFailureReason(exception));
+            throw exception;
+        }
     }
 
     public CheckedPayment check(String transactionId) {
@@ -78,9 +87,21 @@ public class InwcloudPaymentGatewayClient {
             return response;
         } catch (PaymentGatewayException exception) {
             throw exception;
+        } catch (RestClientResponseException exception) {
+            LOGGER.warn("PromptPay provider HTTP failure status={}", exception.getStatusCode().value());
+            throw new PaymentGatewayException("Payment gateway request failed", exception);
         } catch (RestClientException exception) {
+            LOGGER.warn("PromptPay provider client failure type={}", exception.getClass().getSimpleName());
             throw new PaymentGatewayException("Payment gateway request failed", exception);
         }
+    }
+
+    private static String safeFailureReason(PaymentGatewayException exception) {
+        if (exception.getCause() instanceof RestClientResponseException response) {
+            return "provider-http-" + response.getStatusCode().value();
+        }
+        if (exception.getCause() != null) return exception.getCause().getClass().getSimpleName();
+        return exception.getMessage() == null ? "unknown" : exception.getMessage();
     }
 
     private void requireConfigured() {
