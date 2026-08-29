@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { FeedbackDialog } from "@/components/ui/feedback-dialog";
+import { RefundStepsDialog } from "@/components/ui/refund-steps-dialog";
 import { PaymentMethodLogo } from "@/components/payment-method-logo";
 import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
@@ -119,7 +120,20 @@ const copyByLocale = {
     fromPrice: "เริ่มต้น",
     checkout: "เลือกวิธีชำระเงิน",
     choosePaymentMethod: "เลือกวิธีชำระเงิน",
-    choosePaymentDescription: "เลือกช่องทางชำระเงินที่ต้องการใช้กับรายการนี้",
+    paymentRefundNotice: "เติมเงินเข้าระบบแล้ว ไม่สามารถคืนได้ เป็นไปตามเงื่อนไขของเว็บ",
+    paymentRefundSteps: "ขั้นตอนการขอคืนเงิน",
+    refundDialogTitle: "ขั้นตอนการขอคืนเงิน",
+    refundDialogSubtitle: "กรณีเติมเงินผิดพลาด",
+    refundWarning: "เงื่อนไข: เติมเงินเข้าระบบแล้ว ไม่สามารถคืนได้ ตามนโยบายของเว็บ การดำเนินการขอคืนเงินต้องผ่านธนาคาร",
+    refundStep1Title: "ติดต่อธนาคารของคุณ",
+    refundStep1Description: "โทรหาธนาคารที่คุณโอนเงิน (ธนาคารต้นทาง) เพื่อแจ้งขอดึงเงินคืน",
+    refundStep2Title: "แจ้งยอดและรายละเอียด",
+    refundStep2Description: "บอกธนาคารให้ดึงเงินคืนจากบัญชีปลายทาง พร้อมแจ้งว่าทางร้านยินดีให้ธนาคารติดต่อเพื่อขอดึงเงินคืน",
+    refundStep3Title: "รอธนาคารดำเนินการ",
+    refundStep3Description: "ธนาคารจะติดต่อเจ้าของบัญชีปลายทางเพื่อขออนุมัติดึงเงิน ระยะเวลาเฉลี่ยขึ้นอยู่กับขั้นตอนของธนาคาร โดยปกติ 3–7 วันทำการ",
+    refundNote: "หมายเหตุ: ทางร้านจะให้ความร่วมมือเต็มที่เมื่อธนาคารติดต่อมา แต่ไม่สามารถคืนเงินโดยตรงได้ ต้องผ่านระบบธนาคารเท่านั้น",
+    refundClose: "ปิดขั้นตอนการขอคืนเงิน",
+    refundUnderstood: "เข้าใจแล้ว",
     promptPay: "PromptPay",
     payWithPromptPay: "ชำระด้วย PromptPay",
     promptPayHours: "เปิดให้บริการ 01:30–23:30 น. (เวลาไทย)",
@@ -218,7 +232,20 @@ const copyByLocale = {
     fromPrice: "From",
     checkout: "Choose payment method",
     choosePaymentMethod: "Choose a payment method",
-    choosePaymentDescription: "Select how you want to pay for this order.",
+    paymentRefundNotice: "Funds added to the system cannot be refunded under the website terms.",
+    paymentRefundSteps: "Refund steps",
+    refundDialogTitle: "Refund request steps",
+    refundDialogSubtitle: "For an incorrect top-up",
+    refundWarning: "Terms: Funds added to the system cannot be refunded under the website policy. Refund requests must go through the bank.",
+    refundStep1Title: "Contact your bank",
+    refundStep1Description: "Call the bank you transferred from (the originating bank) to request a transfer recall.",
+    refundStep2Title: "Provide the amount and details",
+    refundStep2Description: "Ask the bank to recall the transfer from the destination account and explain that the store will cooperate when the bank contacts us.",
+    refundStep3Title: "Wait for the bank's process",
+    refundStep3Description: "The bank will contact the destination account owner for approval. Processing usually takes 3–7 business days.",
+    refundNote: "Note: The store will fully cooperate when contacted by the bank, but cannot issue a direct refund. The bank process is required.",
+    refundClose: "Close refund request steps",
+    refundUnderstood: "Understood",
     promptPay: "PromptPay",
     payWithPromptPay: "Pay with PromptPay",
     promptPayHours: "Available 01:30–23:30 (Bangkok time)",
@@ -371,6 +398,7 @@ export function Marketplace({
   const [payment, setPayment] = useState<PaymentViewState | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentMethodOpen, setPaymentMethodOpen] = useState(false);
+  const [refundStepsOpen, setRefundStepsOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentChecking, setPaymentChecking] = useState(false);
   const [paymentCancelling, setPaymentCancelling] = useState(false);
@@ -612,6 +640,11 @@ export function Marketplace({
   const paymentRemainingSeconds = payment
     ? Math.max(0, Math.ceil((new Date(payment.expiresAt).getTime() - paymentNow) / 1_000))
     : 0;
+  const refundSteps = [
+    { title: copy.refundStep1Title, description: copy.refundStep1Description, tone: "blue" },
+    { title: copy.refundStep2Title, description: copy.refundStep2Description, tone: "violet" },
+    { title: copy.refundStep3Title, description: copy.refundStep3Description, tone: "green" },
+  ] as const;
 
   function openProduct(product: Product, options: Product[], trigger: HTMLButtonElement) {
     detailTriggerRef.current = trigger;
@@ -984,12 +1017,11 @@ export function Marketplace({
                 }
               }}
             >
-              <DialogContent className="payment-method-dialog">
+              <DialogContent className="payment-method-dialog" aria-describedby={undefined}>
                 <div className="payment-dialog-header">
                   <div>
                     <p className="eyebrow">Pluto / Checkout</p>
                     <DialogTitle>{copy.choosePaymentMethod}</DialogTitle>
-                    <DialogDescription>{copy.choosePaymentDescription}</DialogDescription>
                   </div>
                   <DialogClose asChild>
                     <button className="icon-button" type="button" aria-label={copy.closePayment}>
@@ -998,6 +1030,15 @@ export function Marketplace({
                   </DialogClose>
                 </div>
                 <div className="payment-method-body">
+                  <div className="payment-refund-notice" role="note">
+                    <span className="payment-refund-notice-icon" aria-hidden="true">!</span>
+                    <p>
+                      {copy.paymentRefundNotice}{" "}
+                      <button type="button" onClick={() => setRefundStepsOpen(true)}>
+                        {copy.paymentRefundSteps}
+                      </button>
+                    </p>
+                  </div>
                   <div className="payment-method-options">
                     <button
                       className="payment-method-option"
@@ -1042,6 +1083,17 @@ export function Marketplace({
                 </div>
               </DialogContent>
             </Dialog>
+            <RefundStepsDialog
+              open={refundStepsOpen}
+              onOpenChange={setRefundStepsOpen}
+              title={copy.refundDialogTitle}
+              subtitle={copy.refundDialogSubtitle}
+              warning={copy.refundWarning}
+              steps={refundSteps}
+              note={copy.refundNote}
+              closeLabel={copy.refundClose}
+              understoodLabel={copy.refundUnderstood}
+            />
             <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
               {payment ? (
                 <DialogContent className="payment-dialog" aria-label={copy.paymentDialogName}>

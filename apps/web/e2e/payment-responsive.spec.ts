@@ -105,6 +105,29 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     await expect(chooser.getByTestId("truemoney-logo").locator("img")).toBeVisible();
     await expect(chooser.getByTestId("promptpay-logo").locator("img")).toHaveAttribute("src", /\/icons\/promptpay-logo\.svg(?:\?.*)?$/u);
     await expect(chooser.getByTestId("truemoney-logo").locator("img")).toHaveAttribute("src", /\/icons\/truemoney-wallet\.svg(?:\?.*)?$/u);
+    await expect(chooser.getByText("Select how you want to pay for this order.")).toHaveCount(0);
+    await chooser.getByRole("button", { name: "Refund steps" }).click();
+    const refundDialog = page.getByRole("dialog", { name: "Refund request steps" });
+    await expect(refundDialog).toBeVisible();
+    await expect(refundDialog.getByRole("listitem")).toHaveCount(3);
+    const refundLayout = await refundDialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        rect: { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+      };
+    });
+    expect(refundLayout.rect.x).toBeGreaterThanOrEqual(0);
+    expect(refundLayout.rect.y).toBeGreaterThanOrEqual(0);
+    expect(refundLayout.rect.right).toBeLessThanOrEqual(refundLayout.viewport.width + 1);
+    expect(refundLayout.rect.bottom).toBeLessThanOrEqual(refundLayout.viewport.height + 1);
+    expect(refundLayout.scrollWidth).toBeLessThanOrEqual(refundLayout.clientWidth);
+    await refundDialog.getByRole("button", { name: "Understood" }).click();
+    await expect(refundDialog).not.toBeVisible();
     for (const logoId of ["promptpay-logo", "truemoney-logo"]) {
       const centered = await chooser.getByTestId(logoId).evaluate((element) => {
         const frame = element.getBoundingClientRect();

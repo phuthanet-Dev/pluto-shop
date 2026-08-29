@@ -102,6 +102,14 @@ describe("payment method dialog", () => {
       "src",
       expect.stringContaining("/icons/truemoney-wallet.svg"),
     );
+    expect(within(chooser).queryByText("Select how you want to pay for this order.")).not.toBeInTheDocument();
+    expect(within(chooser).getByRole("button", { name: "Refund steps" })).toBeInTheDocument();
+    await user.click(within(chooser).getByRole("button", { name: "Refund steps" }));
+    const refundDialog = await screen.findByRole("dialog", { name: "Refund request steps" });
+    expect(within(refundDialog).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(refundDialog).getByText(/Funds added to the system cannot be refunded/u)).toBeInTheDocument();
+    await user.click(within(refundDialog).getByRole("button", { name: "Understood" }));
+    await waitFor(() => expect(refundDialog).not.toBeVisible());
     expect(trueMoney).toBeDisabled();
     expect(within(chooser).queryByLabelText("TrueMoney voucher link")).not.toBeInTheDocument();
     expect(paymentFetcher).not.toHaveBeenCalled();
