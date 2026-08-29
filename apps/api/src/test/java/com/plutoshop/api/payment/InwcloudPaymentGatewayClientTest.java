@@ -45,4 +45,29 @@ class InwcloudPaymentGatewayClientTest {
         assertThat(payment.expiresAt().getEpochSecond()).isEqualTo(1893456000L);
         server.verify();
     }
+
+    @Test
+    void parsesNumericProviderAmountAsSatang() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://api.inwcloud.shop");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        InwcloudPaymentGatewayClient client = new InwcloudPaymentGatewayClient(builder.build(), "test-api-key");
+        server.expect(requestTo("https://api.inwcloud.shop/v1/promptpay/generate"))
+                .andRespond(withSuccess("""
+                        {
+                          "status":"success",
+                          "data":{
+                            "transactionId":"Market-test-number",
+                            "qr_url":"https://api.qrserver.com/v1/create-qr-code/?data=promptpay",
+                            "payload":"000201010212",
+                            "amount":123.45,
+                            "expires_at":1893456000
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        InwcloudPaymentGatewayClient.GeneratedPayment payment = client.generate(new BigDecimal("123.45"));
+
+        assertThat(payment.amountMinor()).isEqualTo(12345L);
+        server.verify();
+    }
 }

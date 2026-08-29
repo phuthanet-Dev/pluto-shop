@@ -130,7 +130,13 @@ public class InwcloudPaymentGatewayClient {
     }
 
     private static long amountMinorValue(Map<?, ?> data) {
-        String value = requiredText(data, "amount", 64);
+        Object rawValue = data.get("amount");
+        String value = rawValue instanceof String string
+                ? string.trim()
+                : rawValue instanceof Number number ? number.toString() : "";
+        if (value.isBlank() || value.length() > 64) {
+            throw new PaymentGatewayException("Payment gateway response is incomplete");
+        }
         try {
             BigDecimal amount = new BigDecimal(value);
             if (amount.signum() <= 0) throw new ArithmeticException("amount must be positive");
