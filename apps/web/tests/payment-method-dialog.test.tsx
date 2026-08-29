@@ -92,6 +92,16 @@ describe("payment method dialog", () => {
     const trueMoney = within(chooser).getByRole("button", { name: "TrueMoney Wallet" });
 
     expect(promptPay).toBeInTheDocument();
+    expect(within(chooser).getByTestId("promptpay-logo")).toBeInTheDocument();
+    expect(within(chooser).getByTestId("truemoney-logo")).toBeInTheDocument();
+    expect(within(chooser).getByTestId("promptpay-logo").querySelector("img")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/icons/promptpay-logo.svg"),
+    );
+    expect(within(chooser).getByTestId("truemoney-logo").querySelector("img")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/icons/truemoney-wallet.svg"),
+    );
     expect(trueMoney).toBeDisabled();
     expect(within(chooser).queryByLabelText("TrueMoney voucher link")).not.toBeInTheDocument();
     expect(paymentFetcher).not.toHaveBeenCalled();

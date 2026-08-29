@@ -2017,6 +2017,33 @@ button:disabled {
   opacity: 0.52;
 }
 
+.payment-method-logo {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-method-logo-image {
+  display: block;
+  width: min(100%, 180px);
+  height: 60px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.payment-method-logo-promptpay .payment-method-logo-image {
+  width: min(100%, 180px);
+}
+
+.payment-method-logo-truemoney .payment-method-logo-image {
+  width: min(100%, 172px);
+  height: 70px;
+  object-fit: cover;
+}
+
 .payment-method-option-title {
   font-size: 0.94rem;
   font-weight: 700;

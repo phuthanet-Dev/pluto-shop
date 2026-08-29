@@ -101,6 +101,19 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     await page.getByRole("button", { name: "Cart" }).click();
     await page.getByRole("dialog", { name: "Cart" }).getByRole("button", { name: "Choose payment method" }).click();
     const chooser = page.getByText("Choose a payment method").locator("xpath=ancestor::*[@role='dialog'][1]");
+    await expect(chooser.getByTestId("promptpay-logo").locator("img")).toBeVisible();
+    await expect(chooser.getByTestId("truemoney-logo").locator("img")).toBeVisible();
+    await expect(chooser.getByTestId("promptpay-logo").locator("img")).toHaveAttribute("src", /\/icons\/promptpay-logo\.svg(?:\?.*)?$/u);
+    await expect(chooser.getByTestId("truemoney-logo").locator("img")).toHaveAttribute("src", /\/icons\/truemoney-wallet\.svg(?:\?.*)?$/u);
+    for (const logoId of ["promptpay-logo", "truemoney-logo"]) {
+      const centered = await chooser.getByTestId(logoId).evaluate((element) => {
+        const frame = element.getBoundingClientRect();
+        const image = element.querySelector("img")?.getBoundingClientRect();
+        if (!image) throw new Error("Missing logo image");
+        return Math.abs((frame.left + frame.width / 2) - (image.left + image.width / 2));
+      });
+      expect(centered).toBeLessThanOrEqual(1);
+    }
     await chooser.getByRole("button", { name: "Pay with PromptPay" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });

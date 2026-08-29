@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { FeedbackDialog } from "@/components/ui/feedback-dialog";
+import { PaymentMethodLogo } from "@/components/payment-method-logo";
 import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { fetchAuthSession } from "@/lib/auth-client";
@@ -1005,7 +1006,7 @@ export function Marketplace({
                       disabled={!promptPayAvailable || paymentLoading}
                       onClick={() => void startPromptPayPayment()}
                     >
-                      <span className="payment-method-option-title">{copy.promptPay}</span>
+                      <PaymentMethodLogo brand="promptpay" />
                       <span className="payment-method-option-description">
                         {promptPayAvailable ? copy.promptPayHours : copy.promptPayClosed}
                       </span>
@@ -1016,7 +1017,7 @@ export function Marketplace({
                       aria-label={copy.trueMoney}
                       disabled
                     >
-                      <span className="payment-method-option-title">{copy.trueMoney}</span>
+                      <PaymentMethodLogo brand="truemoney" />
                       <span className="payment-method-option-description">{copy.trueMoneyUnavailable}</span>
                       <span className="payment-method-option-note">{copy.trueMoneyContractPending}</span>
                     </button>

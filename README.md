@@ -155,6 +155,8 @@ Inwcloud PromptPay อาจเพิ่ม random satang เพื่อใช�
 
 เมื่อมี PromptPay payment สถานะ `PENDING` ของผู้ใช้ ระบบจะล็อกการแก้ไข cart ทั้งจากหน้าเว็บและ API (`PUT /api/v1/cart`, `POST /api/v1/cart/merge`, `DELETE /api/v1/cart`) เพื่อไม่ให้รายการที่กำลังรอชำระเปลี่ยนกลางทาง การแก้ไขจะกลับมาใช้ได้หลัง payment เป็น `CANCELLED`, `PAID` หรือ `EXPIRED` โดยผู้ใช้สามารถกด cancel QR ก่อนเพื่อปลดล็อกและสร้าง QR ใหม่จาก cart ล่าสุด
 
+ที่มาโลโก้ payment method: [Thai QR/PromptPay logo](https://upload.wikimedia.org/wikipedia/commons/2/28/Thai_QR_Logo.svg) ถูกเก็บเป็น local asset ที่ `apps/web/public/icons/promptpay-logo.svg`; TrueMoney Wallet ใช้ local asset ที่ `apps/web/public/icons/truemoney-wallet.svg` จากไฟล์ที่ผู้ใช้จัดเตรียมไว้ โดยควรตรวจสอบสิทธิ์การใช้เครื่องหมายการค้าก่อน production
+
 จาก contract ที่ตรวจสอบได้ของ TrueMoney ยืนยันเพียง request เบื้องต้นไปยัง `POST https://api.inwcloud.shop/v1/truewallet/redeem` ด้วย Bearer credential ฝั่ง server และ body ที่มี `voucher_link` เท่านั้น ยังไม่มีข้อมูลที่ยืนยันได้เรื่อง provider idempotency, redemption reference, amount unit/currency, status polling, callback, refund หรือ reconciliation จึงยังไม่สร้าง adapter หรือ live charge เพื่อป้องกันการตัด voucher แล้วบันทึก order ไม่ครบ
 
 ระบบ PromptPay reserve stock ระหว่างรอชำระ และผู้ใช้สามารถยกเลิก pending payment ผ่าน cancel endpoint ได้ การยกเลิกจะเปลี่ยน payment/order เป็น `CANCELLED`, คืน stock reservation และคงสินค้าไว้ใน cart เพื่อให้ลอง checkout ใหม่ได้; การยกเลิกนี้เป็นการหยุดติดตาม QR ในระบบเท่านั้น ไม่ใช่ provider refund/cancel เพราะยังไม่มี contract provider สำหรับการยกเลิกที่ยืนยันได้ QR ที่ผู้ใช้ชำระไปแล้วก่อนกดยกเลิกต้องเข้าสู่กระบวนการ reconciliation แยกต่างหาก
