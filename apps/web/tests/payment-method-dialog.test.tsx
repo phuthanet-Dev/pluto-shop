@@ -163,6 +163,7 @@ describe("payment method dialog", () => {
     const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
     const qrCode = within(paymentDialog).getByRole("img", { name: "PromptPay QR code" });
     expect(qrCode).toBeInTheDocument();
+    expect(qrCode).not.toHaveClass("payment-qr-image-blurred");
     expect(qrCode).toHaveAttribute("loading", "eager");
     expect(within(paymentDialog).getByText("Amount due")).toBeInTheDocument();
     expect(within(paymentDialog).getByText(/10\.98/u)).toBeInTheDocument();
@@ -204,6 +205,9 @@ describe("payment method dialog", () => {
     });
     expect(paymentDialog.querySelector(".payment-state-card p")).toBeNull();
     expect(within(paymentDialog).getByText("Payment cancelled", { exact: true })).toBeInTheDocument();
+    expect(
+      within(paymentDialog).getByRole("img", { name: "PromptPay QR code unavailable because the payment was cancelled" }),
+    ).toHaveClass("payment-qr-image-blurred");
     expect(paymentFetcher).toHaveBeenLastCalledWith("/api/v1/payments/promptpay/Market-test-payment/cancel", {
       method: "POST",
       headers: { accept: "application/json" },

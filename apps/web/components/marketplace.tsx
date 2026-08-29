@@ -147,6 +147,7 @@ const copyByLocale = {
     paymentPayeeName: "Pluto Shop",
     paymentPayeeDetail: "PromptPay checkout",
     paymentDialogName: "หน้าชำระเงิน Pluto Shop PromptPay",
+    paymentQrCancelled: "QR พร้อมเพย์ไม่พร้อมใช้งานเนื่องจากยกเลิกการชำระเงินแล้ว",
     paymentAmountLabel: "ยอดที่ต้องชำระ",
     paymentAccountVerification: "ตรวจสอบบัญชีก่อนโอน",
     paymentAccountNameLabel: "ชื่อบัญชี",
@@ -264,6 +265,7 @@ const copyByLocale = {
     paymentPayeeName: "Pluto Shop",
     paymentPayeeDetail: "PromptPay checkout",
     paymentDialogName: "Pluto Shop PromptPay payment",
+    paymentQrCancelled: "PromptPay QR code unavailable because the payment was cancelled",
     paymentAmountLabel: "Amount due",
     paymentAccountVerification: "PromptPay account verification",
     paymentAccountNameLabel: "Account name",
@@ -1137,10 +1139,11 @@ export function Marketplace({
                   <div className="payment-dialog-body">
                     <div className="payment-qr-column">
                       <div className="payment-qr-shell">
-                        <div className="payment-qr-frame">
+                        <div className={`payment-qr-frame${payment.status === "CANCELLED" ? " payment-qr-frame-cancelled" : ""}`}>
                           <Image
                             src={payment.qrUrl}
-                            alt="PromptPay QR code"
+                            alt={payment.status === "CANCELLED" ? copy.paymentQrCancelled : "PromptPay QR code"}
+                            className={`payment-qr-image${payment.status === "CANCELLED" ? " payment-qr-image-blurred" : ""}`}
                             width={270}
                             height={270}
                             sizes="(max-width: 639px) 100vw, 270px"

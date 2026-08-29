@@ -1603,6 +1603,20 @@ button:disabled {
   object-fit: contain;
 }
 
+.payment-qr-frame-cancelled {
+  overflow: hidden;
+}
+
+.payment-qr-image {
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+
+.payment-qr-image-blurred {
+  filter: blur(12px);
+  opacity: 0.38;
+  pointer-events: none;
+}
+
 .payment-qr-badge {
   display: inline-flex;
   min-height: 24px;

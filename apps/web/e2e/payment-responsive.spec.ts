@@ -141,7 +141,9 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
 
     const dialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("img", { name: "PromptPay QR code" })).toBeVisible();
+    const qrCode = dialog.getByRole("img", { name: "PromptPay QR code" });
+    await expect(qrCode).toBeVisible();
+    await expect(qrCode).not.toHaveClass("payment-qr-image-blurred");
     const accountCard = dialog.getByRole("region", { name: "PromptPay account verification" });
     await expect(accountCard).toBeVisible();
     await expect(accountCard.getByText("ภูธเนศ สง่าชาติ")).toBeVisible();
@@ -222,6 +224,8 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
 
     await confirmation.getByRole("button", { name: "Confirm cancellation" }).click();
     await expect(resumedDialog).toContainText("Payment cancelled");
+    const cancelledQr = resumedDialog.getByRole("img", { name: "PromptPay QR code unavailable because the payment was cancelled" });
+    await expect(cancelledQr).toHaveClass(/\bpayment-qr-image-blurred\b/u);
     await expect(resumedDialog.locator(".payment-state-card p")).toHaveCount(0);
     await expect(resumedDialog.getByText("Payment cancelled", { exact: true })).toHaveCount(1);
     await resumedDialog.getByRole("button", { name: "Close payment window" }).click();
