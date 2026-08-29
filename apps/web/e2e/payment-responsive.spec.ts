@@ -222,6 +222,8 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
 
     await confirmation.getByRole("button", { name: "Confirm cancellation" }).click();
     await expect(resumedDialog).toContainText("Payment cancelled");
+    await expect(resumedDialog.locator(".payment-state-card p")).toHaveCount(0);
+    await expect(resumedDialog.getByText("Payment cancelled", { exact: true })).toHaveCount(1);
     await resumedDialog.getByRole("button", { name: "Close payment window" }).click();
     await page.getByRole("button", { name: "Cart" }).click();
     const unlockedDrawer = page.getByRole("dialog", { name: "Cart" });

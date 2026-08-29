@@ -1214,15 +1214,6 @@ export function Marketplace({
                                   ? copy.paymentCancelled
                                   : copy.paymentFailed}
                           </span>
-                          <p>
-                            {payment.status === "PAID"
-                              ? copy.paymentPaid
-                              : payment.status === "EXPIRED"
-                                ? copy.paymentExpired
-                                : payment.status === "CANCELLED"
-                                  ? copy.paymentCancelled
-                                  : copy.paymentFailed}
-                          </p>
                         </div>
                       )}
                       {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}

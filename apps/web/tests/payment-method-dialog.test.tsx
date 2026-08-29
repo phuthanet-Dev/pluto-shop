@@ -202,6 +202,8 @@ describe("payment method dialog", () => {
     await waitFor(() => {
       expect(paymentDialog.querySelector(".payment-state-card")).toHaveTextContent("Payment cancelled");
     });
+    expect(paymentDialog.querySelector(".payment-state-card p")).toBeNull();
+    expect(within(paymentDialog).getByText("Payment cancelled", { exact: true })).toBeInTheDocument();
     expect(paymentFetcher).toHaveBeenLastCalledWith("/api/v1/payments/promptpay/Market-test-payment/cancel", {
       method: "POST",
       headers: { accept: "application/json" },
