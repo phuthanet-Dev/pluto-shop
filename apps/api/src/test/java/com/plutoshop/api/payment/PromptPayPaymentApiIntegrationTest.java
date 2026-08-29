@@ -103,6 +103,8 @@ class PromptPayPaymentApiIntegrationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-1/check"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-1/cancel"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -209,6 +211,90 @@ class PromptPayPaymentApiIntegrationTest {
                 String.class,
                 "Market-test-paid");
         org.junit.jupiter.api.Assertions.assertEquals("PAID", orderStatus);
+    }
+
+    @Test
+    void ownerCanCancelPendingPaymentAndReleaseStockWithoutRemovingCart() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-cancel", 119000));
+        addToCart("payment-test-cancel", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-cancel"))
+                        .header("Idempotency-Key", "payment-test-cancel-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-cancel/cancel")
+                        .with(customer("payment-test-cancel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.message").value("Payment cancelled"));
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-cancel/check")
+                        .with(customer("payment-test-cancel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-cancel/cancel")
+                        .with(customer("payment-test-cancel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+        mockMvc.perform(get("/api/v1/cart").with(customer("payment-test-cancel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].quantity").value(1));
+
+        String paymentStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM payment_transactions WHERE transaction_id = ?",
+                String.class,
+                "Market-test-cancel");
+        String orderStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM shop_orders WHERE id = (SELECT order_id FROM payment_transactions WHERE transaction_id = ?)",
+                String.class,
+                "Market-test-cancel");
+        Integer restoredStock = jdbcTemplate.queryForObject(
+                "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals("CANCELLED", paymentStatus);
+        org.junit.jupiter.api.Assertions.assertEquals("CANCELLED", orderStatus);
+        org.junit.jupiter.api.Assertions.assertEquals(88, restoredStock);
+        verify(gateway, never()).check("Market-test-cancel");
+    }
+
+    @Test
+    void anotherUserCannotCancelSomeoneElsesPayment() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-owner-cancel", 119000));
+        addToCart("payment-test-owner-cancel", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-owner-cancel"))
+                        .header("Idempotency-Key", "payment-test-owner-cancel-key"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-owner-cancel/cancel")
+                        .with(customer("payment-test-other-cancel")))
+                .andExpect(status().isNotFound());
+        verify(gateway, never()).check("Market-test-owner-cancel");
+    }
+
+    @Test
+    void cannotCancelPaidPayment() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-paid-cancel", 119000));
+        when(gateway.check("Market-test-paid-cancel"))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PAID, ""));
+        addToCart("payment-test-paid-cancel", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-paid-cancel"))
+                        .header("Idempotency-Key", "payment-test-paid-cancel-key"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-paid-cancel/check")
+                        .with(customer("payment-test-paid-cancel")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-paid-cancel/cancel")
+                        .with(customer("payment-test-paid-cancel")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Payment cannot be cancelled"));
     }
 
     @Test

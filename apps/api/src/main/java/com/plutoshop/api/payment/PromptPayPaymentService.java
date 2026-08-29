@@ -178,14 +178,38 @@ public class PromptPayPaymentService {
             case PAID -> transition(current, PaymentStatus.PAID, "Payment completed");
             case FAILED -> transition(current, PaymentStatus.FAILED, "Payment was not completed");
             case PENDING -> {
-                jdbc.update("""
+                int changed = jdbc.update("""
                         UPDATE payment_transactions
                         SET checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                         WHERE id = :paymentId AND status = 'PENDING'
                         """, new MapSqlParameterSource("paymentId", current.paymentId()));
+                if (changed == 0) {
+                    PaymentSnapshot latest = findByPaymentId(current.paymentId()).orElse(current);
+                    yield toStatusResponse(latest, messageFor(latest.status()));
+                }
                 yield toStatusResponse(current, "Payment is still pending");
             }
         };
+    }
+
+    @Transactional
+    public PromptPayStatusResponse cancelPromptPay(Jwt jwt, String transactionId) {
+        if (transactionId == null || !TRANSACTION_ID.matcher(transactionId).matches()) {
+            throw new PaymentConflictException("Payment transaction is invalid");
+        }
+        AppUser user = resolveUser(jwt);
+        PaymentSnapshot current = findByTransaction(user.getId(), transactionId)
+                .orElseThrow(PaymentNotFoundException::new);
+        if (current.status() == PaymentStatus.CANCELLED) {
+            return toStatusResponse(current, "Payment cancelled");
+        }
+        if (current.status() != PaymentStatus.PENDING) {
+            throw new PaymentConflictException("Payment cannot be cancelled");
+        }
+
+        PromptPayStatusResponse cancelled = transition(current, PaymentStatus.CANCELLED, "Payment cancelled");
+        if (cancelled.status() == PaymentStatus.CANCELLED) return cancelled;
+        throw new PaymentConflictException("Payment cannot be cancelled");
     }
 
     @Transactional
@@ -375,6 +399,7 @@ public class PromptPayPaymentService {
             case PAID -> "Payment completed";
             case EXPIRED -> "Payment QR code expired";
             case FAILED -> "Payment was not completed";
+            case CANCELLED -> "Payment cancelled";
             case PENDING -> "Payment is still pending";
         };
     }

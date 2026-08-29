@@ -1547,7 +1547,8 @@ button:disabled {
 }
 
 .payment-dialog .payment-status-expired,
-.payment-dialog .payment-status-failed {
+.payment-dialog .payment-status-failed,
+.payment-dialog .payment-status-cancelled {
   border-color: #ffb9a5;
   background: #fff1ed;
   color: #d75231;
@@ -1663,7 +1664,31 @@ button:disabled {
   background: #fff7f3;
 }
 
-.payment-check-button:disabled {
+.payment-cancel-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #e85d48;
+  border-radius: 8px;
+  background: #fff;
+  color: #d94d39;
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+
+.payment-cancel-button:hover {
+  background: #fff4f1;
+}
+
+.payment-action-row-single {
+  grid-template-columns: 1fr;
+}
+
+.payment-check-button:disabled,
+.payment-cancel-button:disabled {
   cursor: wait;
   opacity: 0.6;
 }

@@ -5,7 +5,7 @@ const qrUrl = z.string().url().refine((value) => {
   return url.protocol === "https:" && url.hostname === "api.qrserver.com";
 }, "QR URL is not allowed");
 
-const paymentStatus = z.enum(["PENDING", "PAID", "EXPIRED", "FAILED"]);
+const paymentStatus = z.enum(["PENDING", "PAID", "EXPIRED", "FAILED", "CANCELLED"]);
 
 const checkoutResponseSchema = z.object({
   orderId: z.number().int().positive(),
@@ -102,6 +102,19 @@ export async function checkPromptPayPayment(
   if (!validTransactionId(transactionId)) throw new Error("Payment transaction is invalid");
   return requestJson(
     `/api/v1/payments/promptpay/${encodeURIComponent(transactionId)}/check`,
+    { method: "POST", headers: { accept: "application/json" } },
+    statusResponseSchema,
+    fetcher,
+  );
+}
+
+export async function cancelPromptPayPayment(
+  transactionId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PromptPayStatus> {
+  if (!validTransactionId(transactionId)) throw new Error("Payment transaction is invalid");
+  return requestJson(
+    `/api/v1/payments/promptpay/${encodeURIComponent(transactionId)}/cancel`,
     { method: "POST", headers: { accept: "application/json" } },
     statusResponseSchema,
     fetcher,

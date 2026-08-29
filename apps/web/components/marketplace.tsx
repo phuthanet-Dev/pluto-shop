@@ -21,6 +21,7 @@ import type { Locale } from "@/lib/i18n";
 import { fetchAuthSession } from "@/lib/auth-client";
 import { fetchCart, mergeCart, replaceCart } from "@/lib/cart-api";
 import {
+  cancelPromptPayPayment,
   checkPromptPayPayment,
   createPromptPayPayment,
   isPromptPayAvailableAt,
@@ -135,6 +136,11 @@ const copyByLocale = {
     paymentCopyError: "ไม่สามารถคัดลอกข้อมูลการชำระเงินได้",
     paymentRemaining: "เวลาที่เหลือ",
     paymentAutoCheck: "ตรวจสอบอัตโนมัติทุก 5 วินาที",
+    paymentCancel: "ยกเลิกการชำระเงิน",
+    paymentCancelConfirm: "ต้องการยกเลิกการชำระเงินนี้หรือไม่? ระบบจะหยุดตรวจสอบ QR นี้ สินค้าจะยังอยู่ในรถเข็นของคุณ และการยกเลิกนี้ไม่ใช่การคืนเงินจากผู้ให้บริการ",
+    paymentCancelPending: "กำลังยกเลิกการชำระเงิน",
+    paymentCancelled: "ยกเลิกการชำระเงินแล้ว",
+    paymentCancelError: "ไม่สามารถยกเลิกการชำระเงินได้ กรุณาลองตรวจสอบสถานะอีกครั้ง",
     paymentDismiss: "ปิดหน้าต่าง",
     paymentTitle: "ชำระเงินด้วย PromptPay",
     paymentDescription: "สแกน QR เพื่อชำระเงิน แล้วกดตรวจสอบสถานะ",
@@ -223,6 +229,11 @@ const copyByLocale = {
     paymentCopyError: "Could not copy the payment payload",
     paymentRemaining: "Time remaining",
     paymentAutoCheck: "Automatic status check every 5 seconds",
+    paymentCancel: "Cancel payment",
+    paymentCancelConfirm: "Cancel this payment? The system will stop checking this QR, the items will remain in your cart, and this is not a provider refund.",
+    paymentCancelPending: "Cancelling payment",
+    paymentCancelled: "Payment cancelled",
+    paymentCancelError: "Could not cancel the payment. Please check the status again.",
     paymentDismiss: "Close payment window",
     paymentTitle: "Pay with PromptPay",
     paymentDescription: "Scan the QR code, then check the payment status.",
@@ -347,6 +358,7 @@ export function Marketplace({
   const [paymentMethodOpen, setPaymentMethodOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentChecking, setPaymentChecking] = useState(false);
+  const [paymentCancelling, setPaymentCancelling] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentNow, setPaymentNow] = useState(() => Date.now());
   const [paymentCopied, setPaymentCopied] = useState(false);
@@ -656,6 +668,23 @@ export function Marketplace({
       setPaymentChecking(false);
     }
   }, [clearCart, copy.paymentError, payment, paymentFetcher]);
+
+  const cancelPayment = useCallback(async () => {
+    if (!payment || payment.status !== "PENDING" || paymentCancelling) return;
+    if (!window.confirm(copy.paymentCancelConfirm)) return;
+
+    setPaymentCancelling(true);
+    setPaymentError(null);
+    try {
+      const next = await cancelPromptPayPayment(payment.transactionId, paymentFetcher);
+      setPayment((current) => current ? { ...current, ...next } : current);
+      setPaymentError(null);
+    } catch {
+      setPaymentError(copy.paymentCancelError);
+    } finally {
+      setPaymentCancelling(false);
+    }
+  }, [copy.paymentCancelConfirm, copy.paymentCancelError, payment, paymentCancelling, paymentFetcher]);
 
   useEffect(() => {
     if (!paymentOpen || !payment || payment.status !== "PENDING") return;
@@ -1050,36 +1079,53 @@ export function Marketplace({
                               ? copy.paymentPaid
                               : payment.status === "EXPIRED"
                                 ? copy.paymentExpired
-                                : copy.paymentFailed}
+                                : payment.status === "CANCELLED"
+                                  ? copy.paymentCancelled
+                                  : copy.paymentFailed}
                           </span>
                           <p>
                             {payment.status === "PAID"
                               ? copy.paymentPaid
                               : payment.status === "EXPIRED"
                                 ? copy.paymentExpired
-                                : copy.paymentFailed}
+                                : payment.status === "CANCELLED"
+                                  ? copy.paymentCancelled
+                                  : copy.paymentFailed}
                           </p>
                         </div>
                       )}
                       {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
-                      <div className="payment-action-row">
+                      <div className={`payment-action-row${payment.status === "PENDING" ? "" : " payment-action-row-single"}`}>
                         {payment.status === "PENDING" ? (
-                          <button
-                            className="payment-check-button"
-                            type="button"
-                            disabled={paymentChecking}
-                            onClick={() => void checkPaymentStatus()}
-                          >
-                            <span aria-hidden="true">⟳</span>
-                            {paymentChecking ? copy.paymentPending : copy.paymentCheck}
-                          </button>
+                          <>
+                            <button
+                              className="payment-check-button"
+                              type="button"
+                              disabled={paymentChecking || paymentCancelling}
+                              onClick={() => void checkPaymentStatus()}
+                            >
+                              <span aria-hidden="true">⟳</span>
+                              {paymentChecking ? copy.paymentPending : copy.paymentCheck}
+                            </button>
+                            <button
+                              className="payment-cancel-button"
+                              type="button"
+                              disabled={paymentChecking || paymentCancelling}
+                              onClick={() => void cancelPayment()}
+                            >
+                              <span aria-hidden="true">⊗</span>
+                              {paymentCancelling ? copy.paymentCancelPending : copy.paymentCancel}
+                            </button>
+                          </>
                         ) : null}
-                        <DialogClose asChild>
-                          <button className="payment-dismiss-button" type="button">
-                            <span aria-hidden="true">⊗</span>
-                            {copy.paymentDismiss}
-                          </button>
-                        </DialogClose>
+                        {payment.status !== "PENDING" ? (
+                          <DialogClose asChild>
+                            <button className="payment-dismiss-button" type="button">
+                              <span aria-hidden="true">⊗</span>
+                              {copy.paymentDismiss}
+                            </button>
+                          </DialogClose>
+                        ) : null}
                       </div>
                     </div>
                   </div>

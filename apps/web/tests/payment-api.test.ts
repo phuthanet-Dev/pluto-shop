@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { checkPromptPayPayment, createPromptPayPayment, isPromptPayAvailableAt } from "@/lib/payment-api";
+import { cancelPromptPayPayment, checkPromptPayPayment, createPromptPayPayment, isPromptPayAvailableAt } from "@/lib/payment-api";
 
 const checkoutResponse = {
   orderId: 17,
@@ -55,6 +55,23 @@ describe("PromptPay client", () => {
 
     await expect(checkPromptPayPayment("Market-test-payment", fetcher)).resolves.toEqual(statusResponse);
     expect(fetcher).toHaveBeenCalledWith("/api/v1/payments/promptpay/Market-test-payment/check", {
+      method: "POST",
+      headers: { accept: "application/json" },
+    });
+  });
+
+  it("cancels a pending transaction through the same-origin BFF", async () => {
+    const cancelledResponse = {
+      ...statusResponse,
+      status: "CANCELLED",
+      message: "Payment cancelled",
+    };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(cancelledResponse), { status: 200 }),
+    );
+
+    await expect(cancelPromptPayPayment("Market-test-payment", fetcher)).resolves.toEqual(cancelledResponse);
+    expect(fetcher).toHaveBeenCalledWith("/api/v1/payments/promptpay/Market-test-payment/cancel", {
       method: "POST",
       headers: { accept: "application/json" },
     });

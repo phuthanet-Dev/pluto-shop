@@ -31,4 +31,11 @@ public class PromptPayPaymentController {
             @PathVariable String transactionId) {
         return service.checkPromptPay(jwt, transactionId);
     }
+
+    @PostMapping("/payments/promptpay/{transactionId}/cancel")
+    public PromptPayStatusResponse cancelPromptPay(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String transactionId) {
+        return service.cancelPromptPay(jwt, transactionId);
+    }
 }

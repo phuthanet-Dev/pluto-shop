@@ -153,11 +153,40 @@ describe("payment method dialog", () => {
     expect(within(paymentDialog).getByText("Automatic status check every 5 seconds")).toBeInTheDocument();
     expect(within(paymentDialog).getByTestId("payment-countdown")).toHaveTextContent(/^\d{2}:\d{2}$/u);
     expect(within(paymentDialog).getByRole("button", { name: "Check payment" })).toBeInTheDocument();
-    expect(within(paymentDialog).getByRole("button", { name: "Close payment window" })).toBeInTheDocument();
+    expect(within(paymentDialog).getByRole("button", { name: "Cancel payment" })).toBeInTheDocument();
+    expect(within(paymentDialog).getByRole("button", { name: "Close payment" })).toBeInTheDocument();
     await user.click(within(paymentDialog).getByRole("button", { name: "Copy payment payload" }));
     await waitFor(() =>
       expect(within(paymentDialog).getByRole("button", { name: "Copy payment payload" })).toHaveTextContent("Copied"),
     );
     expect(writeText).toHaveBeenCalledWith("000201010212");
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    paymentFetcher.mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment",
+        amountMinor: 1098,
+        currency: "THB",
+        expiresAt: "2099-08-29T02:00:00Z",
+        status: "CANCELLED",
+        message: "Payment cancelled",
+      }), { status: 200 }),
+    );
+    await user.click(within(paymentDialog).getByRole("button", { name: "Cancel payment" }));
+
+    await waitFor(() =>
+      expect(paymentDialog.querySelector(".payment-state-card")).toHaveTextContent("Payment cancelled"),
+    );
+    expect(confirm).toHaveBeenCalledWith(
+      "Cancel this payment? The system will stop checking this QR, the items will remain in your cart, and this is not a provider refund.",
+    );
+    expect(paymentFetcher).toHaveBeenLastCalledWith("/api/v1/payments/promptpay/Market-test-payment/cancel", {
+      method: "POST",
+      headers: { accept: "application/json" },
+    });
+    expect(within(paymentDialog).queryByRole("button", { name: "Cancel payment" })).not.toBeInTheDocument();
+    expect(within(paymentDialog).getByRole("button", { name: "Close payment window" })).toBeInTheDocument();
+    confirm.mockRestore();
   });
 });
