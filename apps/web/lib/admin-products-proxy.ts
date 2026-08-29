@@ -9,6 +9,21 @@ function sameSiteMutation(request: Request): boolean {
   return request.headers.get("origin") === (process.env.SITE_URL ?? "http://127.0.0.1:3000");
 }
 
+function allowedQuery(request: Request): string {
+  const incoming = new URL(request.url).searchParams;
+  const forwarded = new URLSearchParams();
+  if (request.method === "GET") {
+    const query = incoming.get("q");
+    if (query !== null) forwarded.set("q", query);
+  }
+  if (request.method === "DELETE") {
+    const version = incoming.get("version");
+    if (version !== null && /^\d+$/u.test(version)) forwarded.set("version", version);
+  }
+  const query = forwarded.toString();
+  return query ? `?${query}` : "";
+}
+
 export async function proxyAdminProductsRequest(
   request: Request,
   suffix = "",
@@ -39,7 +54,7 @@ export async function proxyAdminProductsRequest(
     : await request.text();
 
   try {
-    const upstreamUrl = `${process.env.INTERNAL_API_URL}${ADMIN_PRODUCTS_PATH}${suffix}`;
+    const upstreamUrl = `${process.env.INTERNAL_API_URL}${ADMIN_PRODUCTS_PATH}${suffix}${allowedQuery(request)}`;
     const send = (token: string) => {
       const retryHeaders = new Headers(headers);
       retryHeaders.set("authorization", `Bearer ${token}`);
