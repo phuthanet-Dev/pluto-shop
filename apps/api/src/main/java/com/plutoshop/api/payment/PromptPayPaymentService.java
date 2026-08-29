@@ -20,6 +20,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.plutoshop.api.cart.Cart;
 import com.plutoshop.api.cart.CartItem;
@@ -34,6 +36,10 @@ public class PromptPayPaymentService {
 
     private static final String CURRENCY = "THB";
     private static final String PROVIDER = "INWCLOUD";
+    // Inwcloud adds a bounded random-satang marker to the requested THB amount.
+    // Keep the server-calculated order total authoritative and store the provider amount separately.
+    private static final long MAX_RANDOM_SATANG = 99;
+    private static final Logger LOGGER = LoggerFactory.getLogger(PromptPayPaymentService.class);
     private static final Pattern IDEMPOTENCY_KEY = Pattern.compile("[A-Za-z0-9._:-]{16,100}");
     private static final Pattern TRANSACTION_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,119}");
     private static final RowMapper<PaymentSnapshot> PAYMENT_ROW = PromptPayPaymentService::mapPayment;
@@ -135,7 +141,16 @@ public class PromptPayPaymentService {
 
         InwcloudPaymentGatewayClient.GeneratedPayment generated = gateway.generate(
                 BigDecimal.valueOf(totalMinor, 2));
-        if (generated.amountMinor() != totalMinor) {
+        long providerRandomSatang = generated.amountMinor() >= totalMinor
+                ? Math.subtractExact(generated.amountMinor(), totalMinor)
+                : -1;
+        if (providerRandomSatang < 0 || providerRandomSatang > MAX_RANDOM_SATANG) {
+            LOGGER.warn(
+                    "PromptPay amount mismatch server_total_minor={} provider_amount_minor={} request_amount_thb={} provider_random_satang={}",
+                    totalMinor,
+                    generated.amountMinor(),
+                    BigDecimal.valueOf(totalMinor, 2),
+                    providerRandomSatang);
             throw new PaymentGatewayException("Payment gateway amount does not match order total");
         }
         jdbc.update("""

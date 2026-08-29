@@ -151,6 +151,8 @@ POST /api/v1/payments/promptpay/{transactionId}/cancel
 
 ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser และใช้ `Idempotency-Key` กับ PromptPay หน้า checkout ปิด PromptPay เวลา 23:30–01:30 ตามเวลา `Asia/Bangkok` พร้อม backend enforcement ซ้ำอีกชั้น โดยช่วงปิดยังเลือกช่องทาง TrueMoney ใน modal ได้ แต่ช่องทางนี้ยังไม่พร้อมใช้งาน
 
+Inwcloud PromptPay อาจเพิ่ม random satang เพื่อใช้ระบุธุรกรรม เช่น order `฿210.00` อาจสร้าง QR ที่ต้องชำระ `฿210.62` ระบบจึงยอมรับยอด provider ที่มากกว่ายอด order ได้ไม่เกิน `99 satang` เท่านั้น โดยยอดสินค้าใน `shop_orders.total_minor` ยังคงเป็น source of truth และยอดที่ต้องชำระจริงของ QR จะเก็บใน `payment_transactions.amount_minor` แยกกัน หากยอดต่ำกว่าหรือเพิ่มเกินช่วงนี้ ระบบจะ rollback order/payment/stock และไม่สร้างรายการชำระเงินสำเร็จ
+
 จาก contract ที่ตรวจสอบได้ของ TrueMoney ยืนยันเพียง request เบื้องต้นไปยัง `POST https://api.inwcloud.shop/v1/truewallet/redeem` ด้วย Bearer credential ฝั่ง server และ body ที่มี `voucher_link` เท่านั้น ยังไม่มีข้อมูลที่ยืนยันได้เรื่อง provider idempotency, redemption reference, amount unit/currency, status polling, callback, refund หรือ reconciliation จึงยังไม่สร้าง adapter หรือ live charge เพื่อป้องกันการตัด voucher แล้วบันทึก order ไม่ครบ
 
 ระบบ PromptPay reserve stock ระหว่างรอชำระ และผู้ใช้สามารถยกเลิก pending payment ผ่าน cancel endpoint ได้ การยกเลิกจะเปลี่ยน payment/order เป็น `CANCELLED`, คืน stock reservation และคงสินค้าไว้ใน cart เพื่อให้ลอง checkout ใหม่ได้; การยกเลิกนี้เป็นการหยุดติดตาม QR ในระบบเท่านั้น ไม่ใช่ provider refund/cancel เพราะยังไม่มี contract provider สำหรับการยกเลิกที่ยืนยันได้ QR ที่ผู้ใช้ชำระไปแล้วก่อนกดยกเลิกต้องเข้าสู่กระบวนการ reconciliation แยกต่างหาก

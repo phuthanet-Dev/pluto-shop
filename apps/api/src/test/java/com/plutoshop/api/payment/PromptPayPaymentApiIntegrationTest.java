@@ -149,6 +149,20 @@ class PromptPayPaymentApiIntegrationTest {
     }
 
     @Test
+    void acceptsProviderRandomSatangAddedToServerOrderTotal() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-random-satang", 119053));
+        addToCart("payment-test-random-satang", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-random-satang"))
+                        .header("Idempotency-Key", "payment-test-random-satang-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transactionId").value("Market-test-random-satang"))
+                .andExpect(jsonPath("$.amountMinor").value(119053))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
     void rejectsProviderAmountThatDoesNotMatchServerOrderTotal() throws Exception {
         when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-amount-mismatch", 1098));
         addToCart("payment-test-amount-mismatch", 1);
@@ -167,6 +181,32 @@ class PromptPayPaymentApiIntegrationTest {
                 "SELECT count(*) FROM payment_transactions WHERE transaction_id = ?",
                 Integer.class,
                 "Market-test-amount-mismatch");
+        Integer remainingStock = jdbcTemplate.queryForObject(
+                "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(0, orders);
+        org.junit.jupiter.api.Assertions.assertEquals(0, payments);
+        org.junit.jupiter.api.Assertions.assertEquals(88, remainingStock);
+    }
+
+    @Test
+    void rejectsProviderRandomSatangOutsideAllowedRange() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-random-satang-too-large", 119100));
+        addToCart("payment-test-random-satang-too-large", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-random-satang-too-large"))
+                        .header("Idempotency-Key", "payment-test-random-satang-too-large-key"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.detail").value("Payment amount does not match order total"));
+
+        Integer orders = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM shop_orders WHERE idempotency_key = ?",
+                Integer.class,
+                "payment-test-random-satang-too-large-key");
+        Integer payments = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM payment_transactions WHERE transaction_id = ?",
+                Integer.class,
+                "Market-test-random-satang-too-large");
         Integer remainingStock = jdbcTemplate.queryForObject(
                 "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
         org.junit.jupiter.api.Assertions.assertEquals(0, orders);
