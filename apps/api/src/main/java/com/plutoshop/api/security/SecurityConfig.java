@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
@@ -15,7 +16,14 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -28,8 +36,12 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain apiSecurity(
             HttpSecurity http,
-            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuer)
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuer,
+            @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}") String jwkSetUri)
             throws Exception {
+        if (issuer.isBlank() && !jwkSetUri.isBlank()) {
+            throw new IllegalStateException("JWT issuer is required when JWK set URI is configured");
+        }
         http
                 // The current API accepts bearer tokens, not browser-authenticated mutations.
                 // Cookie-backed write endpoints must add CSRF protection before they are enabled.
@@ -52,6 +64,46 @@ public class SecurityConfig {
         }
 
         return http.build();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "spring.security.oauth2.resourceserver.jwt.issuer-uri")
+    JwtDecoder jwtDecoder(
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
+            @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}") String jwkSetUri,
+            @Value("${spring.security.oauth2.resourceserver.jwt.audience:}") String audience)
+            throws Exception {
+        validateJwtConfiguration(issuer, jwkSetUri, audience);
+
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuer),
+                audienceValidator(audience)));
+        return decoder;
+    }
+
+    static void validateJwtConfiguration(String issuer, String jwkSetUri, String audience) {
+        if (issuer == null || issuer.isBlank() || jwkSetUri == null || jwkSetUri.isBlank()
+                || audience == null || audience.isBlank()) {
+            throw new IllegalStateException("JWT issuer, JWK set URI, and audience are required");
+        }
+    }
+
+    static OAuth2TokenValidator<Jwt> audienceValidator(String expectedAudience) {
+        if (expectedAudience == null || expectedAudience.isBlank()) {
+            throw new IllegalArgumentException("Expected JWT audience must not be blank");
+        }
+        return jwt -> {
+            Object audienceClaim = jwt.getClaims().get("aud");
+            boolean matches = audienceClaim instanceof String audience
+                    ? expectedAudience.equals(audience)
+                    : audienceClaim instanceof Collection<?> audiences
+                            && audiences.stream().anyMatch(expectedAudience::equals);
+            return matches
+                    ? OAuth2TokenValidatorResult.success()
+                    : OAuth2TokenValidatorResult.failure(
+                            new OAuth2Error("invalid_token", "Token audience is invalid", null));
+        };
     }
 
     private static Converter<Jwt, ? extends org.springframework.security.authentication.AbstractAuthenticationToken>

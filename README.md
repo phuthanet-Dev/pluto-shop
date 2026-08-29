@@ -102,7 +102,7 @@ Logout: http://127.0.0.1:3000/api/auth/logout (redirect ไป Keycloak โด�
 Admin:  http://127.0.0.1:3000/admin
 ```
 
-Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AUTH_SESSION_SECRET`; access token ไม่อยู่ใน localStorage และ route `/admin` ตรวจ `ADMIN` role ฝั่ง server ส่วน public catalog ยัง anonymous ได้ตามเดิม Spring API ตรวจ JWT issuer/JWK และตอบ `401/403` แบบ sanitized ที่ `/api/v1/admin/*`
+Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AUTH_SESSION_SECRET`; access token ไม่อยู่ใน localStorage และ route `/admin` ตรวจ `ADMIN` role ฝั่ง server ส่วน public catalog ยัง anonymous ได้ตามเดิม Spring API ตรวจ JWT issuer/JWK, audience `pluto-api` และตอบ `401/403` แบบ sanitized ที่ `/api/v1/admin/*` โดยไม่รับ token ที่ออกให้ audience อื่น
 
 หน้า credential ของ Keycloak ใช้ custom theme `pluto` ที่ `infra/keycloak/themes/pluto` เพื่อให้พื้นหลัง, card, focus state, button และโลโก้สอดคล้องกับ Pluto Shop โดยยังคงให้ Keycloak เป็นผู้จัดการ password, session และ OIDC security ทั้งหมด
 

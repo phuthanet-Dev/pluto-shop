@@ -24,6 +24,11 @@ spring:
         format_sql: false
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          audience: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCE:}
 
 server:
   shutdown: graceful
