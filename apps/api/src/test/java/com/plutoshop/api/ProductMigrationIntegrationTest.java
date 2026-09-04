@@ -41,6 +41,25 @@ class ProductMigrationIntegrationTest {
     }
 
     @Test
+    void migrationCreatesSharedMultiOptionGroupMetadataTable() throws Exception {
+        migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select exists (
+                            select 1
+                            from information_schema.tables
+                            where table_schema = 'public'
+                              and table_name = 'product_option_groups'
+                        )
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getBoolean(1)).isTrue();
+        }
+    }
+
+    @Test
     void migrationCreatesPaymentTables() throws Exception {
         migrate();
 
@@ -66,8 +85,8 @@ class ProductMigrationIntegrationTest {
                 Statement statement = connection.createStatement();
                 ResultSet result = statement.executeQuery("""
                         select slug, name_th, name_en, description_th, description_en,
-                               visual_code, type, price_minor, stock_quantity,
-                               bundle_item_count, instant_delivery, catalog_order
+                               price_minor, stock_quantity,
+                               instant_delivery, catalog_order
                         from products
                         order by catalog_order
                         """)) {
@@ -78,11 +97,8 @@ class ProductMigrationIntegrationTest {
                         result.getString("name_en"),
                         result.getString("description_th"),
                         result.getString("description_en"),
-                        result.getString("visual_code"),
-                        result.getString("type"),
                         result.getInt("price_minor"),
                         result.getInt("stock_quantity"),
-                        result.getObject("bundle_item_count", Integer.class),
                         result.getBoolean("instant_delivery"),
                         result.getInt("catalog_order")));
             }
@@ -116,10 +132,6 @@ class ProductMigrationIntegrationTest {
                 "E-commerce Product Mockups", "Packaging Mockup Essentials",
                 "Mobile App Showcase Scenes", "Creative Business Card Pack",
                 "Newsletter Layout System", "Digital Product Launch Checklist");
-        assertThat(products).extracting(SeedRow::visualCode).containsExactly(
-                "CL", "UI", "SP", "BG", "PD", "IQ", "FP", "PC", "MT", "CP", "3D", "IC",
-                "CV", "DF", "TJ", "RB", "BS", "FD", "PW", "CW", "WW", "EM", "VT", "SF",
-                "AL", "PH", "HF", "EF", "MI", "GB", "PM", "PK", "MA", "BC", "NL", "LC");
         List<Integer> referenceUsd = List.of(
                 29, 34, 18, 24, 16, 9, 14, 12, 28, 19, 22, 15,
                 13, 7, 8, 18, 11, 27, 21, 17, 32, 14, 12, 23,
@@ -130,17 +142,6 @@ class ProductMigrationIntegrationTest {
                 1, 88, 1, 70, 1, 200, 1, 82, 1, 140, 1, 180,
                 1, 230, 1, 76, 210, 1, 99, 1, 49, 1, 160, 1,
                 58, 1, 125, 1, 77, 1, 52, 1, 80, 1, 90, 240);
-        assertThat(products).extracting(SeedRow::bundleItemCount).containsExactly(
-                4, null, 6, null, 3, null, 5, null, 4, null, 3, null,
-                4, null, 3, null, null, 2, null, 3, null, 5, null, 4,
-                null, 6, null, 2, null, 8, null, 4, null, 5, null, null);
-        assertThat(products).extracting(SeedRow::type).containsExactly(
-                "BUNDLE", "SINGLE", "BUNDLE", "SINGLE", "BUNDLE", "SINGLE",
-                "BUNDLE", "SINGLE", "BUNDLE", "SINGLE", "BUNDLE", "SINGLE",
-                "BUNDLE", "SINGLE", "BUNDLE", "SINGLE", "SINGLE", "BUNDLE",
-                "SINGLE", "BUNDLE", "SINGLE", "BUNDLE", "SINGLE", "BUNDLE",
-                "SINGLE", "BUNDLE", "SINGLE", "BUNDLE", "SINGLE", "BUNDLE",
-                "SINGLE", "BUNDLE", "SINGLE", "BUNDLE", "SINGLE", "SINGLE");
         assertThat(products).allMatch(SeedRow::instantDelivery);
         assertThat(products.get(0).slug()).isEqualTo("creator-launch-kit");
         assertThat(products.get(0).priceMinor()).isEqualTo(101_500);
@@ -164,6 +165,81 @@ class ProductMigrationIntegrationTest {
         }
     }
 
+    @Test
+    void migrationBackfillsProductMetadataAndLegacyInvariants() throws Exception {
+        migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select short_description_th, short_description_en, delivery_type,
+                               warranty_days, stock_warning_threshold, status, sort_order, catalog_order
+                        from products
+                        where id = 1
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getString("short_description_th")).isNotBlank();
+            assertThat(result.getString("short_description_en")).isNotBlank();
+            assertThat(result.getString("short_description_th").length()).isLessThanOrEqualTo(500);
+            assertThat(result.getString("short_description_en").length()).isLessThanOrEqualTo(500);
+            assertThat(result.getString("delivery_type")).isEqualTo("INSTANT");
+            assertThat(result.getInt("warranty_days")).isZero();
+            assertThat(result.getInt("stock_warning_threshold")).isEqualTo(5);
+            assertThat(result.getString("status")).isEqualTo("ACTIVE");
+            assertThat(result.getInt("sort_order")).isEqualTo(1);
+            assertThat(result.getInt("catalog_order")).isEqualTo(1);
+        }
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select count(*)
+                        from products
+                        where instant_delivery = (delivery_type = 'INSTANT')
+                          and active = (status = 'ACTIVE')
+                          and catalog_order = sort_order
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getInt(1)).isEqualTo(36);
+        }
+    }
+
+    @Test
+    void migrationRemovesVisualCodeAndTypeColumnsFromProducts() throws Exception {
+        migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select count(*)
+                        from information_schema.columns
+                        where table_schema = 'public'
+                          and table_name = 'products'
+                          and column_name in ('visual_code', 'type')
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getInt(1)).isZero();
+        }
+    }
+
+    @Test
+    void migrationRemovesBundleItemCountColumnFromProducts() throws Exception {
+        migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery("""
+                        select count(*)
+                        from information_schema.columns
+                        where table_schema = 'public'
+                          and table_name = 'products'
+                          and column_name = 'bundle_item_count'
+                        """)) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getInt(1)).isZero();
+        }
+    }
+
     private void migrate() {
         Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
@@ -177,11 +253,8 @@ class ProductMigrationIntegrationTest {
             String nameEn,
             String descriptionTh,
             String descriptionEn,
-            String visualCode,
-            String type,
             int priceMinor,
             int stockQuantity,
-            Integer bundleItemCount,
             boolean instantDelivery,
             int catalogOrder) {
     }

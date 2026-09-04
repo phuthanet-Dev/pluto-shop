@@ -28,6 +28,7 @@ import com.plutoshop.api.cart.CartItem;
 import com.plutoshop.api.cart.CartRepository;
 import com.plutoshop.api.catalog.Product;
 import com.plutoshop.api.catalog.ProductRepository;
+import com.plutoshop.api.fulfillment.FulfillmentAllocationService;
 import com.plutoshop.api.user.AppUser;
 import com.plutoshop.api.user.AppUserRepository;
 
@@ -51,6 +52,7 @@ public class PromptPayPaymentService {
     private final ProductRepository productRepository;
     private final NamedParameterJdbcTemplate jdbc;
     private final InwcloudPaymentGatewayClient gateway;
+    private final FulfillmentAllocationService fulfillmentAllocationService;
     private final boolean promptPayBlackoutEnforced;
 
     PromptPayPaymentService(
@@ -59,12 +61,14 @@ public class PromptPayPaymentService {
             ProductRepository productRepository,
             @org.springframework.beans.factory.annotation.Qualifier("userJdbcTemplate") NamedParameterJdbcTemplate jdbc,
             InwcloudPaymentGatewayClient gateway,
+            FulfillmentAllocationService fulfillmentAllocationService,
             @org.springframework.beans.factory.annotation.Value("${payment.inwcloud.promptpay-blackout-enforced:true}") boolean promptPayBlackoutEnforced) {
         this.userRepository = userRepository;
         this.cartRepository = cartRepository;
         this.productRepository = productRepository;
         this.jdbc = jdbc;
         this.gateway = gateway;
+        this.fulfillmentAllocationService = fulfillmentAllocationService;
         this.promptPayBlackoutEnforced = promptPayBlackoutEnforced;
     }
 
@@ -138,6 +142,7 @@ public class PromptPayPaymentService {
                     .addValue("unitPriceMinor", product.getPriceMinor())
                     .addValue("quantity", item.getQuantity()));
         }
+        fulfillmentAllocationService.reserveForPendingOrder(orderId);
 
         InwcloudPaymentGatewayClient.GeneratedPayment generated = gateway.generate(
                 BigDecimal.valueOf(totalMinor, 2));
@@ -296,6 +301,7 @@ public class PromptPayPaymentService {
                     SET version = version + 1, updated_at = CURRENT_TIMESTAMP
                     WHERE user_id = :userId AND status = 'ACTIVE'
                     """, new MapSqlParameterSource("userId", current.userId()));
+            fulfillmentAllocationService.markOrderPaid(current.orderId());
         } else {
             jdbc.update("""
                     UPDATE shop_orders
@@ -305,6 +311,7 @@ public class PromptPayPaymentService {
                     .addValue("status", status.name())
                     .addValue("orderId", current.orderId()));
             releaseReservedStock(current.orderId());
+            fulfillmentAllocationService.releaseForOrder(current.orderId());
         }
         PaymentSnapshot latest = findByPaymentId(current.paymentId()).orElse(current.withStatus(status));
         return toStatusResponse(latest, message);

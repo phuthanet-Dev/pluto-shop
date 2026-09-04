@@ -19,6 +19,7 @@ import {
 import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 import { RefundStepsDialog } from "@/components/ui/refund-steps-dialog";
 import { PaymentMethodLogo } from "@/components/payment-method-logo";
+import { AccountMenu } from "@/components/account-menu";
 import { formatThb, getLocaleSwitchHref } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import { fetchAuthSession } from "@/lib/auth-client";
@@ -37,6 +38,7 @@ import {
   productDescription,
   productName,
   productOptionLabel,
+  productShortDescription,
 } from "@/lib/products";
 import type { Product } from "@/lib/products";
 import type { Filters } from "@/lib/url-filters";
@@ -95,6 +97,12 @@ const copyByLocale = {
     increaseQuantity: (name: string) => `เพิ่มจำนวน ${name}`,
     addToCart: "เพิ่มลงรถเข็น",
     inCart: "อยู่ในรถเข็น",
+    account: "บัญชี",
+    accountMenu: "เมนูบัญชี",
+    accountMenuFor: (name: string) => `เมนูบัญชีของ ${name}`,
+    signedInAs: "เข้าสู่ระบบในชื่อ",
+    admin: "ผู้ดูแลระบบ",
+    language: "ภาษา",
     login: "เข้าสู่ระบบ",
     signup: "สมัครสมาชิก",
     logout: "ออกจากระบบ",
@@ -107,12 +115,16 @@ const copyByLocale = {
     errorBody: "ร้านค้าเชื่อมต่อไม่สำเร็จ กรุณาลองอีกครั้ง",
     retry: "ลองอีกครั้ง",
     results: (count: number) => `${count} รายการ`,
+    deliveryType: "รูปแบบการส่งมอบ",
     instant: "ส่งมอบทันที",
+    manualDelivery: "ส่งมอบด้วยตนเอง",
+    warranty: "การรับประกัน",
+    warrantyDays: (days: number) => `${days} วัน`,
+    noWarranty: "ไม่มีการรับประกัน",
     secure: "ชำระเงินปลอดภัย",
     creator: "เป็นมิตรกับครีเอเตอร์",
     available: "พร้อมจำหน่าย",
     soldOut: "สินค้าหมด",
-    items: "รายการ",
     optionCount: (count: number) => `${count} ตัวเลือก`,
     chooseOption: "เลือกตัวเลือก",
     chooseOptionDescription: "เลือกตัวเลือกที่ต้องการก่อนดูรายละเอียด",
@@ -148,6 +160,7 @@ const copyByLocale = {
     paymentPayeeDetail: "PromptPay checkout",
     paymentDialogName: "หน้าชำระเงิน Pluto Shop PromptPay",
     paymentQrCancelled: "QR พร้อมเพย์ไม่พร้อมใช้งานเนื่องจากยกเลิกการชำระเงินแล้ว",
+    paymentQrExpired: "QR พร้อมเพย์ไม่พร้อมใช้งานเนื่องจากหมดอายุแล้ว",
     paymentAmountLabel: "ยอดที่ต้องชำระ",
     paymentAccountVerification: "ตรวจสอบบัญชีก่อนโอน",
     paymentAccountNameLabel: "ชื่อบัญชี",
@@ -213,6 +226,12 @@ const copyByLocale = {
     increaseQuantity: (name: string) => `Increase ${name} quantity`,
     addToCart: "Add to cart",
     inCart: "In cart",
+    account: "Account",
+    accountMenu: "Account menu",
+    accountMenuFor: (name: string) => `Account menu for ${name}`,
+    signedInAs: "Signed in as",
+    admin: "Admin",
+    language: "Language",
     login: "Log in",
     signup: "Sign up",
     logout: "Log out",
@@ -225,12 +244,16 @@ const copyByLocale = {
     errorBody: "The marketplace could not connect. Please try again.",
     retry: "Retry",
     results: (count: number) => `${count} results`,
+    deliveryType: "Delivery",
     instant: "Instant delivery",
+    manualDelivery: "Manual delivery",
+    warranty: "Warranty",
+    warrantyDays: (days: number) => `${days} days`,
+    noWarranty: "No warranty",
     secure: "Secure checkout",
     creator: "Creator friendly",
     available: "Available",
     soldOut: "Sold out",
-    items: "items",
     optionCount: (count: number) => `${count} products`,
     chooseOption: "Choose an option",
     chooseOptionDescription: "Choose an option before opening the product details.",
@@ -266,6 +289,7 @@ const copyByLocale = {
     paymentPayeeDetail: "PromptPay checkout",
     paymentDialogName: "Pluto Shop PromptPay payment",
     paymentQrCancelled: "PromptPay QR code unavailable because the payment was cancelled",
+    paymentQrExpired: "PromptPay QR code unavailable because the payment expired",
     paymentAmountLabel: "Amount due",
     paymentAccountVerification: "PromptPay account verification",
     paymentAccountNameLabel: "Account name",
@@ -307,8 +331,15 @@ const copyByLocale = {
   },
 } as const;
 
+export function productDisplayKey(product: Pick<Product, "id" | "selectionMode" | "optionGroup">): string {
+  return product.selectionMode === "MULTI_OPTION" && product.optionGroup
+    ? `multi:${product.optionGroup}`
+    : `single:${product.id}`;
+}
+
 function ProductArt({ product }: { product: Product }) {
-  const seed = Array.from(product.visualCode).reduce(
+  const [failedImageKey, setFailedImageKey] = useState<string | null>(null);
+  const seed = Array.from(product.slug).reduce(
     (total, character) => (total * 31 + character.charCodeAt(0)) % 360,
     17,
   );
@@ -316,6 +347,22 @@ function ProductArt({ product }: { product: Product }) {
     "--art-hue": String(244 + (seed % 48)),
     "--art-tilt": `${(seed % 18) - 9}deg`,
   } as CSSProperties;
+  const imageKey = product.imageUrl ? `${product.id}:${product.imageUrl}` : null;
+
+  if (product.imageUrl && failedImageKey !== imageKey) {
+    return (
+      <div className="product-art product-art-image">
+        <Image
+          src={product.imageUrl}
+          alt={product.nameEn}
+          fill
+          sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 25vw"
+          unoptimized
+          onError={() => setFailedImageKey(imageKey)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -325,7 +372,6 @@ function ProductArt({ product }: { product: Product }) {
     >
       <span className="art-orbit" />
       <span className="art-core" />
-      <span className="visual-code">{product.visualCode}</span>
     </div>
   );
 }
@@ -652,6 +698,7 @@ export function Marketplace({
   const paymentRemainingSeconds = payment
     ? Math.max(0, Math.ceil((new Date(payment.expiresAt).getTime() - paymentNow) / 1_000))
     : 0;
+  const paymentQrUnavailable = payment?.status === "CANCELLED" || payment?.status === "EXPIRED";
   const refundSteps = [
     { title: copy.refundStep1Title, description: copy.refundStep1Description, tone: "blue" },
     { title: copy.refundStep2Title, description: copy.refundStep2Description, tone: "violet" },
@@ -821,49 +868,14 @@ export function Marketplace({
             <span>Pluto Shop</span>
           </Link>
           <nav className="header-actions" aria-label="Primary navigation">
-            <Link
-              href={localeHref}
-              scroll={false}
-              className="locale-switch"
-              aria-label={copy.switchLocale}
-              hrefLang={locale === "th" ? "en" : "th"}
-            >
-              {copy.localeShort}
-            </Link>
-            {authSession.data?.authenticated ? (
-              <>
-                <span className="auth-user">
-                  {authSession.data.user.name ?? authSession.data.user.email}
-                </span>
-                {authSession.data.user.roles.includes("ADMIN") ? (
-                  <Link className="auth-link auth-admin" href="/admin">
-                    Admin
-                  </Link>
-                ) : null}
-                <Link
-                  className="auth-link"
-                  href={`/api/auth/logout?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
-                  prefetch={false}
-                >
-                  {copy.logout}
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  className="auth-link"
-                  href={`/api/auth/login?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
-                >
-                  {copy.login}
-                </Link>
-                <Link
-                  className="auth-link auth-signup"
-                  href={`/api/auth/signup?callbackUrl=${encodeURIComponent(`/${locale}`)}`}
-                >
-                  {copy.signup}
-                </Link>
-              </>
-            )}
+            {authSession.data ? (
+              <AccountMenu
+                locale={locale}
+                localeHref={localeHref}
+                copy={copy}
+                user={authSession.data.authenticated ? authSession.data.user : undefined}
+              />
+            ) : null}
             <Dialog open={cartOpen} onOpenChange={setCartOpen}>
               <DialogTrigger asChild>
                 <button
@@ -1112,7 +1124,14 @@ export function Marketplace({
                   <div className="payment-dialog-header">
                     <div className="payment-payee">
                       <div className="payment-payee-mark" aria-hidden="true">
-                        <span>PP</span>
+                        <Image
+                          className="payment-payee-logo"
+                          src="/favicon.svg"
+                          alt=""
+                          width={38}
+                          height={38}
+                          sizes="38px"
+                        />
                       </div>
                       <div className="payment-payee-copy">
                         <span className="payment-payee-label">{copy.paymentPayeeLabel}</span>
@@ -1139,11 +1158,17 @@ export function Marketplace({
                   <div className="payment-dialog-body">
                     <div className="payment-qr-column">
                       <div className="payment-qr-shell">
-                        <div className={`payment-qr-frame${payment.status === "CANCELLED" ? " payment-qr-frame-cancelled" : ""}`}>
+                        <div className={`payment-qr-frame${paymentQrUnavailable ? " payment-qr-frame-unavailable" : ""}`}>
                           <Image
                             src={payment.qrUrl}
-                            alt={payment.status === "CANCELLED" ? copy.paymentQrCancelled : "PromptPay QR code"}
-                            className={`payment-qr-image${payment.status === "CANCELLED" ? " payment-qr-image-blurred" : ""}`}
+                            alt={
+                              payment.status === "CANCELLED"
+                                ? copy.paymentQrCancelled
+                                : payment.status === "EXPIRED"
+                                  ? copy.paymentQrExpired
+                                  : "PromptPay QR code"
+                            }
+                            className={`payment-qr-image${paymentQrUnavailable ? " payment-qr-image-blurred" : ""}`}
                             width={270}
                             height={270}
                             sizes="(max-width: 639px) 100vw, 270px"
@@ -1477,9 +1502,10 @@ export function Marketplace({
                       product.priceMinor,
                     );
                     const hasAvailableOption = options.some((option) => option.stockQuantity > 0);
-                    const hasInstantOption = options.some((option) => option.instantDelivery);
+                    const hasInstantOption = options.some((option) => option.deliveryType === "INSTANT");
+                    const hasManualOption = options.some((option) => option.deliveryType === "MANUAL");
                     return (
-                      <article className="product-card" key={product.optionGroup ?? product.id}>
+                      <article className="product-card" key={productDisplayKey(product)}>
                         <div className="card-art-wrap">
                           <ProductArt product={product} />
                         </div>
@@ -1488,7 +1514,7 @@ export function Marketplace({
                             <div>
                               <h2>{name}</h2>
                               <p className="card-description">
-                                {productDescription(product, locale)}
+                                {productShortDescription(product, locale)}
                               </p>
                             </div>
                             <strong>
@@ -1507,14 +1533,13 @@ export function Marketplace({
                                 <span aria-hidden="true">↯</span>
                                 {copy.instant}
                               </span>
-                            ) : null}
-                            {isMultiOption ? (
-                              <span>{copy.optionCount(options.length)}</span>
-                            ) : product.bundleItemCount ? (
-                              <span>
-                                {product.bundleItemCount} {copy.items}
+                            ) : hasManualOption ? (
+                              <span className="manual-delivery">
+                                <span aria-hidden="true">◌</span>
+                                {copy.manualDelivery}
                               </span>
                             ) : null}
+                            {isMultiOption ? <span>{copy.optionCount(options.length)}</span> : null}
                           </div>
                           <button
                             className="detail-button"
@@ -1575,12 +1600,14 @@ export function Marketplace({
             <div className="option-choice-list">
               {optionChooser.options.map((option) => {
                 const optionName = productOptionLabel(option, locale);
+                const optionDescriptionId = `option-description-${option.id}`;
                 return (
                   <button
                     className="option-choice-card"
                     key={option.id}
                     type="button"
                     aria-label={optionName}
+                    aria-describedby={optionDescriptionId}
                     onClick={() => chooseProductOption(option)}
                   >
                     <span className="option-choice-art">
@@ -1588,18 +1615,26 @@ export function Marketplace({
                     </span>
                     <span className="option-choice-copy">
                       <strong>{optionName}</strong>
+                      <span id={optionDescriptionId} className="option-choice-description">
+                        {productShortDescription(option, locale)}
+                      </span>
                       <span className={option.stockQuantity > 0 ? "in-stock" : "sold-out"}>
                         <span aria-hidden="true" />
                         {option.stockQuantity > 0
                           ? `${option.stockQuantity} ${copy.available.toLowerCase()}`
                           : copy.soldOut}
                       </span>
-                      {option.instantDelivery ? (
+                      {option.deliveryType === "INSTANT" ? (
                         <span className="instant-delivery">
                           <span aria-hidden="true">↯</span>
                           {copy.instant}
                         </span>
-                      ) : null}
+                      ) : (
+                        <span className="manual-delivery">
+                          <span aria-hidden="true">◌</span>
+                          {copy.manualDelivery}
+                        </span>
+                      )}
                     </span>
                     <strong className="option-choice-price">{formatThb(option.priceMinor, locale)}</strong>
                   </button>
@@ -1651,8 +1686,12 @@ export function Marketplace({
               </p>
               <dl className="product-facts">
                 <div>
-                  <dt>{copy.instant}</dt>
-                  <dd>{selectedProduct.instantDelivery ? "✓" : "—"}</dd>
+                  <dt>{copy.deliveryType}</dt>
+                  <dd>{selectedProduct.deliveryType === "INSTANT" ? copy.instant : copy.manualDelivery}</dd>
+                </div>
+                <div>
+                  <dt>{copy.warranty}</dt>
+                  <dd>{selectedProduct.warrantyDays > 0 ? copy.warrantyDays(selectedProduct.warrantyDays) : copy.noWarranty}</dd>
                 </div>
                 <div>
                   <dt>{copy.available}</dt>
@@ -1704,12 +1743,20 @@ export function Marketplace({
                   {formatThb(selectedProduct.priceMinor * selectedQuantity, locale)}
                 </strong>
               </div>
+              {cartLockedForPayment ? (
+                <p className="cart-payment-lock-notice" role="status">
+                  {copy.cartPaymentLocked}
+                </p>
+              ) : null}
               <button
                 className="primary-button cart-button"
                 type="button"
-                disabled={selectedProduct.stockQuantity <= 0 || selectedProductInCart}
+                disabled={cartLockedForPayment || selectedProduct.stockQuantity <= 0 || selectedProductInCart}
                 aria-label={selectedProductInCart ? copy.inCart : copy.addToCart}
-                onClick={() => addToCart(selectedProduct.id, selectedQuantity)}
+                onClick={() => {
+                  if (cartLockedForPayment) return;
+                  addToCart(selectedProduct.id, selectedQuantity);
+                }}
               >
                 <span className="cart-icon" aria-hidden="true" />
                 {selectedProductInCart ? copy.inCart : copy.addToCart}

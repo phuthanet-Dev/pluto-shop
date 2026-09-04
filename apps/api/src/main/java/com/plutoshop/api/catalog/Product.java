@@ -9,7 +9,12 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "products")
@@ -34,12 +39,11 @@ public class Product {
     @Column(name = "description_en", nullable = false, length = 1000)
     private String descriptionEn;
 
-    @Column(name = "visual_code", nullable = false, unique = true, length = 80)
-    private String visualCode;
+    @Column(name = "short_description_th", nullable = false, length = 500)
+    private String shortDescriptionTh;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
-    private ProductType type;
+    @Column(name = "short_description_en", nullable = false, length = 500)
+    private String shortDescriptionEn;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "selection_mode", nullable = false, length = 16)
@@ -47,6 +51,10 @@ public class Product {
 
     @Column(name = "option_group", length = 120)
     private String optionGroup;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "option_group", referencedColumnName = "option_group", insertable = false, updatable = false)
+    private ProductOptionGroup optionGroupMetadata;
 
     @Column(name = "option_label_th", length = 180)
     private String optionLabelTh;
@@ -63,17 +71,50 @@ public class Product {
     @Column(name = "stock_quantity", nullable = false)
     private int stockQuantity;
 
-    @Column(name = "bundle_item_count")
-    private Integer bundleItemCount;
-
     @Column(name = "instant_delivery", nullable = false)
     private boolean instantDelivery;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_type", nullable = false, length = 16)
+    private ProductDeliveryType deliveryType;
+
+    @Column(name = "warranty_days", nullable = false)
+    private int warrantyDays;
+
+    @Column(name = "stock_warning_threshold", nullable = false)
+    private int stockWarningThreshold;
 
     @Column(name = "catalog_order", nullable = false, unique = true)
     private int catalogOrder;
 
     @Column(nullable = false)
     private boolean active;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ProductStatus status;
+
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
+
+    @Column(name = "image_key", unique = true, length = 80)
+    private String imageKey;
+
+    @Column(name = "image_content_type", length = 32)
+    private String imageContentType;
+
+    @Column(name = "image_size_bytes")
+    private Long imageSizeBytes;
+
+    @Column(name = "image_width")
+    private Integer imageWidth;
+
+    @Column(name = "image_height")
+    private Integer imageHeight;
+
+    @JdbcTypeCode(java.sql.Types.CHAR)
+    @Column(name = "image_sha256", columnDefinition = "char(64)")
+    private String imageSha256;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -112,12 +153,12 @@ public class Product {
         return descriptionEn;
     }
 
-    public String getVisualCode() {
-        return visualCode;
+    public String getShortDescriptionTh() {
+        return shortDescriptionTh;
     }
 
-    public ProductType getType() {
-        return type;
+    public String getShortDescriptionEn() {
+        return shortDescriptionEn;
     }
 
     public ProductSelectionMode getSelectionMode() {
@@ -126,6 +167,10 @@ public class Product {
 
     public String getOptionGroup() {
         return optionGroup;
+    }
+
+    public ProductOptionGroup getOptionGroupMetadata() {
+        return optionGroupMetadata;
     }
 
     public String getOptionLabelTh() {
@@ -148,12 +193,20 @@ public class Product {
         return stockQuantity;
     }
 
-    public Integer getBundleItemCount() {
-        return bundleItemCount;
-    }
-
     public boolean isInstantDelivery() {
         return instantDelivery;
+    }
+
+    public ProductDeliveryType getDeliveryType() {
+        return deliveryType;
+    }
+
+    public int getWarrantyDays() {
+        return warrantyDays;
+    }
+
+    public int getStockWarningThreshold() {
+        return stockWarningThreshold;
     }
 
     public int getCatalogOrder() {
@@ -162,6 +215,38 @@ public class Product {
 
     public boolean isActive() {
         return active;
+    }
+
+    public ProductStatus getStatus() {
+        return status;
+    }
+
+    public int getSortOrder() {
+        return sortOrder;
+    }
+
+    public String getImageKey() {
+        return imageKey;
+    }
+
+    public String getImageContentType() {
+        return imageContentType;
+    }
+
+    public Long getImageSizeBytes() {
+        return imageSizeBytes;
+    }
+
+    public Integer getImageWidth() {
+        return imageWidth;
+    }
+
+    public Integer getImageHeight() {
+        return imageHeight;
+    }
+
+    public String getImageSha256() {
+        return imageSha256;
     }
 
     public Instant getUpdatedAt() {

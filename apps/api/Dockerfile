@@ -25,7 +25,10 @@ RUN chmod 0550 \
     /opt/app/healthcheck \
     /opt/app/healthcheck/com \
     /opt/app/healthcheck/com/plutoshop \
-    /opt/app/healthcheck/com/plutoshop/api
+    /opt/app/healthcheck/com/plutoshop/api \
+    && mkdir -p /var/lib/plutoshop/product-media \
+    && chown 10001:10001 /var/lib/plutoshop/product-media \
+    && chmod 0750 /var/lib/plutoshop/product-media
 
 USER 10001:10001
 EXPOSE 8080

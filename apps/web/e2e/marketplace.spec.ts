@@ -143,6 +143,7 @@ test.describe("Pluto Shop marketplace", () => {
       bundleItemCount: null,
       instantDelivery: true,
       catalogOrder: 1,
+      imageUrl: null,
     };
     const items = [
       { ...base, id: 101, slug: "claude-1-day", optionLabelTh: "Claude FA Unlimited [1 วัน]", optionLabelEn: "Claude FA Unlimited [1 Day]", priceMinor: 232, stockQuantity: 137 },
@@ -304,12 +305,35 @@ test.describe("Pluto Shop marketplace", () => {
     await expect(detailButton).toBeFocused();
   });
 
+  test("groups guest authentication actions in the account dropdown", async ({ page }) => {
+    await page.goto("/en");
+
+    const accountTrigger = page.getByRole("button", { name: "Account menu" });
+    await expect(accountTrigger).toHaveAttribute("aria-expanded", "false");
+    await accountTrigger.press("Enter");
+
+    const menu = page.getByRole("menu", { name: "Account menu" });
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Log in" })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Sign up" })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "เปลี่ยนเป็นภาษาไทย" })).toHaveAttribute(
+      "href",
+      "/th",
+    );
+    await expect(menu.getByRole("menuitem", { name: "Log in" })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+    await expect(accountTrigger).toBeFocused();
+  });
+
   test("keeps primary navbar text at one consistent font size", async ({ page }) => {
     await page.goto("/en");
-    const fontSizes = await page.locator(".locale-switch, .auth-link, .cart-label").evaluateAll(
+    await expect(page.getByRole("button", { name: "Account menu" })).toBeVisible();
+    const fontSizes = await page.locator(".account-trigger, .cart-label").evaluateAll(
       (elements) => elements.map((element) => getComputedStyle(element).fontSize),
     );
-    expect(fontSizes.length).toBeGreaterThanOrEqual(3);
+    expect(fontSizes.length).toBe(2);
     expect(new Set(fontSizes).size).toBe(1);
   });
 
@@ -319,7 +343,10 @@ test.describe("Pluto Shop marketplace", () => {
     await expectFullCatalog(page);
     await page.evaluate(() => window.scrollTo(0, 1400));
     const before = await page.evaluate(() => window.scrollY);
-    await page.locator(".locale-switch").click();
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menu", { name: "Account menu" })
+      .getByRole("menuitem", { name: "เปลี่ยนเป็นภาษาไทย" })
+      .click();
     await page.waitForURL(/\/th$/u);
     await expect(page.locator(".product-card")).toHaveCount(36);
     const after = await page.evaluate(() => window.scrollY);

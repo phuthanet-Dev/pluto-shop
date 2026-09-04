@@ -5,7 +5,7 @@ import { filtersToApiSearchParams } from "@/lib/url-filters";
 const localizedName = z.string().trim().min(1).max(200);
 const description = z.string().trim().min(1).max(2_000);
 
-export const productSchema = z
+const productObjectSchema = z
   .object({
     id: z.number().int().positive().safe(),
     slug: z.string().trim().min(1).max(200),
@@ -13,8 +13,8 @@ export const productSchema = z
     nameEn: localizedName,
     descriptionTh: description,
     descriptionEn: description,
-    visualCode: z.string().trim().min(1).max(80),
-    type: z.enum(["SINGLE", "BUNDLE"]),
+    shortDescriptionTh: z.string().trim().max(500).default(""),
+    shortDescriptionEn: z.string().trim().max(500).default(""),
     selectionMode: z.enum(["SINGLE_OPTION", "MULTI_OPTION"]),
     optionGroup: z.string().trim().min(1).max(120).nullable(),
     optionLabelTh: localizedName.nullable(),
@@ -22,11 +22,22 @@ export const productSchema = z
     priceMinor: z.number().int().nonnegative().safe(),
     currency: z.literal("THB"),
     stockQuantity: z.number().int().nonnegative().safe(),
-    bundleItemCount: z.number().int().positive().safe().nullable(),
+    deliveryType: z.enum(["INSTANT", "MANUAL"]).default("INSTANT"),
+    warrantyDays: z.number().int().nonnegative().safe().default(0),
     instantDelivery: z.boolean(),
     catalogOrder: z.number().int().nonnegative().safe(),
+    imageUrl: z.string().regex(/^\/api\/v1\/product-images\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u).nullable(),
   })
   .strict();
+
+export const productSchema = z.preprocess((value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const normalized = { ...(value as Record<string, unknown>) };
+  delete normalized.visualCode;
+  delete normalized.type;
+  delete normalized.bundleItemCount;
+  return normalized;
+}, productObjectSchema);
 
 export const productResponseSchema = z
   .object({
@@ -77,6 +88,14 @@ export function productDescription(
   locale: "th" | "en",
 ): string {
   return locale === "th" ? product.descriptionTh : product.descriptionEn;
+}
+
+export function productShortDescription(
+  product: Product,
+  locale: "th" | "en",
+): string {
+  const shortDescription = locale === "th" ? product.shortDescriptionTh : product.shortDescriptionEn;
+  return shortDescription || productDescription(product, locale);
 }
 
 export function productOptionLabel(product: Product, locale: "th" | "en"): string {

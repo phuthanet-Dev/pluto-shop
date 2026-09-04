@@ -11,6 +11,9 @@ export function buildLocalEnv(
   adminPassword = randomBytes(32).toString("base64url"),
   authSessionSecret = randomBytes(32).toString("hex"),
   keycloakAdminPassword = randomBytes(32).toString("base64url"),
+  inspectorPassword = randomBytes(32).toString("base64url"),
+  fulfillmentEncryptionKey = randomBytes(32).toString("base64url"),
+  fulfillmentFingerprintKey = randomBytes(32).toString("base64url"),
 ) {
   return [
     "POSTGRES_DB=plutoshop",
@@ -19,9 +22,13 @@ export function buildLocalEnv(
     `POSTGRES_APP_PASSWORD=${appPassword}`,
     `POSTGRES_WRITE_PASSWORD=${writePassword}`,
     `POSTGRES_ADMIN_PASSWORD=${adminPassword}`,
+    `POSTGRES_INSPECTOR_PASSWORD=${inspectorPassword}`,
     "KEYCLOAK_ADMIN=admin",
     `KEYCLOAK_ADMIN_PASSWORD=${keycloakAdminPassword}`,
     `AUTH_SESSION_SECRET=${authSessionSecret}`,
+    `FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=${fulfillmentEncryptionKey}`,
+    `FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=${fulfillmentFingerprintKey}`,
+    "FULFILLMENT_SECURITY_KEY_VERSION=1",
     "OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto",
     "OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto",
     "OIDC_CLIENT_ID=pluto-web",
@@ -65,9 +72,13 @@ export function validateLocalEnv(content) {
     "POSTGRES_APP_PASSWORD",
     "POSTGRES_WRITE_PASSWORD",
     "POSTGRES_ADMIN_PASSWORD",
+    "POSTGRES_INSPECTOR_PASSWORD",
     "KEYCLOAK_ADMIN",
     "KEYCLOAK_ADMIN_PASSWORD",
     "AUTH_SESSION_SECRET",
+    "FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64",
+    "FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64",
+    "FULFILLMENT_SECURITY_KEY_VERSION",
     "OIDC_ISSUER",
     "OIDC_INTERNAL_ISSUER",
     "OIDC_CLIENT_ID",
@@ -89,12 +100,14 @@ export function validateLocalEnv(content) {
   const appPassword = values.get("POSTGRES_APP_PASSWORD");
   const writePassword = values.get("POSTGRES_WRITE_PASSWORD");
   const adminPassword = values.get("POSTGRES_ADMIN_PASSWORD");
+  const inspectorPassword = values.get("POSTGRES_INSPECTOR_PASSWORD");
 
   if (
     ownerPassword.includes("replace-with") ||
     appPassword.includes("replace-with") ||
     writePassword.includes("replace-with") ||
-    adminPassword.includes("replace-with")
+    adminPassword.includes("replace-with") ||
+    inspectorPassword.includes("replace-with")
   ) {
     throw new Error("Replace the placeholder database passwords before starting Pluto Shop.");
   }
@@ -102,12 +115,13 @@ export function validateLocalEnv(content) {
     ownerPassword.length < 24 ||
     appPassword.length < 24 ||
     writePassword.length < 24 ||
-    adminPassword.length < 24
+    adminPassword.length < 24 ||
+    inspectorPassword.length < 24
   ) {
     throw new Error("Database passwords must each contain at least 24 characters.");
   }
-  if (new Set([ownerPassword, appPassword, writePassword, adminPassword]).size !== 4) {
-    throw new Error("Owner, application, write, and admin database passwords must be different.");
+  if (new Set([ownerPassword, appPassword, writePassword, adminPassword, inspectorPassword]).size !== 5) {
+    throw new Error("Owner, application, write, admin, and inspector database passwords must be different.");
   }
 
   const authSessionSecret = values.get("AUTH_SESSION_SECRET");
@@ -117,6 +131,19 @@ export function validateLocalEnv(content) {
 
   if (values.get("KEYCLOAK_ADMIN_PASSWORD").length < 24) {
     throw new Error("KEYCLOAK_ADMIN_PASSWORD must contain at least 24 characters.");
+  }
+
+  const fulfillmentEncryptionKey = values.get("FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64");
+  const fulfillmentFingerprintKey = values.get("FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64");
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(fulfillmentEncryptionKey)
+    || !/^[A-Za-z0-9_-]{43}$/u.test(fulfillmentFingerprintKey)) {
+    throw new Error("Fulfillment security keys must be base64url-encoded 32-byte values.");
+  }
+  if (fulfillmentEncryptionKey === fulfillmentFingerprintKey) {
+    throw new Error("Fulfillment encryption and fingerprint keys must be different.");
+  }
+  if (values.get("FULFILLMENT_SECURITY_KEY_VERSION") !== "1") {
+    throw new Error("FULFILLMENT_SECURITY_KEY_VERSION must be 1 for the initial key.");
   }
 }
 
@@ -132,12 +159,24 @@ export async function ensureLocalEnv(envPath, createPassword = () => randomBytes
     if (!hasKey("POSTGRES_ADMIN_PASSWORD")) {
       additions.push(`POSTGRES_ADMIN_PASSWORD=${randomBytes(32).toString("base64url")}`);
     }
+    if (!hasKey("POSTGRES_INSPECTOR_PASSWORD")) {
+      additions.push(`POSTGRES_INSPECTOR_PASSWORD=${randomBytes(32).toString("base64url")}`);
+    }
     if (!hasKey("KEYCLOAK_ADMIN")) additions.push("KEYCLOAK_ADMIN=admin");
     if (!hasKey("KEYCLOAK_ADMIN_PASSWORD")) {
       additions.push(`KEYCLOAK_ADMIN_PASSWORD=${randomBytes(32).toString("base64url")}`);
     }
     if (!hasKey("AUTH_SESSION_SECRET")) {
       additions.push(`AUTH_SESSION_SECRET=${randomBytes(32).toString("hex")}`);
+    }
+    if (!hasKey("FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64")) {
+      additions.push(`FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=${randomBytes(32).toString("base64url")}`);
+    }
+    if (!hasKey("FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64")) {
+      additions.push(`FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=${randomBytes(32).toString("base64url")}`);
+    }
+    if (!hasKey("FULFILLMENT_SECURITY_KEY_VERSION")) {
+      additions.push("FULFILLMENT_SECURITY_KEY_VERSION=1");
     }
     if (!hasKey("OIDC_ISSUER")) {
       additions.push("OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto");

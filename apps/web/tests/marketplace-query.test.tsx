@@ -1,8 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/image", () => ({
+  default: ({ fill, loading, unoptimized, ...props }: ComponentProps<"img"> & { fill?: boolean; unoptimized?: boolean }) => {
+    void fill;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img {...props} alt={props.alt ?? ""} loading={loading ?? "lazy"} data-unoptimized={unoptimized ? "true" : "false"} />
+    );
+  },
+}));
+
 import { Marketplace } from "@/components/marketplace";
 import { productResponse } from "./fixtures";
 
@@ -66,6 +77,97 @@ describe("marketplace querying", () => {
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       ),
     );
+  });
+
+  it("shows product short description, delivery type, and warranty details", async () => {
+    const metadataResponse = {
+      ...productResponse,
+      items: [{
+        ...productResponse.items[0],
+        shortDescriptionEn: "A short manual-delivery summary",
+        deliveryType: "MANUAL",
+        instantDelivery: false,
+        warrantyDays: 30,
+      }],
+    } satisfies typeof productResponse;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(metadataResponse), { status: 200 }),
+    );
+    const user = userEvent.setup();
+
+    render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+
+    expect(await screen.findByText("A short manual-delivery summary")).toBeInTheDocument();
+    expect(screen.getByText("Manual delivery")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View details for Pluto Glyph Set" }));
+    expect(await screen.findByText("Warranty")).toBeInTheDocument();
+    expect(screen.getByText("30 days")).toBeInTheDocument();
+  });
+
+  it("renders the validated catalog image URL when a product has one", async () => {
+    const imageUrl = "/api/v1/product-images/550e8400-e29b-41d4-a716-446655440000";
+    const imageResponse = {
+      ...productResponse,
+      items: [{ ...productResponse.items[0], imageUrl }],
+    } satisfies typeof productResponse;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(imageResponse), { status: 200 }),
+    );
+
+    render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+
+    const image = await screen.findByRole("img", { name: "Pluto Glyph Set" });
+    expect(decodeURIComponent(image.getAttribute("src") ?? "")).toContain(imageUrl);
+    expect(image).toHaveAttribute("loading", "lazy");
+    expect(image).toHaveAttribute("data-unoptimized", "true");
+  });
+
+  it("keeps the deterministic artwork fallback when a product has no image", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+
+    const { container } = render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+
+    expect(await screen.findByText("Pluto Glyph Set")).toBeInTheDocument();
+    expect(container.querySelector(".product-art")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Pluto Glyph Set" })).not.toBeInTheDocument();
+  });
+
+  it("falls back to deterministic artwork when the product image cannot load", async () => {
+    const imageUrl = "/api/v1/product-images/550e8400-e29b-41d4-a716-446655440000";
+    const imageResponse = {
+      ...productResponse,
+      items: [{ ...productResponse.items[0], imageUrl }],
+    } satisfies typeof productResponse;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(imageResponse), { status: 200 }),
+    );
+
+    const { container } = render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+    const image = await screen.findByRole("img", { name: "Pluto Glyph Set" });
+
+    fireEvent.error(image);
+
+    expect(screen.queryByRole("img", { name: "Pluto Glyph Set" })).not.toBeInTheDocument();
+    expect(container.querySelector(".product-art-image")).not.toBeInTheDocument();
+    expect(container.querySelector(".art-orbit")).toBeInTheDocument();
+  });
+
+  it("renders untrusted short descriptions as text instead of HTML", async () => {
+    const untrustedSummary = "<img src=x onerror=alert(1)>";
+    const untrustedResponse = {
+      ...productResponse,
+      items: [{ ...productResponse.items[0], shortDescriptionEn: untrustedSummary }],
+    } satisfies typeof productResponse;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(untrustedResponse), { status: 200 }),
+    );
+
+    render(<Marketplace locale="en" fetcher={fetcher} />, { wrapper: Wrapper });
+
+    expect(await screen.findByText(untrustedSummary)).toBeInTheDocument();
+    expect(document.querySelector('img[src="x"]')).not.toBeInTheDocument();
   });
 
   it("uses changed URL filters for the API, form, brand, and reset navigation", async () => {

@@ -49,9 +49,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/api/v1/products").permitAll()
+                        .requestMatchers("/actuator/health", "/api/v1/products", "/api/v1/product-images/**").permitAll()
                         .requestMatchers("/api/v1/cart/**").authenticated()
                         .requestMatchers("/api/v1/checkout/**", "/api/v1/payments/**").authenticated()
+                        .requestMatchers("/api/v1/orders/**").authenticated()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().denyAll())
                 .exceptionHandling(errors -> errors

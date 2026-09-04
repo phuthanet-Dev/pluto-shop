@@ -20,8 +20,29 @@ const productResponse = {
     bundleItemCount: null,
     instantDelivery: true,
     catalogOrder: 1,
+    imageUrl: null,
+  }, {
+    id: 2,
+    slug: "nebula-glyphs",
+    nameTh: "ชุดไอคอนเนบิวลา",
+    nameEn: "Nebula Glyph Set",
+    descriptionTh: "ไอคอนเนบิวลาสำหรับงานสร้างสรรค์",
+    descriptionEn: "Nebula icons for creative work",
+    visualCode: "NEBULA-02",
+    type: "SINGLE",
+    selectionMode: "SINGLE_OPTION",
+    optionGroup: null,
+    optionLabelTh: null,
+    optionLabelEn: null,
+    priceMinor: 149900,
+    currency: "THB",
+    stockQuantity: 6,
+    bundleItemCount: null,
+    instantDelivery: true,
+    catalogOrder: 2,
+    imageUrl: null,
   }],
-  total: 1,
+  total: 2,
   priceRange: { minMinor: 1098, maxMinor: 1098, currency: "THB" },
 };
 
@@ -141,6 +162,7 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
 
     const dialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });
     await expect(dialog).toBeVisible();
+    await expect(dialog.locator("img.payment-payee-logo")).toHaveAttribute("src", /favicon\.svg/u);
     const qrCode = dialog.getByRole("img", { name: "PromptPay QR code" });
     await expect(qrCode).toBeVisible();
     await expect(qrCode).not.toHaveClass("payment-qr-image-blurred");
@@ -187,6 +209,11 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     expect(accountLayout.rect.right).toBeLessThanOrEqual(layout.viewport.width + 1);
 
     await dialog.getByRole("button", { name: "Close payment" }).click();
+    await page.getByRole("button", { name: "View details for Nebula Glyph Set" }).click();
+    const lockedProductDialog = page.getByRole("dialog", { name: "Nebula Glyph Set" });
+    await expect(lockedProductDialog.getByRole("button", { name: "Add to cart" })).toBeDisabled();
+    await expect(lockedProductDialog.getByText("This cart is locked while the current QR payment is pending. Cancel the payment before editing your cart.")).toBeVisible();
+    await lockedProductDialog.getByRole("button", { name: "Close details" }).click();
     await page.getByRole("button", { name: "Cart" }).click();
     const lockedDrawer = page.getByRole("dialog", { name: "Cart" });
     await expect(lockedDrawer).toBeVisible();

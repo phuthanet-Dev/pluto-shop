@@ -8,10 +8,10 @@ const responseBody = {
       slug: "pluto-glyphs",
       nameTh: "ชุดไอคอนพลูโต",
       nameEn: "Pluto Glyph Set",
+      shortDescriptionTh: "คำโปรยสั้น",
+      shortDescriptionEn: "Short summary",
       descriptionTh: "ไอคอนสำหรับงานสร้างสรรค์",
       descriptionEn: "Icons for creative work",
-      visualCode: "PLUTO-01",
-      type: "SINGLE",
       selectionMode: "SINGLE_OPTION",
       optionGroup: null,
       optionLabelTh: null,
@@ -19,9 +19,11 @@ const responseBody = {
       priceMinor: 129900,
       currency: "THB",
       stockQuantity: 8,
-      bundleItemCount: null,
+      deliveryType: "INSTANT",
+      warrantyDays: 30,
       instantDelivery: true,
       catalogOrder: 1,
+      imageUrl: "/api/v1/product-images/550e8400-e29b-41d4-a716-446655440000",
     },
   ],
   total: 1,
@@ -67,5 +69,21 @@ describe("product API contract", () => {
       ),
     ).rejects.toThrow("Product API response was invalid");
     expect(productResponseSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it("rejects absolute product image URLs", () => {
+    const invalid = {
+      ...responseBody,
+      items: [{
+        ...responseBody.items[0],
+        imageUrl: "https://evil.invalid/product.jpg",
+      }],
+    };
+
+    expect(productResponseSchema.safeParse(invalid).success).toBe(false);
+    expect(productResponseSchema.safeParse({
+      ...responseBody,
+      items: [{ ...responseBody.items[0], imageUrl: "/api/v1/product-images/not-a-uuid" }],
+    }).success).toBe(false);
   });
 });

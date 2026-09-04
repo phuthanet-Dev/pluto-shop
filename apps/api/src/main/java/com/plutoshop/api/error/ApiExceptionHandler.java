@@ -13,8 +13,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import com.plutoshop.api.admin.AdminProductConflictException;
+import com.plutoshop.api.admin.AdminProductGroupNotFoundException;
 import com.plutoshop.api.admin.AdminProductNotFoundException;
 import com.plutoshop.api.cart.CartLockedException;
 import com.plutoshop.api.payment.PaymentConfigurationException;
@@ -22,6 +25,15 @@ import com.plutoshop.api.payment.PaymentConflictException;
 import com.plutoshop.api.payment.PaymentGatewayException;
 import com.plutoshop.api.payment.PaymentNotFoundException;
 import com.plutoshop.api.payment.PromptPayUnavailableException;
+import com.plutoshop.api.productimage.ProductImageNotFoundException;
+import com.plutoshop.api.productimage.ProductImageStorageException;
+import com.plutoshop.api.productimage.ProductImageTooLargeException;
+import com.plutoshop.api.productimage.ProductImageValidationException;
+import com.plutoshop.api.fulfillment.FulfillmentConflictException;
+import com.plutoshop.api.fulfillment.FulfillmentNotFoundException;
+import com.plutoshop.api.fulfillment.FulfillmentPayloadValidationException;
+import com.plutoshop.api.fulfillment.FulfillmentSecretConfigurationException;
+import com.plutoshop.api.fulfillment.FulfillmentSecretException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -39,10 +51,36 @@ class ApiExceptionHandler {
             MethodArgumentNotValidException.class,
             HttpMessageNotReadableException.class,
             MissingServletRequestParameterException.class,
-            MethodArgumentTypeMismatchException.class
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestPartException.class
     })
     ResponseEntity<SanitizedProblemDetail> handleMalformedRequest(Exception exception) {
         return problem(HttpStatus.BAD_REQUEST, INVALID_PARAMETERS_TITLE, "Request validation failed");
+    }
+
+    @ExceptionHandler(ProductImageTooLargeException.class)
+    ResponseEntity<SanitizedProblemDetail> handleProductImageTooLarge(ProductImageTooLargeException exception) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "Product image is too large", "Product image exceeds the maximum size");
+    }
+
+    @ExceptionHandler(ProductImageValidationException.class)
+    ResponseEntity<SanitizedProblemDetail> handleProductImageValidation(ProductImageValidationException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid product image", exception.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<SanitizedProblemDetail> handleProductImageTooLarge(MaxUploadSizeExceededException exception) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "Product image is too large", "Product image exceeds the maximum size");
+    }
+
+    @ExceptionHandler(ProductImageNotFoundException.class)
+    ResponseEntity<SanitizedProblemDetail> handleProductImageNotFound(ProductImageNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Product image not found", "Product image was not found");
+    }
+
+    @ExceptionHandler(ProductImageStorageException.class)
+    ResponseEntity<SanitizedProblemDetail> handleProductImageStorage(ProductImageStorageException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Product image unavailable", "Product image storage is unavailable");
     }
 
     @ExceptionHandler(AdminProductConflictException.class)
@@ -53,6 +91,38 @@ class ApiExceptionHandler {
     @ExceptionHandler(AdminProductNotFoundException.class)
     ResponseEntity<SanitizedProblemDetail> handleAdminNotFound(AdminProductNotFoundException exception) {
         return problem(HttpStatus.NOT_FOUND, "Product not found", exception.getMessage());
+    }
+
+    @ExceptionHandler(AdminProductGroupNotFoundException.class)
+    ResponseEntity<SanitizedProblemDetail> handleAdminGroupNotFound(AdminProductGroupNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Product group not found", exception.getMessage());
+    }
+
+    @ExceptionHandler(FulfillmentConflictException.class)
+    ResponseEntity<SanitizedProblemDetail> handleFulfillmentConflict(FulfillmentConflictException exception) {
+        return problem(HttpStatus.CONFLICT, "Fulfillment conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(FulfillmentNotFoundException.class)
+    ResponseEntity<SanitizedProblemDetail> handleFulfillmentNotFound(FulfillmentNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Fulfillment not found", exception.getMessage());
+    }
+
+    @ExceptionHandler(FulfillmentPayloadValidationException.class)
+    ResponseEntity<SanitizedProblemDetail> handleFulfillmentPayloadValidation(
+            FulfillmentPayloadValidationException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid fulfillment payload", exception.getMessage());
+    }
+
+    @ExceptionHandler(FulfillmentSecretConfigurationException.class)
+    ResponseEntity<SanitizedProblemDetail> handleFulfillmentSecretConfiguration(
+            FulfillmentSecretConfigurationException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Fulfillment unavailable", "Fulfillment encryption is not configured");
+    }
+
+    @ExceptionHandler(FulfillmentSecretException.class)
+    ResponseEntity<SanitizedProblemDetail> handleFulfillmentSecret(FulfillmentSecretException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Fulfillment unavailable", "Fulfillment secret operation failed");
     }
 
     @ExceptionHandler(PaymentConfigurationException.class)

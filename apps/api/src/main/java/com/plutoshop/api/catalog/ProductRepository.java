@@ -1,6 +1,7 @@
 package com.plutoshop.api.catalog;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -8,16 +9,22 @@ import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends Repository<Product, Long> {
 
-    @Query("select p from Product p where p.active = true and p.id in :ids")
+    @Query("select p from Product p where p.status = com.plutoshop.api.catalog.ProductStatus.ACTIVE and p.id in :ids")
     List<Product> findAllByIdAndActiveTrue(@Param("ids") Iterable<Long> ids);
+
+    @Query("select p from Product p where p.status = com.plutoshop.api.catalog.ProductStatus.ACTIVE and p.imageKey = :imageKey")
+    Optional<Product> findActiveByImageKey(@Param("imageKey") String imageKey);
 
     @Query("""
             select p from Product p
-            where p.active = true
+            where p.status = com.plutoshop.api.catalog.ProductStatus.ACTIVE
               and (
                   :queryPattern is null
+               or lower(p.slug) like :queryPattern escape '\\'
                or lower(p.nameTh) like :queryPattern escape '\\'
                or lower(p.nameEn) like :queryPattern escape '\\'
+               or lower(p.shortDescriptionTh) like :queryPattern escape '\\'
+               or lower(p.shortDescriptionEn) like :queryPattern escape '\\'
                or lower(p.descriptionTh) like :queryPattern escape '\\'
                or lower(p.descriptionEn) like :queryPattern escape '\\'
             )
@@ -27,14 +34,14 @@ public interface ProductRepository extends Repository<Product, Long> {
                  or (:inStock = true and p.stockQuantity > 0)
                  or (:inStock = false and p.stockQuantity = 0)
               )
-            order by p.catalogOrder
+            order by p.sortOrder
             """)
     List<Product> findCatalog(
             @Param("queryPattern") String queryPattern,
             @Param("maxPriceMinor") Integer maxPriceMinor,
             @Param("inStock") Boolean inStock);
 
-    @Query("select min(p.priceMinor) as minMinor, max(p.priceMinor) as maxMinor from Product p where p.active = true")
+    @Query("select min(p.priceMinor) as minMinor, max(p.priceMinor) as maxMinor from Product p where p.status = com.plutoshop.api.catalog.ProductStatus.ACTIVE")
     CatalogPriceRange findCatalogPriceRange();
 
     interface CatalogPriceRange {

@@ -24,7 +24,7 @@ class ProductCatalogService {
     ProductCatalogResponse getCatalog(String query, Integer maxPriceMinor, Boolean inStock) {
         String queryPattern = normalizeQuery(query);
         List<ProductItem> items = repository.findCatalog(queryPattern, maxPriceMinor, inStock).stream()
-                .map(ProductCatalogService::toItem)
+                .map(this::toItem)
                 .toList();
         ProductRepository.CatalogPriceRange catalogRange = repository.findCatalogPriceRange();
         int minMinor = catalogRange.getMinMinor() == null ? 0 : catalogRange.getMinMinor();
@@ -48,16 +48,25 @@ class ProductCatalogService {
         return "%" + escaped + "%";
     }
 
-    private static ProductItem toItem(Product product) {
+    private ProductItem toItem(Product product) {
+        ProductOptionGroup group = product.getOptionGroupMetadata();
+        String nameTh = group == null ? product.getNameTh() : group.getNameTh();
+        String nameEn = group == null ? product.getNameEn() : group.getNameEn();
+        String shortDescriptionTh = group == null
+                ? product.getShortDescriptionTh()
+                : group.getShortDescriptionTh();
+        String shortDescriptionEn = group == null
+                ? product.getShortDescriptionEn()
+                : group.getShortDescriptionEn();
         return new ProductItem(
                 product.getId(),
                 product.getSlug(),
-                product.getNameTh(),
-                product.getNameEn(),
+                nameTh,
+                nameEn,
                 product.getDescriptionTh(),
                 product.getDescriptionEn(),
-                product.getVisualCode(),
-                product.getType(),
+                shortDescriptionTh,
+                shortDescriptionEn,
                 product.getSelectionMode(),
                 product.getOptionGroup(),
                 product.getOptionLabelTh(),
@@ -65,8 +74,10 @@ class ProductCatalogService {
                 product.getPriceMinor(),
                 product.getCurrency(),
                 product.getStockQuantity(),
-                product.getBundleItemCount(),
+                product.getDeliveryType(),
+                product.getWarrantyDays(),
                 product.isInstantDelivery(),
-                product.getCatalogOrder());
+                product.getCatalogOrder(),
+                product.getImageKey() == null ? null : "/api/v1/product-images/" + product.getImageKey());
     }
 }

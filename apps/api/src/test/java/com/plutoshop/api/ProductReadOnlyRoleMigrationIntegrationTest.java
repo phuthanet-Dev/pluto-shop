@@ -56,6 +56,10 @@ class ProductReadOnlyRoleMigrationIntegrationTest {
                 assertThat(products.next()).isTrue();
                 assertThat(products.getInt(1)).isEqualTo(36);
             }
+            try (ResultSet groups = statement.executeQuery("SELECT count(*) FROM product_option_groups")) {
+                assertThat(groups.next()).isTrue();
+                assertThat(groups.getInt(1)).isZero();
+            }
             assertThatThrownBy(() -> statement.executeQuery("SELECT count(*) FROM future_product_views"))
                     .isInstanceOf(SQLException.class)
                     .hasMessageContaining("permission denied");
@@ -63,12 +67,13 @@ class ProductReadOnlyRoleMigrationIntegrationTest {
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO products (
                         slug, name_th, name_en, description_th, description_en,
-                        visual_code, type, price_minor, currency, stock_quantity,
-                        bundle_item_count, instant_delivery, catalog_order
+                        selection_mode, price_minor, currency, stock_quantity,
+                        instant_delivery, catalog_order, active,
+                        delivery_type, status, sort_order
                     ) VALUES (
                         'forbidden-write', 'ห้ามเขียน', 'Forbidden write', 'ห้ามเขียน',
-                        'Must fail', 'VIS-FORBIDDEN', 'SINGLE', 0, 'THB', 0,
-                        NULL, TRUE, 99
+                        'Must fail', 'SINGLE_OPTION', 0, 'THB', 0,
+                        TRUE, 99, TRUE, 'INSTANT', 'ACTIVE', 99
                     )
                     """))
                     .isInstanceOf(SQLException.class)

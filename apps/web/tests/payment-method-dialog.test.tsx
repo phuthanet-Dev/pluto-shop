@@ -161,6 +161,10 @@ describe("payment method dialog", () => {
     await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
 
     const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    expect(paymentDialog.querySelector("img.payment-payee-logo")).toHaveAttribute(
+      "src",
+      expect.stringContaining("favicon.svg"),
+    );
     const qrCode = within(paymentDialog).getByRole("img", { name: "PromptPay QR code" });
     expect(qrCode).toBeInTheDocument();
     expect(qrCode).not.toHaveClass("payment-qr-image-blurred");
@@ -254,16 +258,86 @@ describe("payment method dialog", () => {
     await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
 
     expect(await within(chooser).findByText("Your payment session expired. Please log in again.")).toBeInTheDocument();
-    expect(within(chooser).getByRole("link", { name: "Log in" })).toHaveAttribute(
+    const reloginLink = within(chooser).getByRole("link", { name: "Log in" });
+    expect(reloginLink).toHaveClass("payment-relogin-link");
+    expect(reloginLink).toHaveAttribute(
       "href",
       "/api/auth/login?callbackUrl=%2Fen",
     );
   });
 
-  it("locks cart editing while a PromptPay payment is pending", async () => {
+  it("blurs the QR code when payment status expires", async () => {
     const user = userEvent.setup();
     const fetcher = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), {
+        status: 200,
+      }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment-expired",
+        amountMinor: 1098,
+        currency: "THB",
+        qrUrl: "https://api.qrserver.com/v1/create-qr-code/?data=promptpay",
+        payload: "000201010212",
+        expiresAt: "2099-08-29T02:00:00Z",
+        status: "PENDING",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        orderId: 17,
+        transactionId: "Market-test-payment-expired",
+        amountMinor: 1098,
+        currency: "THB",
+        expiresAt: "2026-08-29T02:00:00Z",
+        status: "EXPIRED",
+        message: "Payment QR code expired",
+      }), { status: 200 }));
+
+    render(
+      <Marketplace
+        locale="en"
+        fetcher={fetcher}
+        authFetcher={authFetcher()}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooser = await findPaymentMethodDialog();
+    await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
+
+    const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    await user.click(within(paymentDialog).getByRole("button", { name: "Check payment" }));
+
+    expect(await within(paymentDialog).findByText("This QR code has expired")).toBeInTheDocument();
+    expect(paymentDialog.querySelector("img.payment-qr-image")).toHaveClass("payment-qr-image-blurred");
+  });
+
+  it("locks cart editing while a PromptPay payment is pending", async () => {
+    const user = userEvent.setup();
+    const availableProduct = {
+      ...productResponse.items[0],
+      id: 2,
+      slug: "nebula-glyphs",
+      nameTh: "ชุดไอคอนเนบิวลา",
+      nameEn: "Nebula Glyph Set",
+      catalogOrder: 2,
+    };
+    const availableProductResponse = {
+      ...productResponse,
+      items: [...productResponse.items, availableProduct],
+      total: 2,
+    };
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify(availableProductResponse), { status: 200 }),
     );
     const cartFetcher = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), {
@@ -302,6 +376,11 @@ describe("payment method dialog", () => {
 
     const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
     await user.click(within(paymentDialog).getByRole("button", { name: "Close payment" }));
+    await user.click(screen.getByRole("button", { name: "View details for Nebula Glyph Set" }));
+    const productDialog = await screen.findByRole("dialog", { name: "Nebula Glyph Set" });
+    expect(within(productDialog).getByRole("button", { name: "Add to cart" })).toBeDisabled();
+    expect(within(productDialog).getByText("This cart is locked while the current QR payment is pending. Cancel the payment before editing your cart.")).toBeInTheDocument();
+    await user.click(within(productDialog).getByRole("button", { name: "Close details" }));
     await user.click(screen.getByRole("button", { name: "Cart" }));
 
     const lockedDrawer = screen.getByRole("dialog", { name: "Cart" });

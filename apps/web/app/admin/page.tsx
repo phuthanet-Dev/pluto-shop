@@ -3,6 +3,7 @@ import Link from "next/link";
 import { hasAdminRole } from "@/lib/auth";
 import { getSession } from "@/lib/auth-server";
 import { AdminProductsConsole } from "@/components/admin-products-console";
+import { AdminFulfillmentConsole } from "@/components/admin-fulfillment-console";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function AdminPage() {
         </Link>
       </div>
       <AdminProductsConsole />
+      <AdminFulfillmentConsole />
     </main>
   );
 }

@@ -38,6 +38,10 @@ const nextConfig: NextConfig = {
         source: "/api/v1/products/:path*",
         destination: `${internalApiUrl}/api/v1/products/:path*`,
       },
+      {
+        source: "/api/v1/product-images/:imageKey",
+        destination: `${internalApiUrl}/api/v1/product-images/:imageKey`,
+      },
     ];
   },
 };

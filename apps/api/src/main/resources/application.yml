@@ -9,6 +9,10 @@ spring:
       read-only: ${SPRING_DATASOURCE_READ_ONLY:true}
       maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
       minimum-idle: ${DB_POOL_MIN_IDLE:2}
+  servlet:
+    multipart:
+      max-file-size: ${PRODUCT_IMAGE_MAX_FILE_SIZE:6MB}
+      max-request-size: ${PRODUCT_IMAGE_MAX_REQUEST_SIZE:6MB}
   flyway:
     enabled: ${SPRING_FLYWAY_ENABLED:false}
     clean-disabled: true
@@ -37,6 +41,24 @@ server:
     include-exception: false
     include-message: never
     include-stacktrace: never
+
+product-media:
+  root: ${PRODUCT_MEDIA_ROOT:/var/lib/plutoshop/product-media}
+
+fulfillment:
+  security:
+    encryption-key-base64: ${FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64:}
+    encryption-key-ring: ${FULFILLMENT_SECURITY_ENCRYPTION_KEY_RING:}
+    fingerprint-key-base64: ${FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64:}
+    fingerprint-key-ring: ${FULFILLMENT_SECURITY_FINGERPRINT_KEY_RING:}
+    key-version: ${FULFILLMENT_SECURITY_KEY_VERSION:1}
+  delivery:
+    enabled: ${FULFILLMENT_DELIVERY_ENABLED:false}
+    batch-size: ${FULFILLMENT_DELIVERY_BATCH_SIZE:20}
+    fixed-delay-ms: ${FULFILLMENT_DELIVERY_FIXED_DELAY_MS:5000}
+    initial-delay-ms: ${FULFILLMENT_DELIVERY_INITIAL_DELAY_MS:5000}
+    max-attempts: ${FULFILLMENT_DELIVERY_MAX_ATTEMPTS:5}
+    backoff-base-seconds: ${FULFILLMENT_DELIVERY_BACKOFF_BASE_SECONDS:30}
 
 management:
   endpoints:

@@ -46,12 +46,47 @@ public class AdminProductController {
         return service.create(request, actor(jwt));
     }
 
+    @PostMapping("/multi")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminProductListResponse createMulti(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody AdminMultiProductWriteRequest request) {
+        return service.createMulti(request.items(), request.group(), actor(jwt));
+    }
+
+    @GetMapping("/multi/{optionGroup}")
+    public AdminProductGroupResponse getMultiGroup(@PathVariable String optionGroup) {
+        return service.getMultiGroup(optionGroup);
+    }
+
+    @PatchMapping("/multi/{optionGroup}")
+    public AdminProductGroupResponse updateMultiGroup(
+            @PathVariable String optionGroup,
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody AdminProductGroupWriteRequest request) {
+        return service.updateMultiGroup(optionGroup, request, actor(jwt));
+    }
+
+    @PostMapping("/multi/{optionGroup}/children")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminProductListResponse appendMulti(
+            @PathVariable String optionGroup,
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody AdminMultiProductAppendRequest request) {
+        return service.appendMulti(optionGroup, request.items(), request.group(), actor(jwt));
+    }
+
     @PatchMapping("/{id}")
     public AdminProductResponse update(
             @PathVariable long id,
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody AdminProductWriteRequest request) {
         return service.update(id, request, actor(jwt));
+    }
+
+    @GetMapping("/{id}")
+    public AdminProductResponse get(@PathVariable long id) {
+        return service.requireForImage(id);
     }
 
     @PatchMapping("/{id}/stock")

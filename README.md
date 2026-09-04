@@ -126,6 +126,10 @@ Guest cart ยังคงอยู่ใน browser เฉพาะ numeric pro
 ```text
 GET    /api/v1/admin/products
 POST   /api/v1/admin/products
+POST   /api/v1/admin/products/multi
+GET    /api/v1/admin/products/multi/{optionGroup}
+PATCH  /api/v1/admin/products/multi/{optionGroup}
+POST   /api/v1/admin/products/multi/{optionGroup}/children
 PATCH  /api/v1/admin/products/{id}
 PATCH  /api/v1/admin/products/{id}/stock
 DELETE /api/v1/admin/products/{id}?version={version}
@@ -133,9 +137,42 @@ DELETE /api/v1/admin/products/{id}?version={version}
 
 Admin เพิ่ม/แก้สินค้าและ stock ได้ และสามารถลบสินค้าออกจาก `products` แบบถาวรผ่าน DELETE ที่ตรวจ optimistic-lock version ก่อนทำรายการ การลบจะนำสินค้าออกจาก cart ของผู้ใช้ทุกคนแบบ atomic; order snapshot และ audit trail เดิมยังคงอยู่ โดย reference ไปยัง product ที่ถูกลบจะเป็น `NULL` ส่วน `pluto_admin` เป็น database role แยกสำหรับ catalog/audit mutations และ hard-delete function; `pluto_user` และ `pluto_app` ไม่มีสิทธิ์เขียน products
 
+การบันทึก `MULTI_OPTION` กลุ่มใหม่ใช้ `POST /api/v1/admin/products/multi` โดยส่ง `{ "group": { ... }, "items": [...] }` จำนวน 2–100 รายการ ส่วนชื่อและคำโปรยที่แสดงบน product card อยู่ใน `group` และกรอกเพียงครั้งเดียวต่อกลุ่ม ข้อมูลเฉพาะ child เช่น slug รายละเอียดเต็ม ราคา stock การส่งมอบ ประกัน สถานะ ชื่อ option และ `sortOrder` ยังคงแยกต่อรายการ การสร้างทั้งชุดเป็น transaction เดียว มี audit record แยกต่อ child และจะ rollback ทั้งชุดเมื่อรายการใดไม่ผ่าน validation หรือชน uniqueness; V22 ป้องกันชื่อ option ซ้ำในกลุ่มที่ฐานข้อมูล และ V24/V25 เพิ่ม storage กับสิทธิ์อ่านข้อมูล card ระดับกลุ่ม
+
+กลุ่มที่บันทึกแล้วสามารถอ่านและแก้ไข card ผ่าน `GET/PATCH /api/v1/admin/products/multi/{optionGroup}` โดยใช้ `version` ของกลุ่ม และเพิ่ม child ผ่าน `POST /api/v1/admin/products/multi/{optionGroup}/children` ได้ครั้งละ 1–100 รายการแบบ atomic การแก้ไข card จะ propagate ชื่อและคำโปรยไปยัง child ทุกตัวเพื่อให้ catalog/search และ order snapshot รอบถัดไปสอดคล้องกัน โดยไม่เปลี่ยน `product_id`, ราคา, stock, payment state machine หรือ order snapshot เดิม
+
 การ signup ใน dev realm ปิด email verification เพื่อให้ local flow ใช้ได้โดยไม่ต้องมี SMTP; production ต้องเปิด verification, ตั้ง HTTPS และใช้ secret manager ก่อนเปิดใช้งานจริง
 
 สำหรับทดสอบ admin ให้เปิด `http://127.0.0.1:8081/admin` ใช้ค่า `KEYCLOAK_ADMIN` และ `KEYCLOAK_ADMIN_PASSWORD` จาก `.env` จากนั้นสร้าง user ทดสอบและ assign realm role `ADMIN` ใน realm `pluto` โดยไม่ใส่ credential ลง Git
+
+### Product media storage
+
+รูปสินค้าถูกเก็บแยกจาก PostgreSQL ใน named volume `product-media` ซึ่ง mount ให้เฉพาะ API ที่ `/var/lib/plutoshop/product-media` เท่านั้น เว็บและ browser ไม่มีสิทธิ์เขียน storage โดยตรง ส่วน PostgreSQL เก็บเฉพาะ metadata (`image_key`, content type, ขนาด, dimensions และ SHA-256) เพื่อให้ backup ฐานข้อมูลไม่ต้องแบก binary ขนาดใหญ่
+
+เส้นทางที่ใช้คือ:
+
+```text
+POST   /api/v1/admin/products/{id}/image?version={version}  (ADMIN + multipart field: file)
+GET    /api/v1/admin/products/{id}/image                    (ADMIN preview)
+DELETE /api/v1/admin/products/{id}/image?version={version}  (ADMIN remove)
+
+Next.js BFF จำกัด request body ก่อน forward: multipart ไม่เกิน 6 MiB และ JSON ไม่เกิน 2 MiB เพื่อป้องกัน memory exhaustion โดยยังรองรับ multi-option batch สูงสุด 100 รายการ
+GET    /api/v1/product-images/{opaque-image-key}            (public read เฉพาะสินค้า ACTIVE)
+```
+
+ฝั่ง API ตรวจชนิดไฟล์จาก magic bytes/ImageIO ไม่เชื่อ filename หรือ `Content-Type` ของ client, รับเฉพาะ JPEG/PNG, จำกัดขนาด 5 MiB และ dimensions/pixels, สร้าง key ใหม่ด้วย UUID และป้องกัน path traversal/symlink ส่วนการเปลี่ยนรูปใช้ optimistic-lock version; ไฟล์ใหม่จะถูกลบเมื่อ transaction rollback และไฟล์เก่าจะถูกลบหลัง commit เท่านั้น public image response ใช้ `Cache-Control: no-store` เพราะสิทธิ์การมองเห็นขึ้นกับสถานะ `ACTIVE` และอาจถูก revoke ได้
+
+การ backup/restore ต้องสำรองทั้ง PostgreSQL และ media volume ให้สอดคล้องกัน ห้ามใช้ `docker compose down --volumes` เพราะจะลบข้อมูลทั้งหมด ตัวอย่าง backup media (ปรับชื่อ volume ตาม `docker volume ls`):
+
+```bash
+mkdir -p backups
+docker run --rm \
+  -v pluto-shop_product-media:/data:ro \
+  -v "$PWD/backups:/backup" \
+  alpine:3.22 tar -czf /backup/product-media.tar.gz -C /data .
+```
+
+ก่อน restore ให้หยุด API, เก็บ backup เดิมไว้ และแตกไฟล์กลับเข้า volume เดิมด้วย container ชั่วคราว จากนั้น start stack และตรวจ `/api/v1/products` กับรูปตัวอย่างอีกครั้ง การ deploy หลาย instance/production ควรย้าย implementation ไป S3-compatible object storage โดยคง metadata contract เดิมและไม่เปิด bucket ให้เขียนจาก browser
 
 ### PromptPay/TrueMoney payment-method selection
 
@@ -198,10 +235,10 @@ curl 'http://127.0.0.1:3000/api/v1/products?q=Aurora&maxPriceMinor=119000&inStoc
       "slug": "creator-launch-kit",
       "nameTh": "ชุดเปิดตัวสำหรับครีเอเตอร์",
       "nameEn": "Creator Launch Kit",
+      "shortDescriptionTh": "สินทรัพย์สี่รายการที่จัดเข้าชุดสำหรับครีเอเตอร์เตรียมเปิดตัวสินค้าดิจิทัลอย่างมืออาชีพ",
+      "shortDescriptionEn": "Four coordinated launch assets for creators preparing a polished digital release.",
       "descriptionTh": "สินทรัพย์สี่รายการที่จัดเข้าชุดสำหรับครีเอเตอร์เตรียมเปิดตัวสินค้าดิจิทัลอย่างมืออาชีพ",
       "descriptionEn": "Four coordinated launch assets for creators preparing a polished digital release.",
-      "visualCode": "CL",
-      "type": "BUNDLE",
       "selectionMode": "SINGLE_OPTION",
       "optionGroup": null,
       "optionLabelTh": null,
@@ -209,9 +246,11 @@ curl 'http://127.0.0.1:3000/api/v1/products?q=Aurora&maxPriceMinor=119000&inStoc
       "priceMinor": 101500,
       "currency": "THB",
       "stockQuantity": 1,
-      "bundleItemCount": 4,
+      "deliveryType": "INSTANT",
+      "warrantyDays": 0,
       "instantDelivery": true,
-      "catalogOrder": 1
+      "catalogOrder": 1,
+      "imageUrl": null
     }
   ],
   "total": 36,
@@ -231,7 +270,7 @@ curl 'http://127.0.0.1:3000/api/v1/products?q=Aurora&maxPriceMinor=119000&inStoc
 
 ## ข้อมูลสินค้าและราคา
 
-Flyway migration สร้าง schema และ seed creative assets 36 รายการ เรียงตาม `catalogOrder` โดยยึดชื่ออังกฤษ, visual code, ราคา USD, จำนวน stock/bundle และลำดับจาก screenshot ต้นแบบแบบอ่านอย่างเดียว ส่วนชื่อไทยและคำอธิบายสองภาษาถูกเขียนใหม่สำหรับ Pluto Shop เพราะต้นแบบไม่แสดงคำอธิบายสินค้า Bundle ดิจิทัลใช้ `stockQuantity=1` เป็น availability sentinel และเก็บจำนวนจริงใน `bundleItemCount`
+Flyway migration สร้าง schema และ seed creative assets 36 รายการ เรียงตาม `sortOrder` โดยยึดชื่ออังกฤษ, slug, ราคา USD, จำนวน stock และลำดับจาก screenshot ต้นแบบแบบอ่านอย่างเดียว ส่วนชื่อไทยและคำอธิบายสองภาษาถูกเขียนใหม่สำหรับ Pluto Shop สินค้าดิจิทัลที่เคยเป็นชุดยังคงใช้ `stockQuantity=1` เป็น availability sentinel แต่ไม่เก็บจำนวนรายการชุดแยกอีกต่อไป
 
 ราคาเป็นค่าคงที่หน่วยสตางค์ตามสูตร:
 
@@ -244,9 +283,11 @@ reference USD × 35 × 100 = priceMinor (THB satang)
 `selectionMode` ควบคุม interaction ของหน้าหลัก:
 
 - `SINGLE_OPTION`: กดการ์ดแล้วเปิดรายละเอียดทันที
-- `MULTI_OPTION`: สินค้าที่มี `optionGroup` เดียวกันจะถูกรวมเป็นกลุ่มบนหน้าหลัก และต้องเลือก `optionLabelTh`/`optionLabelEn` ก่อนเปิดรายละเอียดของ option นั้น
+- `MULTI_OPTION`: สินค้าย่อยที่มี `optionGroup` เดียวกันจะถูกรวมเป็นกลุ่มเสมือนบนหน้าหลัก แต่ละ child ใช้รายละเอียด ราคา stock และ metadata ของตัวเอง และต้องเลือก `optionLabelTh`/`optionLabelEn` ก่อนเปิดรายละเอียดของ child นั้น
 
-ฟิลด์ `type` และ `bundleItemCount` เดิมยังคงอยู่เพื่อรักษาความหมายของ catalog bundle รุ่นเก่า; `selectionMode` เป็นเงื่อนไขใหม่สำหรับการเลือก option โดยเฉพาะ
+`selectionMode` ใช้ควบคุมการเลือก option โดยเฉพาะ ฟิลด์ `visual_code`, `type` และ `bundle_item_count` ถูกลบออกจากตาราง `products` ใน migration V20/V21 แล้ว สต็อกสินค้าใช้ `stockQuantity` เพียงค่าเดียว
+
+ฟิลด์ metadata ใหม่ของสินค้าอยู่ในตาราง `products` เดิม: `shortDescriptionTh/En`, `deliveryType`, `warrantyDays`, `stockWarningThreshold`, `status` และ `sortOrder` โดย migration V18/V19 ช่วย backfill metadata และรักษา invariant ระหว่างช่วงเปลี่ยนผ่าน ก่อน migration V20/V21 จะลบฟิลด์สินค้าเก่าที่ไม่ใช้งานแล้ว
 
 ## การพัฒนาและตรวจสอบ
 
@@ -286,7 +327,7 @@ npm run test:catalog
 npm run test:e2e
 ```
 
-`test:catalog` เทียบ API/Next proxy จริงกับ source catalog ทั้ง 36 รายการ (ลำดับ ชื่อ visual code สูตรราคา stock/bundle และ validation) ส่วน Playwright ทดสอบ catalog 36 รายการ, API-driven filters, refresh persistence, cart, ภาษา, keyboard labels และ viewport 375/768/1280 โดยไม่ใช้ mock API
+`test:catalog` เทียบ API/Next proxy จริงกับ source catalog ทั้ง 36 รายการ (ลำดับ ชื่อ สูตรราคา stock และ validation) ส่วน Playwright ทดสอบ catalog 36 รายการ, API-driven filters, refresh persistence, cart, ภาษา, keyboard labels และ viewport 375/768/1280 โดยไม่ใช้ mock API
 
 ## CI
 

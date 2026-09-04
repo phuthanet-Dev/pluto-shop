@@ -14,8 +14,8 @@ public record ProductCatalogResponse(
             String nameEn,
             String descriptionTh,
             String descriptionEn,
-            String visualCode,
-            ProductType type,
+            String shortDescriptionTh,
+            String shortDescriptionEn,
             ProductSelectionMode selectionMode,
             String optionGroup,
             String optionLabelTh,
@@ -23,9 +23,11 @@ public record ProductCatalogResponse(
             int priceMinor,
             String currency,
             int stockQuantity,
-            Integer bundleItemCount,
+            ProductDeliveryType deliveryType,
+            int warrantyDays,
             boolean instantDelivery,
-            int catalogOrder) {
+            int catalogOrder,
+            String imageUrl) {
     }
 
     public record PriceRange(int minMinor, int maxMinor, String currency) {

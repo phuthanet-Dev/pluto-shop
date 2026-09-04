@@ -19,6 +19,7 @@ const product = {
   bundleItemCount: null,
   instantDelivery: true,
   catalogOrder: 1,
+  imageUrl: null,
 };
 
 test("offers a fresh login when checkout returns 401", async ({ page }) => {
@@ -55,8 +56,10 @@ test("offers a fresh login when checkout returns 401", async ({ page }) => {
   await chooser.getByRole("button", { name: "Pay with PromptPay" }).click();
 
   await expect(chooser.getByRole("alert")).toContainText("Your payment session expired. Please log in again.");
-  await expect(chooser.getByRole("link", { name: "Log in" })).toHaveAttribute(
+  const reloginLink = chooser.getByRole("link", { name: "Log in" });
+  await expect(reloginLink).toHaveAttribute(
     "href",
     "/api/auth/login?callbackUrl=%2Fen",
   );
+  await expect(reloginLink).toHaveCSS("text-decoration-line", "underline");
 });

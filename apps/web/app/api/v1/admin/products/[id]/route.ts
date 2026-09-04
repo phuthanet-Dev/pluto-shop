@@ -22,6 +22,11 @@ export async function PATCH(request: Request, context: Context) {
   return suffix instanceof Response ? suffix : proxyAdminProductsRequest(request, suffix);
 }
 
+export async function GET(request: Request, context: Context) {
+  const suffix = await suffixFor(context);
+  return suffix instanceof Response ? suffix : proxyAdminProductsRequest(request, suffix);
+}
+
 export async function DELETE(request: Request, context: Context) {
   const suffix = await suffixFor(context);
   return suffix instanceof Response ? suffix : proxyAdminProductsRequest(request, suffix);

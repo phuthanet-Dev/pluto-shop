@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Marketplace } from "@/components/marketplace";
+import { Marketplace, productDisplayKey } from "@/components/marketplace";
 import { useCartStore } from "@/stores/cart";
 import { productResponse } from "./fixtures";
 
@@ -33,6 +33,11 @@ describe("cart and product details", () => {
     );
     useCartStore.setState({ cartIds: [], quantities: {}, mode: "guest", hasHydrated: false });
     useCartStore.persist.clearStorage();
+  });
+
+  it("keeps product-card keys unique across single products and option groups", () => {
+    expect(productDisplayKey({ id: 37, selectionMode: "SINGLE_OPTION", optionGroup: null })).toBe("single:37");
+    expect(productDisplayKey({ id: 37, selectionMode: "MULTI_OPTION", optionGroup: "37" })).toBe("multi:37");
   });
 
   it("hydrates a persisted cart and shows it in an accessible cart drawer", async () => {
@@ -83,7 +88,8 @@ describe("cart and product details", () => {
     expect(within(drawer).getByText("Your cart is empty.")).toBeInTheDocument();
   });
 
-  it("shows the authenticated user and sign-out action after login", async () => {
+  it("groups authenticated account actions in an accessible dropdown", async () => {
+    const user = userEvent.setup();
     const authFetcher = vi.fn<typeof fetch>(async () =>
       new Response(
         JSON.stringify({
@@ -106,18 +112,106 @@ describe("cart and product details", () => {
       { wrapper: Wrapper },
     );
 
-    expect(await screen.findByText("Dev User")).toBeInTheDocument();
+    const accountTrigger = await screen.findByRole("button", {
+      name: "Account menu for Dev User",
+    });
+    expect(within(accountTrigger).getByText("Dev", { selector: ".account-trigger-label" })).toBeInTheDocument();
+    expect(
+      within(accountTrigger).queryByText("Dev User", { selector: ".account-trigger-label" }),
+    ).not.toBeInTheDocument();
+    expect(accountTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu", { name: "Account menu" })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(cartFetcher).toHaveBeenCalledWith("/api/v1/cart", {
         headers: { accept: "application/json" },
       }),
     );
-    expect(screen.getByRole("link", { name: "Log out" })).toHaveAttribute(
+    await user.click(accountTrigger);
+
+    const menu = screen.getByRole("menu", { name: "Account menu" });
+    expect(menu).toBeInTheDocument();
+    expect(document.querySelector(".account-summary strong")).toHaveTextContent("Dev User");
+    expect(within(menu).getByRole("menuitem", { name: "Log out" })).toHaveAttribute(
       "href",
       "/api/auth/logout?callbackUrl=%2Fen",
     );
-    expect(screen.queryByRole("dialog", { name: "Logging out" })).not.toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "เปลี่ยนเป็นภาษาไทย" })).toHaveAttribute(
+      "href",
+      "/th",
+    );
+    expect(document.querySelector(".locale-switch")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Log in" })).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(accountTrigger).toHaveFocus();
+  });
+
+  it("keeps guest login actions inside the account dropdown", async () => {
+    const user = userEvent.setup();
+    const authFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ authenticated: false }), { status: 200 }),
+    );
+
+    render(<Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} />, {
+      wrapper: Wrapper,
+    });
+
+    const accountTrigger = await screen.findByRole("button", { name: "Account menu" });
+    accountTrigger.focus();
+    await user.keyboard("{Enter}");
+
+    const menu = screen.getByRole("menu", { name: "Account menu" });
+    expect(within(menu).getByRole("menuitem", { name: "Log in" })).toHaveAttribute(
+      "href",
+      "/api/auth/login?callbackUrl=%2Fen",
+    );
+    expect(within(menu).getByRole("menuitem", { name: "Sign up" })).toHaveAttribute(
+      "href",
+      "/api/auth/signup?callbackUrl=%2Fen",
+    );
+    expect(within(menu).getByRole("menuitem", { name: "Log in" })).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(within(menu).getByRole("menuitem", { name: "Sign up" })).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(within(menu).getByRole("menuitem", { name: "เปลี่ยนเป็นภาษาไทย" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(accountTrigger).toHaveFocus();
+  });
+
+  it("keeps the admin console link inside the account dropdown for admins", async () => {
+    const user = userEvent.setup();
+    const authFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(
+        JSON.stringify({
+          authenticated: true,
+          user: {
+            sub: "admin-1",
+            email: "admin@example.com",
+            name: "Admin User",
+            roles: ["ADMIN"],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(<Marketplace locale="en" fetcher={fetcher} authFetcher={authFetcher} />, {
+      wrapper: Wrapper,
+    });
+
+    const accountTrigger = await screen.findByRole("button", {
+      name: "Account menu for Admin User",
+    });
+    await user.click(accountTrigger);
+
+    const menu = screen.getByRole("menu", { name: "Account menu" });
+    expect(within(menu).getByRole("menuitem", { name: "Admin" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
   });
 
   it("starts PromptPay checkout from an authenticated cart and shows the QR dialog", async () => {
@@ -267,6 +361,7 @@ describe("cart and product details", () => {
           nameEn: "Claude (Full Access)",
           descriptionTh: "เข้าถึง Claude แบบเต็มรูปแบบ",
           descriptionEn: "Full Claude access",
+          shortDescriptionEn: "One-day access with its own delivery details",
           visualCode: "CLAUDE-FA",
           priceMinor: 232,
           stockQuantity: 137,
@@ -282,7 +377,8 @@ describe("cart and product details", () => {
           nameTh: "Claude (Full Access)",
           nameEn: "Claude (Full Access)",
           descriptionTh: "เข้าถึง Claude แบบเต็มรูปแบบ",
-          descriptionEn: "Full Claude access",
+          descriptionEn: "Seven-day Claude access",
+          shortDescriptionEn: "Seven-day access with its own delivery details",
           visualCode: "CLAUDE-FA",
           priceMinor: 847,
           stockQuantity: 13,
@@ -319,10 +415,12 @@ describe("cart and product details", () => {
 
     const chooser = screen.getByRole("dialog", { name: "Claude (Full Access)" });
     expect(within(chooser).getByText(/3 products/)).toBeInTheDocument();
-    expect(within(chooser).getByRole("button", { name: "Claude FA Unlimited [7 Days]" })).toBeInTheDocument();
+    const sevenDayChoice = within(chooser).getByRole("button", { name: "Claude FA Unlimited [7 Days]" });
+    expect(sevenDayChoice).toHaveAttribute("aria-describedby", "option-description-102");
+    expect(within(chooser).getByText("Seven-day access with its own delivery details")).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Claude FA Unlimited [7 Days]" })).not.toBeInTheDocument();
 
-    await user.click(within(chooser).getByRole("button", { name: "Claude FA Unlimited [7 Days]" }));
+    await user.click(sevenDayChoice);
     expect(await screen.findByRole("dialog", { name: "Claude FA Unlimited [7 Days]" })).toBeInTheDocument();
   });
 
