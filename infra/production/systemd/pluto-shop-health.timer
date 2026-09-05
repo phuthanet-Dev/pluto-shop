@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Pluto Shop production endpoint health check every five minutes
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=5m
+Unit=pluto-shop-health.service
+
+[Install]
+WantedBy=timers.target

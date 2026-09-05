@@ -16,6 +16,7 @@
     "typecheck": "npm run typecheck --workspace @pluto-shop/web",
     "test": "npm run test --workspace @pluto-shop/web",
     "test:root": "node --test scripts/dev-compose.test.mjs",
+    "test:production-config": "node --test scripts/production-config.test.mjs",
     "test:catalog": "node scripts/verify-catalog.mjs",
     "test:e2e": "npm run test:e2e --workspace @pluto-shop/web",
     "build": "npm run build --workspace @pluto-shop/web"

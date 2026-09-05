@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Pluto Shop encrypted backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=pluto-shop-backup.service
+
+[Install]
+WantedBy=timers.target

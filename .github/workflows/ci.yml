@@ -30,6 +30,8 @@ jobs:
         run: npm ci
       - name: Verify local Compose bootstrap helper
         run: node --test scripts/dev-compose.test.mjs
+      - name: Verify production configuration renderer
+        run: npm run test:production-config
       - name: Lint
         run: npm run lint
       - name: Type-check
@@ -86,9 +88,13 @@ jobs:
             printf 'POSTGRES_APP_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'POSTGRES_WRITE_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'POSTGRES_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 32)"
+            printf 'POSTGRES_INSPECTOR_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'KEYCLOAK_ADMIN=admin\n'
             printf 'KEYCLOAK_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 32)"
             printf 'AUTH_SESSION_SECRET=%s\n' "$(openssl rand -hex 32)"
+            printf 'FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=%s\n' "$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
+            printf 'FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=%s\n' "$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
+            printf 'FULFILLMENT_SECURITY_KEY_VERSION=1\n'
             printf 'OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto\n'
             printf 'OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto\n'
             printf 'OIDC_CLIENT_ID=pluto-web\n'
@@ -129,3 +135,32 @@ jobs:
       - name: Stop ephemeral stack
         if: always()
         run: docker compose down --volumes --remove-orphans
+
+  container-images:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [web, api, compose-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set image namespace
+        shell: bash
+        run: echo "IMAGE_BASE=ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        run: printf '%s' "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - name: Build web image
+        run: docker build --pull --build-arg INTERNAL_API_URL=http://api:8080 --tag "$IMAGE_BASE-web:$GITHUB_SHA" --file apps/web/Dockerfile .
+      - name: Build API image
+        run: docker build --pull --tag "$IMAGE_BASE-api:$GITHUB_SHA" apps/api
+      - name: Build Keycloak image
+        run: docker build --pull --tag "$IMAGE_BASE-keycloak:$GITHUB_SHA" infra/keycloak
+      - name: Push immutable images
+        run: |
+          docker push "$IMAGE_BASE-web:$GITHUB_SHA"
+          docker push "$IMAGE_BASE-api:$GITHUB_SHA"
+          docker push "$IMAGE_BASE-keycloak:$GITHUB_SHA"

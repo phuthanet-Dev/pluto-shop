@@ -12,9 +12,14 @@ test-results/
 
 # Local configuration and secrets
 .env
+.env.production
 .env.local
 .env.*.local
 !.env.example
+!.env.production.example
+
+# Production runtime state is generated on the VPS, never committed
+infra/production/runtime/
 
 # IDE and OS files
 .idea/

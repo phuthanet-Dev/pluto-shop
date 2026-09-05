@@ -1,6 +1,6 @@
 # Pluto Shop
 
-Marketplace สำหรับ creative assets แบบไทย/อังกฤษ สร้างเป็น Git monorepo โดยแยก Next.js frontend และ Spring Boot API ชัดเจน ระบบนี้เป็น **local/Docker-only** และไม่แก้ไขหรือเผยแพร่ทับ Nebula Studio ซึ่งใช้เป็นเพียง reference แบบอ่านอย่างเดียว
+Marketplace สำหรับ creative assets แบบไทย/อังกฤษ สร้างเป็น Git monorepo โดยแยก Next.js frontend และ Spring Boot API ชัดเจน ระบบ local ใช้ Docker และมี production deployment scaffold แยกต่างหาก โดยไม่แก้ไขหรือเผยแพร่ทับ Nebula Studio ซึ่งใช้เป็นเพียง reference แบบอ่านอย่างเดียว
 
 ## เริ่มระบบด้วยคำสั่งเดียว
 
@@ -30,6 +30,12 @@ docker compose down
 > `docker compose down --volumes` จะลบฐานข้อมูล local ทั้งหมด ใช้เฉพาะเมื่อตั้งใจ reset seed/migration ใหม่เท่านั้น
 
 หากต้องการกำหนดค่าเอง ให้คัดลอก `.env.example` เป็น `.env` และเปลี่ยน placeholder ของ secret ทุกตัวเป็นค่าที่สุ่มและยาวก่อนรัน Compose
+
+## Production deployment
+
+Production ใช้ `compose.production.yaml` โดยเปิดสาธารณะผ่าน Caddy container เฉพาะพอร์ต 80/443, ใช้ Keycloak PostgreSQL database แยก, ดึง image แบบ immutable commit SHA จาก GHCR และทำ pre-migration backup ก่อน Flyway ทุกครั้ง
+
+อ่านขั้นตอน VPS, DNS, secrets, Restic backup/restore, monitoring, external acceptance และขอบเขต Hermes ได้ที่ [docs/production-runbook.md](docs/production-runbook.md) ตัวอย่างค่าผลิตจริงอยู่ที่ `.env.production.example`; ห้ามใช้ไฟล์ตัวอย่างเป็น secrets จริง
 
 ### เชื่อมต่อ PostgreSQL จาก Windows GUI
 

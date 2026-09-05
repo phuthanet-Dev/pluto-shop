@@ -1,0 +1,315 @@
+name: pluto-shop-production
+
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD}
+      POSTGRES_WRITE_PASSWORD: ${POSTGRES_WRITE_PASSWORD:?Set POSTGRES_WRITE_PASSWORD}
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_INSPECTOR_PASSWORD: ${POSTGRES_INSPECTOR_PASSWORD:?Set POSTGRES_INSPECTOR_PASSWORD}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - data
+    restart: unless-stopped
+
+  role-bootstrap:
+    image: postgres:18.6
+    environment:
+      POSTGRES_OWNER_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_INSPECTOR_PASSWORD: ${POSTGRES_INSPECTOR_PASSWORD:?Set POSTGRES_INSPECTOR_PASSWORD}
+    command: ["bash", "/usr/local/bin/bootstrap-roles.sh"]
+    volumes:
+      - ./infra/postgres/bootstrap-roles.sh:/usr/local/bin/bootstrap-roles.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - data
+    restart: "no"
+
+  keycloak-db-bootstrap:
+    image: postgres:18.6
+    environment:
+      POSTGRES_OWNER_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      KEYCLOAK_DB_NAME: ${KEYCLOAK_DB_NAME:?Set KEYCLOAK_DB_NAME}
+      KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:?Set KEYCLOAK_DB_USER}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+    command: ["bash", "/usr/local/bin/bootstrap-keycloak.sh"]
+    volumes:
+      - ./infra/postgres/bootstrap-keycloak.sh:/usr/local/bin/bootstrap-keycloak.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - data
+    restart: "no"
+
+  keycloak:
+    image: ${IMAGE_NAMESPACE:?Set IMAGE_NAMESPACE}-keycloak:${IMAGE_TAG:?Set IMAGE_TAG}
+    command: ["start", "--optimized", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: "5432"
+      KC_DB_URL_DATABASE: ${KEYCLOAK_DB_NAME:?Set KEYCLOAK_DB_NAME}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:?Set KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+      KC_DB_SCHEMA: public
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: https://${AUTH_DOMAIN:?Set AUTH_DOMAIN}
+      KC_HOSTNAME_STRICT: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "false"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ${KEYCLOAK_REALM_FILE:?Set KEYCLOAK_REALM_FILE}:/opt/keycloak/data/import/realm-production.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak-db-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    init: true
+    read_only: true
+    tmpfs:
+      - /opt/keycloak/data/tmp:size=64m,mode=1777
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - app
+      - data
+    restart: unless-stopped
+
+  migrate:
+    image: ${IMAGE_NAMESPACE:?Set IMAGE_NAMESPACE}-api:${IMAGE_TAG:?Set IMAGE_TAG}
+    command: ["--spring.main.web-application-type=none"]
+    environment:
+      SPRING_MAIN_WEB_APPLICATION_TYPE: none
+      SPRING_FLYWAY_ENABLED: "true"
+      INWCLOUD_PAYMENT_EXPIRY_SWEEP_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_ADMIN_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
+      SPRING_DATASOURCE_ADMIN_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER}
+      SPRING_DATASOURCE_ADMIN_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      SPRING_FLYWAY_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64: ${FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64:?Set FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64}
+      FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64: ${FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64:?Set FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64}
+      FULFILLMENT_SECURITY_KEY_VERSION: ${FULFILLMENT_SECURITY_KEY_VERSION:?Set FULFILLMENT_SECURITY_KEY_VERSION}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      role-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      disable: true
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - data
+    restart: "no"
+
+  api:
+    image: ${IMAGE_NAMESPACE:?Set IMAGE_NAMESPACE}-api:${IMAGE_TAG:?Set IMAGE_TAG}
+    volumes:
+      - type: volume
+        source: product-media
+        target: /var/lib/plutoshop/product-media
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: pluto_user
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_WRITE_PASSWORD:?Set POSTGRES_WRITE_PASSWORD}
+      SPRING_DATASOURCE_ADMIN_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
+      SPRING_DATASOURCE_ADMIN_USERNAME: pluto_admin
+      SPRING_DATASOURCE_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      SPRING_DATASOURCE_READ_ONLY: "false"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://${AUTH_DOMAIN:?Set AUTH_DOMAIN}/realms/pluto
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/pluto/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCE: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCE:-pluto-api}
+      FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64: ${FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64:?Set FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64}
+      FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64: ${FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64:?Set FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64}
+      FULFILLMENT_SECURITY_KEY_VERSION: ${FULFILLMENT_SECURITY_KEY_VERSION:?Set FULFILLMENT_SECURITY_KEY_VERSION}
+      FULFILLMENT_DELIVERY_ENABLED: ${FULFILLMENT_DELIVERY_ENABLED:-true}
+      INWCLOUD_API_BASE_URL: ${INWCLOUD_API_BASE_URL:-https://api.inwcloud.shop}
+      INWCLOUD_API_KEY: ${INWCLOUD_API_KEY-}
+      PRODUCT_MEDIA_ROOT: /var/lib/plutoshop/product-media
+      SERVER_PORT: 8080
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "java", "-cp", "/opt/app/healthcheck", "com.plutoshop.api.ContainerHealthCheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - app
+      - data
+    restart: unless-stopped
+
+  web:
+    image: ${IMAGE_NAMESPACE:?Set IMAGE_NAMESPACE}-web:${IMAGE_TAG:?Set IMAGE_TAG}
+    environment:
+      INTERNAL_API_URL: http://api:8080
+      OIDC_ISSUER: https://${AUTH_DOMAIN:?Set AUTH_DOMAIN}/realms/pluto
+      OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/pluto
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-pluto-web}
+      OIDC_REDIRECT_URI: https://${SHOP_DOMAIN:?Set SHOP_DOMAIN}/api/auth/callback
+      SITE_URL: https://${SHOP_DOMAIN:?Set SHOP_DOMAIN}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?Set AUTH_SESSION_SECRET}
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      api:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/th"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /app/apps/web/.next/cache:size=128m,uid=1000,gid=1000,mode=0755
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - app
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.9.1-alpine
+    environment:
+      SHOP_DOMAIN: ${SHOP_DOMAIN:?Set SHOP_DOMAIN}
+      AUTH_DOMAIN: ${AUTH_DOMAIN:?Set AUTH_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    volumes:
+      - ./infra/production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    networks:
+      - edge
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    name: pluto-shop-production_postgres-data
+  keycloak-data:
+    name: pluto-shop-production_keycloak-data
+  product-media:
+    name: pluto-shop-production_product-media
+  caddy-data:
+    name: pluto-shop-production_caddy-data
+  caddy-config:
+    name: pluto-shop-production_caddy-config
+
+networks:
+  edge:
+  app:
+  data:
+    internal: true

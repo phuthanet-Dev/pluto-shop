@@ -1,0 +1,26 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$SHOP_DOMAIN} {
+    encode zstd gzip
+
+    log {
+        output stdout
+        format json
+    }
+
+    reverse_proxy web:3000
+}
+
+{$AUTH_DOMAIN} {
+    @blocked path /admin /admin/* /realms/master /realms/master/* /metrics /metrics/* /health /health/*
+    respond @blocked 404
+
+    log {
+        output stdout
+        format json
+    }
+
+    reverse_proxy keycloak:8080
+}

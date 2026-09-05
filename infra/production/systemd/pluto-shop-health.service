@@ -1,0 +1,17 @@
+[Unit]
+Description=Pluto Shop production endpoint health check
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pluto
+WorkingDirectory=/opt/pluto-shop/current
+Environment=ENV_FILE=/opt/pluto-shop/current/.env.production
+ExecStart=/usr/bin/env bash /opt/pluto-shop/current/infra/production/healthcheck-production.sh
+TimeoutStartSec=1m
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp

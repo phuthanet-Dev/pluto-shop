@@ -1,0 +1,18 @@
+[Unit]
+Description=Pluto Shop full backup restore verification
+Wants=network-online.target
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=pluto
+SupplementaryGroups=docker
+WorkingDirectory=/opt/pluto-shop/current
+Environment=ENV_FILE=/opt/pluto-shop/current/.env.production
+ExecStart=/usr/bin/env bash /opt/pluto-shop/current/infra/production/restore-check.sh
+TimeoutStartSec=2h
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
