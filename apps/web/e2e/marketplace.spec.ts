@@ -227,15 +227,31 @@ test.describe("Pluto Shop marketplace", () => {
         JSON.stringify({ state: { cartIds: [1] }, version: 0 }),
       );
     });
+    // Reload so the in-memory store hydrates the legacy cart before navigation.
+    await page.reload();
+    await expectFullCatalog(page);
+    await expect.poll(async () => page.evaluate(() =>
+      JSON.parse(localStorage.getItem("pluto-shop-cart") ?? "{}").state,
+    )).toEqual({ cartIds: [1], quantities: { "1": 1 } });
+
     await page.getByRole("searchbox", { name: "Search assets" }).fill("__persist_probe__");
     await expect(page).toHaveURL(/q=__persist_probe__/);
-    await page.locator('a[hreflang="th"]').click();
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menu", { name: "Account menu" })
+      .getByRole("menuitem", { name: "เปลี่ยนเป็นภาษาไทย" })
+      .click();
     await expect(page).toHaveURL(/\/th\?q=__persist_probe__/);
     await expect(page.locator("html")).toHaveAttribute("lang", "th");
     await expect(page.locator(".skip-link")).toHaveText("ข้ามไปยังเนื้อหา");
 
     await page.reload();
     await expect(page).toHaveURL(/\/th\?q=__persist_probe__/);
+    await expect(page.locator("html")).toHaveAttribute("lang", "th");
+    await expect(page.getByRole("button", { name: "รถเข็น" })).toBeVisible();
+    // Navigation completion does not imply the client store has hydrated yet.
+    await expect.poll(async () => page.evaluate(() =>
+      JSON.parse(localStorage.getItem("pluto-shop-cart") ?? "{}").state,
+    )).toEqual({ cartIds: [1], quantities: { "1": 1 } });
     const persisted = await page.evaluate(() =>
       JSON.parse(localStorage.getItem("pluto-shop-cart") ?? "{}"),
     );
