@@ -61,6 +61,15 @@ public final class FulfillmentSecretCodec {
             throw new IllegalArgumentException("Fulfillment key version must be positive");
         }
         this.keys = configured ? Map.copyOf(new HashMap<>(keys)) : Map.of();
+        if (configured) {
+            byte[] fingerprintKey = this.keys.get(currentKeyVersion).fingerprintKey();
+            for (KeyMaterial material : this.keys.values()) {
+                if (!MessageDigest.isEqual(fingerprintKey, material.fingerprintKey())) {
+                    throw new IllegalArgumentException(
+                            "Fulfillment fingerprint key must remain stable across versions");
+                }
+            }
+        }
         this.currentKeyVersion = currentKeyVersion;
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.validator = new FulfillmentPayloadValidator();

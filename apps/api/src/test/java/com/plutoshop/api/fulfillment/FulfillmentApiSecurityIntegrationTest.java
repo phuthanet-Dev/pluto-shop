@@ -26,8 +26,12 @@ class FulfillmentApiSecurityIntegrationTest {
     private static final PostgreSQLContainer POSTGRES =
             new PostgreSQLContainer("postgres:18.6-alpine");
 
+    @org.junit.jupiter.api.io.TempDir
+    static java.nio.file.Path IMAGE_ROOT;
+
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
+        registry.add("product-media.root", () -> IMAGE_ROOT.toString());
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);

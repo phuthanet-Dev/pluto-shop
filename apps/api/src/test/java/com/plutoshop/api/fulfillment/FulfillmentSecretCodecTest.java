@@ -87,6 +87,7 @@ class FulfillmentSecretCodecTest {
                 .extracting(value -> ((FulfillmentPayload.LicenseKey) value).licenseKey())
                 .isEqualTo("ROTATION-LICENSE");
         assertThat(newEncrypted.encryptionKeyVersion()).isEqualTo(2);
+        assertThat(newEncrypted.fingerprint()).isEqualTo(oldEncrypted.fingerprint());
         assertThat(rotatedCodec.decrypt(7L, 12L, "PROVIDER", newEncrypted))
                 .isInstanceOf(FulfillmentPayload.LicenseKey.class)
                 .extracting(value -> ((FulfillmentPayload.LicenseKey) value).licenseKey())
