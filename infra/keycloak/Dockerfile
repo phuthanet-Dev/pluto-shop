@@ -4,6 +4,7 @@ FROM quay.io/keycloak/keycloak:26.4.0 AS builder
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
+ENV KC_METRICS_ENABLED=false
 
 RUN /opt/keycloak/bin/kc.sh build --db=postgres
 
