@@ -79,6 +79,10 @@ payment:
     api-base-url: ${INWCLOUD_API_BASE_URL:https://api.inwcloud.shop}
     api-key: ${INWCLOUD_API_KEY:}
     promptpay-blackout-enforced: ${INWCLOUD_PROMPTPAY_BLACKOUT_ENFORCED:true}
+    truewallet-enabled: ${INWCLOUD_TRUEWALLET_ENABLED:false}
+    truewallet-amount-unit: ${INWCLOUD_TRUEWALLET_AMOUNT_UNIT:}
+    truewallet-fingerprint-key-base64: ${INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64:}
+    truewallet-recovery-interval-ms: ${INWCLOUD_TRUEWALLET_RECOVERY_INTERVAL_MS:60000}
     expiry-sweep-enabled: ${INWCLOUD_PAYMENT_EXPIRY_SWEEP_ENABLED:true}
     expiry-sweep-delay-ms: ${INWCLOUD_PAYMENT_EXPIRY_SWEEP_DELAY_MS:60000}
     expiry-sweep-initial-delay-ms: ${INWCLOUD_PAYMENT_EXPIRY_SWEEP_INITIAL_DELAY_MS:60000}

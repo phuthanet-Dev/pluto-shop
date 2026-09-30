@@ -1,3 +1,4 @@
+import { SITE_BRAND_DISPLAY } from "@/lib/brand";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Marketplace } from "@/components/marketplace";
@@ -11,6 +12,8 @@ export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
 }
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: LocalePageProps): Promise<Metadata> {
@@ -18,7 +21,7 @@ export async function generateMetadata({
   if (!isLocale(locale)) return {};
 
   return {
-    title: "Pluto Shop",
+    title: SITE_BRAND_DISPLAY,
     alternates: {
       canonical: `/${locale}`,
       languages: { th: "/th", en: "/en" },
@@ -30,5 +33,9 @@ export default async function LocalePage({ params }: LocalePageProps) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  return <Marketplace locale={locale} />;
+  return <Marketplace
+    locale={locale}
+    trueWalletEnabled={process.env.INWCLOUD_TRUEWALLET_ENABLED === "true"}
+    activePaymentRecoveryEnabled
+  />;
 }

@@ -80,7 +80,7 @@ export function CustomerFulfillmentPanel({ orderId, locale }: { orderId: number;
               <article className="customer-fulfillment-line" key={line.orderItemId}>
                 <div className="customer-fulfillment-line-heading">
                   <div>
-                    <span className="customer-fulfillment-type">{line.fulfillmentType}</span>
+                    <span className="customer-fulfillment-type">{line.fulfillmentType === "DISCORD_ACCOUNT" ? (thai ? "อีเมล / รหัสผ่าน" : "Email / password") : line.fulfillmentType}</span>
                     <h2>{thai ? "รายการสินค้า" : "Order item"} #{line.orderItemId}</h2>
                   </div>
                   <span className={`customer-fulfillment-status customer-fulfillment-status-${line.status.toLowerCase()}`}>

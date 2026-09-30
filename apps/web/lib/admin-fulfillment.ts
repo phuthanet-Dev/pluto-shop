@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { profileValidationMessage } from "@/lib/fulfillment-profile-validation";
 
 const fulfillmentTypeSchema = z.enum([
   "NONE",
@@ -171,6 +172,13 @@ async function requestJson<T>(
   const response = await fetcher(input, { ...init, cache: "no-store" });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 400 && body?.title === "Invalid fulfillment request body") {
+      const errors = z.array(z.object({ field: z.string().max(100), code: z.literal("invalid") }).strict()).max(50).safeParse(body.errors);
+      const message = errors.success && errors.data.length
+        ? errors.data.map(({ field }) => profileValidationMessage(field.split(".").map((part) => /^\d{1,2}$/u.test(part) ? Number(part) : part))).join(" • ")
+        : "ข้อมูลการส่งมอบไม่ถูกต้อง กรุณาตรวจสอบชนิดข้อมูล ผู้ให้บริการ และขั้นตอน";
+      throw new FulfillmentApiError(response.status, message);
+    }
     const detail = typeof body?.detail === "string" ? body.detail : "Fulfillment request failed";
     throw new FulfillmentApiError(response.status, detail);
   }

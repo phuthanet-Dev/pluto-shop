@@ -44,6 +44,27 @@ describe("CustomerFulfillmentPanel", () => {
     });
   });
 
+  it.each([["th", "อีเมล / รหัสผ่าน"], ["en", "Email / password"]])("shows generic received-data wording in %s without revealing secrets", async (locale, label) => {
+    const fixture = await api.fetchCustomerFulfillment();
+    api.fetchCustomerFulfillment.mockResolvedValue({ ...fixture, lines: [{ ...fixture.lines[0], fulfillmentType: "DISCORD_ACCOUNT", customerSteps: [] }] });
+    api.revealCustomerFulfillment.mockResolvedValue({
+      inventoryItemId: 44, fulfillmentType: "DISCORD_ACCOUNT", provider: "SYNTHETIC",
+      fields: { email: "synthetic@example.invalid", password: "synthetic-password" },
+    });
+    const storage = vi.spyOn(Storage.prototype, "setItem");
+    const { container } = render(<CustomerFulfillmentPanel orderId={91} locale={locale} />);
+    expect(await screen.findByText(label)).toBeVisible();
+    expect(container).not.toHaveTextContent(/discord/i);
+    expect(screen.queryByText("synthetic-password")).not.toBeInTheDocument();
+    expect(api.revealCustomerFulfillment).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: locale === "th" ? "เปิดเผยข้อมูลสินค้า 92" : "Reveal item data 92" }));
+    expect(await screen.findByText("synthetic-password")).toBeVisible();
+    expect(screen.getByText("synthetic@example.invalid")).toBeVisible();
+    expect(api.revealCustomerFulfillment).toHaveBeenCalledWith(91, 92);
+    expect(storage).not.toHaveBeenCalled();
+    storage.mockRestore();
+  });
+
   it("does not render secret fields until the customer explicitly reveals them", async () => {
     render(<CustomerFulfillmentPanel orderId={91} locale="th" />);
 

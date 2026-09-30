@@ -37,6 +37,7 @@ public class PromptPayPaymentService {
 
     private static final String CURRENCY = "THB";
     private static final String PROVIDER = "INWCLOUD";
+    private static final String PAYMENT_METHOD = "PROMPTPAY";
     // Inwcloud adds a bounded random-satang marker to the requested THB amount.
     // Keep the server-calculated order total authoritative and store the provider amount separately.
     private static final long MAX_RANDOM_SATANG = 99;
@@ -44,6 +45,7 @@ public class PromptPayPaymentService {
     private static final Pattern IDEMPOTENCY_KEY = Pattern.compile("[A-Za-z0-9._:-]{16,100}");
     private static final Pattern TRANSACTION_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,119}");
     private static final RowMapper<PaymentSnapshot> PAYMENT_ROW = PromptPayPaymentService::mapPayment;
+    private static final RowMapper<ActivePaymentResponse> ACTIVE_PAYMENT_ROW = PromptPayPaymentService::mapActivePayment;
     private static final RowMapper<OrderLine> ORDER_LINE_ROW = (rs, rowNum) ->
             new OrderLine(rs.getLong("product_id"), rs.getInt("quantity"));
 
@@ -79,8 +81,13 @@ public class PromptPayPaymentService {
         }
         validateIdempotencyKey(idempotencyKey);
         AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
         Optional<PaymentSnapshot> existing = findByIdempotencyKey(user.getId(), idempotencyKey);
         if (existing.isPresent()) return toCheckoutResponse(existing.get());
+        if (hasIdempotencyKey(user.getId(), idempotencyKey)) {
+            throw new PaymentConflictException("Idempotency key was already used with another payment method");
+        }
+        ensureNoActivePayment(user.getId());
 
         Cart cart = cartRepository.findActiveByUserId(user.getId())
                 .orElseThrow(() -> new PaymentConflictException("Cart is empty"));
@@ -186,28 +193,51 @@ public class PromptPayPaymentService {
             throw new PaymentConflictException("Payment transaction is invalid");
         }
         AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
         PaymentSnapshot current = findByTransaction(user.getId(), transactionId)
                 .orElseThrow(PaymentNotFoundException::new);
-        if (current.status() != PaymentStatus.PENDING) return toStatusResponse(current, messageFor(current.status()));
-        if (current.expiresAt() != null && !current.expiresAt().isAfter(Instant.now())) {
-            return transition(current, PaymentStatus.EXPIRED, "Payment QR code expired");
+        if (current.status() != PaymentStatus.PENDING && current.status() != PaymentStatus.REVIEW) {
+            return toStatusResponse(current, messageFor(current.status()));
         }
+        boolean expired = current.expiresAt() != null && !current.expiresAt().isAfter(Instant.now());
 
-        InwcloudPaymentGatewayClient.CheckedPayment checked = gateway.check(transactionId);
+        InwcloudPaymentGatewayClient.CheckedPayment checked;
+        try {
+            checked = gateway.check(transactionId);
+        } catch (PaymentGatewayException exception) {
+            return transition(current, PaymentStatus.REVIEW, "Payment requires manual review");
+        }
+        if (checked == null || checked.status() == null) {
+            return transition(current, PaymentStatus.REVIEW, "Payment requires manual review");
+        }
         return switch (checked.status()) {
             case PAID -> transition(current, PaymentStatus.PAID, "Payment completed");
-            case FAILED -> transition(current, PaymentStatus.FAILED, "Payment was not completed");
+            case FAILED -> transition(
+                    current,
+                    expired ? PaymentStatus.EXPIRED : PaymentStatus.FAILED,
+                    expired ? "Payment QR code expired" : "Payment was not completed");
+            case REVIEW -> transition(current, PaymentStatus.REVIEW, "Payment requires manual review");
             case PENDING -> {
+                if (expired) {
+                    yield transition(current, PaymentStatus.REVIEW, "Payment requires manual review");
+                }
                 int changed = jdbc.update("""
                         UPDATE payment_transactions
                         SET checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :paymentId AND status = 'PENDING'
-                        """, new MapSqlParameterSource("paymentId", current.paymentId()));
+                        WHERE id = :paymentId AND provider = :provider AND status IN ('PENDING', 'REVIEW')
+                          AND order_id IN (
+                              SELECT id FROM shop_orders WHERE payment_method = :paymentMethod
+                          )
+                        """, new MapSqlParameterSource()
+                        .addValue("paymentId", current.paymentId())
+                        .addValue("provider", PROVIDER)
+                        .addValue("paymentMethod", PAYMENT_METHOD));
                 if (changed == 0) {
                     PaymentSnapshot latest = findByPaymentId(current.paymentId()).orElse(current);
                     yield toStatusResponse(latest, messageFor(latest.status()));
                 }
-                yield toStatusResponse(current, "Payment is still pending");
+                yield toStatusResponse(current, current.status() == PaymentStatus.REVIEW
+                        ? "Payment requires manual review" : "Payment is still pending");
             }
         };
     }
@@ -218,6 +248,7 @@ public class PromptPayPaymentService {
             throw new PaymentConflictException("Payment transaction is invalid");
         }
         AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
         PaymentSnapshot current = findByTransaction(user.getId(), transactionId)
                 .orElseThrow(PaymentNotFoundException::new);
         if (current.status() == PaymentStatus.CANCELLED) {
@@ -227,9 +258,12 @@ public class PromptPayPaymentService {
             throw new PaymentConflictException("Payment cannot be cancelled");
         }
 
-        PromptPayStatusResponse cancelled = transition(current, PaymentStatus.CANCELLED, "Payment cancelled");
-        if (cancelled.status() == PaymentStatus.CANCELLED) return cancelled;
-        throw new PaymentConflictException("Payment cannot be cancelled");
+        PromptPayStatusResponse review = transition(
+                current,
+                PaymentStatus.REVIEW,
+                "Cancellation requires provider reconciliation");
+        if (review.status() == PaymentStatus.REVIEW) return review;
+        throw new PaymentConflictException("Payment cancellation requires manual review");
     }
 
     @Transactional
@@ -240,37 +274,71 @@ public class PromptPayPaymentService {
                        p.qr_url, p.payload, p.expires_at
                 FROM payment_transactions p
                 JOIN shop_orders o ON o.id = p.order_id
-                WHERE p.status = 'PENDING'
+                WHERE p.provider = :provider
+                  AND o.payment_method = :paymentMethod
+                  AND p.status = 'PENDING'
                   AND p.expires_at IS NOT NULL
                   AND p.expires_at <= CURRENT_TIMESTAMP
                 ORDER BY p.id
                 LIMIT 100
-                FOR UPDATE OF p SKIP LOCKED
-                """, new MapSqlParameterSource(), PAYMENT_ROW);
-        for (PaymentSnapshot payment : expiredPayments) {
-            transition(payment, PaymentStatus.EXPIRED, "Payment QR code expired");
+                """, new MapSqlParameterSource()
+                        .addValue("provider", PROVIDER)
+                        .addValue("paymentMethod", PAYMENT_METHOD), PAYMENT_ROW);
+        for (PaymentSnapshot candidate : expiredPayments) {
+            PaymentCheckoutLock.acquire(jdbc, candidate.userId());
+            PaymentSnapshot payment = findByPaymentId(candidate.paymentId()).orElse(null);
+            if (payment == null
+                    || payment.status() != PaymentStatus.PENDING
+                    || payment.expiresAt() == null
+                    || payment.expiresAt().isAfter(Instant.now())) {
+                continue;
+            }
+            InwcloudPaymentGatewayClient.CheckedPayment checked;
+            try {
+                checked = gateway.check(payment.transactionId());
+            } catch (PaymentGatewayException exception) {
+                transition(payment, PaymentStatus.REVIEW, "Payment requires manual review");
+                continue;
+            }
+            if (checked == null || checked.status() == null) {
+                transition(payment, PaymentStatus.REVIEW, "Payment requires manual review");
+                continue;
+            }
+            switch (checked.status()) {
+                case PAID -> transition(payment, PaymentStatus.PAID, "Payment completed");
+                case FAILED -> transition(payment, PaymentStatus.EXPIRED, "Payment QR code expired");
+                case PENDING, REVIEW -> transition(payment, PaymentStatus.REVIEW, "Payment requires manual review");
+            }
         }
     }
 
     private PromptPayStatusResponse transition(PaymentSnapshot current, PaymentStatus status, String message) {
         int changed = jdbc.update("""
-                UPDATE payment_transactions
+                UPDATE payment_transactions p
                 SET status = :status, checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE id = :paymentId AND status = 'PENDING'
+                FROM shop_orders o
+                WHERE p.id = :paymentId AND p.provider = :provider AND p.status IN ('PENDING', 'REVIEW')
+                  AND o.id = p.order_id AND o.payment_method = :paymentMethod
                 """, new MapSqlParameterSource()
                 .addValue("status", status.name())
-                .addValue("paymentId", current.paymentId()));
+                .addValue("paymentId", current.paymentId())
+                .addValue("provider", PROVIDER)
+                .addValue("paymentMethod", PAYMENT_METHOD));
         if (changed == 0) {
             PaymentSnapshot latest = findByPaymentId(current.paymentId()).orElse(current);
             return toStatusResponse(latest, messageFor(latest.status()));
         }
 
         if (status == PaymentStatus.PAID) {
-            jdbc.update("""
+            int orderChanged = jdbc.update("""
                     UPDATE shop_orders
                     SET status = 'PAID', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = :orderId AND status = 'PAYMENT_PENDING'
-                    """, new MapSqlParameterSource("orderId", current.orderId()));
+                    WHERE id = :orderId AND payment_method = :paymentMethod
+                      AND status IN ('PAYMENT_PENDING', 'PAYMENT_REVIEW')
+                    """, new MapSqlParameterSource()
+                    .addValue("orderId", current.orderId())
+                    .addValue("paymentMethod", PAYMENT_METHOD));
+            requireSingleUpdate(orderChanged, "PromptPay order transition failed");
             jdbc.update("""
                     DELETE FROM cart_items AS cart_item
                     USING shop_order_items AS order_item
@@ -302,19 +370,36 @@ public class PromptPayPaymentService {
                     WHERE user_id = :userId AND status = 'ACTIVE'
                     """, new MapSqlParameterSource("userId", current.userId()));
             fulfillmentAllocationService.markOrderPaid(current.orderId());
+        } else if (status == PaymentStatus.REVIEW) {
+            int orderChanged = jdbc.update("""
+                    UPDATE shop_orders
+                    SET status = 'PAYMENT_REVIEW', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :orderId AND payment_method = :paymentMethod
+                      AND status IN ('PAYMENT_PENDING', 'PAYMENT_REVIEW')
+                    """, new MapSqlParameterSource()
+                    .addValue("orderId", current.orderId())
+                    .addValue("paymentMethod", PAYMENT_METHOD));
+            requireSingleUpdate(orderChanged, "PromptPay order transition failed");
         } else {
-            jdbc.update("""
+            int orderChanged = jdbc.update("""
                     UPDATE shop_orders
                     SET status = :status, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = :orderId AND status = 'PAYMENT_PENDING'
+                    WHERE id = :orderId AND payment_method = :paymentMethod
+                      AND status IN ('PAYMENT_PENDING', 'PAYMENT_REVIEW')
                     """, new MapSqlParameterSource()
                     .addValue("status", status.name())
-                    .addValue("orderId", current.orderId()));
+                    .addValue("orderId", current.orderId())
+                    .addValue("paymentMethod", PAYMENT_METHOD));
+            requireSingleUpdate(orderChanged, "PromptPay order transition failed");
             releaseReservedStock(current.orderId());
             fulfillmentAllocationService.releaseForOrder(current.orderId());
         }
         PaymentSnapshot latest = findByPaymentId(current.paymentId()).orElse(current.withStatus(status));
         return toStatusResponse(latest, message);
+    }
+
+    private static void requireSingleUpdate(int changed, String message) {
+        if (changed != 1) throw new PaymentGatewayException(message);
     }
 
     private void reserveStock(long productId, int quantity) {
@@ -339,6 +424,34 @@ public class PromptPayPaymentService {
         }
     }
 
+    private void ensureNoActivePayment(long userId) {
+        Boolean active = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM payment_transactions p
+                    JOIN shop_orders o ON o.id = p.order_id
+                    WHERE o.user_id = :userId
+                      AND p.status IN ('PENDING', 'REVIEW')
+                      AND o.status IN ('PAYMENT_PENDING', 'PAYMENT_REVIEW')
+                )
+                """, new MapSqlParameterSource("userId", userId), Boolean.class);
+        if (Boolean.TRUE.equals(active)) {
+            throw new PaymentConflictException("Another payment is already pending or under review");
+        }
+    }
+
+    private boolean hasIdempotencyKey(long userId, String idempotencyKey) {
+        Boolean exists = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM shop_orders
+                    WHERE user_id = :userId AND idempotency_key = :idempotencyKey
+                )
+                """, new MapSqlParameterSource()
+                .addValue("userId", userId)
+                .addValue("idempotencyKey", idempotencyKey), Boolean.class);
+        return Boolean.TRUE.equals(exists);
+    }
+
     private Optional<PaymentSnapshot> findByIdempotencyKey(long userId, String idempotencyKey) {
         return jdbc.query("""
                 SELECT p.id AS payment_id, o.id AS order_id, o.user_id,
@@ -346,10 +459,15 @@ public class PromptPayPaymentService {
                        p.qr_url, p.payload, p.expires_at
                 FROM payment_transactions p
                 JOIN shop_orders o ON o.id = p.order_id
-                WHERE o.user_id = :userId AND o.idempotency_key = :idempotencyKey
+                WHERE o.user_id = :userId
+                  AND o.idempotency_key = :idempotencyKey
+                  AND o.payment_method = :paymentMethod
+                  AND p.provider = :provider
                 """, new MapSqlParameterSource()
                 .addValue("userId", userId)
-                .addValue("idempotencyKey", idempotencyKey), PAYMENT_ROW)
+                .addValue("idempotencyKey", idempotencyKey)
+                .addValue("paymentMethod", PAYMENT_METHOD)
+                .addValue("provider", PROVIDER), PAYMENT_ROW)
                 .stream().findFirst();
     }
 
@@ -360,10 +478,15 @@ public class PromptPayPaymentService {
                        p.qr_url, p.payload, p.expires_at
                 FROM payment_transactions p
                 JOIN shop_orders o ON o.id = p.order_id
-                WHERE o.user_id = :userId AND p.transaction_id = :transactionId
+                WHERE o.user_id = :userId
+                  AND p.transaction_id = :transactionId
+                  AND o.payment_method = :paymentMethod
+                  AND p.provider = :provider
                 """, new MapSqlParameterSource()
                 .addValue("userId", userId)
-                .addValue("transactionId", transactionId), PAYMENT_ROW)
+                .addValue("transactionId", transactionId)
+                .addValue("paymentMethod", PAYMENT_METHOD)
+                .addValue("provider", PROVIDER), PAYMENT_ROW)
                 .stream().findFirst();
     }
 
@@ -375,7 +498,36 @@ public class PromptPayPaymentService {
                 FROM payment_transactions p
                 JOIN shop_orders o ON o.id = p.order_id
                 WHERE p.id = :paymentId
-                """, new MapSqlParameterSource("paymentId", paymentId), PAYMENT_ROW)
+                  AND p.provider = :provider
+                  AND o.payment_method = :paymentMethod
+                """, new MapSqlParameterSource()
+                .addValue("paymentId", paymentId)
+                .addValue("provider", PROVIDER)
+                .addValue("paymentMethod", PAYMENT_METHOD), PAYMENT_ROW)
+                .stream().findFirst();
+    }
+
+    @Transactional
+    public Optional<ActivePaymentResponse> findActivePayment(Jwt jwt) {
+        AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
+        return jdbc.query("""
+                SELECT o.payment_method, p.order_id, p.transaction_id, p.status,
+                       p.amount_minor, o.currency, p.qr_url, p.payload, p.expires_at
+                FROM payment_transactions p
+                JOIN shop_orders o ON o.id = p.order_id
+                WHERE o.user_id = :userId
+                  AND (
+                      (o.payment_method = 'PROMPTPAY' AND p.provider = 'INWCLOUD')
+                      OR (o.payment_method = 'TRUEWALLET' AND p.provider = 'INWCLOUD_TRUEWALLET')
+                  )
+                  AND (
+                      (p.status = 'PENDING' AND o.status = 'PAYMENT_PENDING')
+                      OR (p.status = 'REVIEW' AND o.status = 'PAYMENT_REVIEW')
+                  )
+                ORDER BY p.created_at DESC
+                LIMIT 1
+                """, new MapSqlParameterSource("userId", user.getId()), ACTIVE_PAYMENT_ROW)
                 .stream().findFirst();
     }
 
@@ -397,7 +549,7 @@ public class PromptPayPaymentService {
 
     private static String firstNonBlank(String... values) {
         for (String value : values) if (value != null && !value.isBlank()) return value;
-        return "Unknown Pluto Shop user";
+        return "Unknown phutoshop user";
     }
 
     private static void validateIdempotencyKey(String value) {
@@ -423,6 +575,7 @@ public class PromptPayPaymentService {
             case FAILED -> "Payment was not completed";
             case CANCELLED -> "Payment cancelled";
             case PENDING -> "Payment is still pending";
+            case REVIEW -> "Payment requires manual review";
         };
     }
 
@@ -436,6 +589,22 @@ public class PromptPayPaymentService {
                 PaymentStatus.valueOf(rs.getString("status").toUpperCase(Locale.ROOT)),
                 rs.getLong("amount_minor"),
                 rs.getString("currency"),
+                rs.getString("qr_url"),
+                rs.getString("payload"),
+                expiresAt == null ? null : expiresAt.toInstant());
+    }
+
+    private static ActivePaymentResponse mapActivePayment(ResultSet rs, int rowNum) throws SQLException {
+        PaymentStatus status = PaymentStatus.valueOf(rs.getString("status").toUpperCase(Locale.ROOT));
+        Timestamp expiresAt = rs.getTimestamp("expires_at");
+        return new ActivePaymentResponse(
+                rs.getString("payment_method"),
+                rs.getLong("order_id"),
+                rs.getString("transaction_id"),
+                rs.getLong("amount_minor"),
+                rs.getString("currency"),
+                status,
+                messageFor(status),
                 rs.getString("qr_url"),
                 rs.getString("payload"),
                 expiresAt == null ? null : expiresAt.toInstant());

@@ -39,7 +39,7 @@ export function buildProductionRealm({
   smtpHost,
   smtpPort: configuredSmtpPort = 587,
   smtpFrom,
-  smtpFromDisplayName = "Pluto Shop",
+  smtpFromDisplayName = "Phuto Shop",
   smtpUsername,
   smtpPassword,
 }) {
@@ -91,7 +91,7 @@ export async function renderProductionRealm({
     smtpHost: env.SMTP_HOST,
     smtpPort: env.SMTP_PORT ?? 587,
     smtpFrom: env.SMTP_FROM,
-    smtpFromDisplayName: env.SMTP_FROM_DISPLAY_NAME ?? "Pluto Shop",
+    smtpFromDisplayName: env.SMTP_FROM_DISPLAY_NAME ?? "Phuto Shop",
     smtpUsername: env.SMTP_USERNAME,
     smtpPassword: env.SMTP_PASSWORD,
   });

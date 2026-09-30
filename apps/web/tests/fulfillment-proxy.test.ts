@@ -23,6 +23,21 @@ describe("fulfillment proxy", () => {
     })));
   });
 
+  it("returns fixed field paths and codes, never input values or unknown keys", async () => {
+    const request = new Request("http://127.0.0.1:3000/api/v1/admin/products/37/fulfillment", {
+      method: "PUT", headers: { origin: "http://127.0.0.1:3000", "content-type": "application/json" },
+      body: JSON.stringify({ fulfillmentType: "DISCORD_ACCOUNT", provider: "secret value!", payloadSchemaVersion: 1, version: 1,
+        steps: [{ stepOrder: 1, audience: "CUSTOMER", titleTh: "ok", titleEn: "", bodyTh: "ok", bodyEn: "ok", linkUrl: null, enabled: true }],
+        "synthetic-secret-key": "synthetic-secret-value" }),
+    });
+    const response = await proxyFulfillmentRequest(request, "/api/v1/admin/products/37/fulfillment");
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.title).toBe("Invalid fulfillment request body");
+    expect(body.errors).toEqual(expect.arrayContaining([{ field: "provider", code: "invalid" }, { field: "steps.0.titleEn", code: "invalid" }, { field: "body", code: "invalid" }]));
+    expect(JSON.stringify(body)).not.toMatch(/secret|synthetic/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("forwards JSON through the server-side token boundary and preserves no-store", async () => {
     const body = JSON.stringify({
       fulfillmentType: "LICENSE_KEY",

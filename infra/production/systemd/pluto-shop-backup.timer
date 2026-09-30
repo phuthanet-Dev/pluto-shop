@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Pluto Shop encrypted backup daily
+Description=Run the Phuto Shop encrypted backup daily
 
 [Timer]
 OnCalendar=*-*-* 03:30:00

@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { hasAdminRole } from "@/lib/auth";
 import { getSession } from "@/lib/auth-server";
-import { AdminProductsConsole } from "@/components/admin-products-console";
-import { AdminFulfillmentConsole } from "@/components/admin-fulfillment-console";
+import { AdminWorkspace } from "@/components/admin-workspace";
+import "./admin.css";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +27,8 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="admin-page" id="main-content">
-      <div className="admin-page-topbar">
-        <Link className="secondary-button admin-signout-button" href="/api/auth/logout?callbackUrl=%2Fth" prefetch={false}>
-          ออกจากระบบ
-        </Link>
-      </div>
-      <AdminProductsConsole />
-      <AdminFulfillmentConsole />
+    <main id="main-content">
+      <AdminWorkspace />
     </main>
   );
 }

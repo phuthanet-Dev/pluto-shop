@@ -80,20 +80,153 @@ describe("AdminProductsConsole", () => {
 
   });
 
+  it("replaces search and list with an editor and confirms dirty cancellation", async () => {
+    const user = userEvent.setup();
+    const navigation = vi.fn();
+    render(<AdminProductsConsole onNavigationStateChange={navigation} />);
+    await screen.findByRole("row", { name: /สินค้า Phase 3/u });
+    await user.type(screen.getByLabelText("ค้นหาสินค้า"), "Phase");
+    await user.click(screen.getByRole("button", { name: "ค้นหา" }));
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("ชื่อสินค้า (ภาษาไทย)"), "ฉบับร่าง");
+    const cancel = screen.getByRole("button", { name: "ยกเลิก" });
+    await user.click(cancel);
+    await user.click(screen.getByRole("button", { name: "แก้ไขต่อ" }));
+    await waitFor(() => expect(cancel).toHaveFocus());
+    expect(screen.getByLabelText("ชื่อสินค้า (ภาษาไทย)")).toHaveValue("ฉบับร่าง");
+    expect(navigation).toHaveBeenLastCalledWith({ dirty: true, busy: false });
+    await user.click(screen.getByRole("button", { name: "กลับไปรายการสินค้า" }));
+    await user.click(screen.getByRole("button", { name: "ละทิ้งการแก้ไข" }));
+    expect(screen.getByLabelText("ค้นหาสินค้า")).toHaveValue("Phase");
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("keeps advanced fields collapsed and preserves multi drafts when changing mode is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    expect(screen.getByLabelText("วันรับประกัน")).not.toBeVisible();
+    await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
+    await user.click(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" }));
+    const child = screen.getByLabelText("รายการย่อยใหม่ที่ 2 · รหัส URL");
+    expect(child).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: /ตัวเลือกที่ 2 ·/u }));
+    await user.type(child, "second-draft");
+    await user.click(screen.getByRole("button", { name: /ตัวเลือกที่ 2 ·/u }));
+    await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
+    await user.click(screen.getByRole("option", { name: "สินค้าตัวเลือกเดียว (SINGLE_OPTION)" }));
+    await user.click(screen.getByRole("button", { name: "แก้ไขต่อ" }));
+    expect(child).toHaveValue("second-draft");
+    await user.click(screen.getByRole("button", { name: "เพิ่มรายการย่อย" }));
+    expect(screen.getByLabelText("รายการย่อยใหม่ที่ 3 · รหัส URL")).toBeVisible();
+  });
+
+  it("confirms discarding an extra child when only advanced metadata changed", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
+    await user.click(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" }));
+    fireEvent.change(screen.getByLabelText("รายการย่อยใหม่ที่ 2 · วันรับประกัน"), { target: { value: "14" } });
+    await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
+    await user.click(screen.getByRole("option", { name: "สินค้าตัวเลือกเดียว (SINGLE_OPTION)" }));
+    expect(screen.getByRole("dialog", { name: "ละทิ้งการแก้ไข?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "แก้ไขต่อ" }));
+    expect(screen.getByLabelText("รายการย่อยใหม่ที่ 2 · วันรับประกัน")).toHaveValue(14);
+  });
+
+  it("opens and focuses the collapsed child with invalid English content", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
+    await user.click(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" }));
+    const values = { "กลุ่มตัวเลือก": "test-group", "ชื่อบน product card (ภาษาไทย)": "ไทย", "ชื่อบน product card (ภาษาอังกฤษ)": "English", "คำโปรยบน product card (ภาษาไทย)": "ไทย", "คำโปรยบน product card (ภาษาอังกฤษ)": "English", "รหัส URL": "first", "คำอธิบายสินค้า (ภาษาไทย)": "ไทย", "คำอธิบายสินค้า (ภาษาอังกฤษ)": "English", "ชื่อ option (ภาษาไทย)": "หนึ่ง", "ชื่อ option (ภาษาอังกฤษ)": "One", "รายการย่อยใหม่ที่ 2 · รหัส URL": "second", "รายการย่อยใหม่ที่ 2 · คำอธิบายสินค้า (ภาษาไทย)": "ไทย", "รายการย่อยใหม่ที่ 2 · ชื่อ option (ภาษาไทย)": "สอง", "รายการย่อยใหม่ที่ 2 · ชื่อ option (ภาษาอังกฤษ)": "Two" };
+    Object.entries(values).forEach(([label, value]) => fireEvent.change(screen.getByLabelText(label), { target: { value } }));
+    await user.click(screen.getByRole("button", { name: "บันทึกสินค้า" }));
+    const invalid = screen.getByLabelText("รายการย่อยใหม่ที่ 2 · คำอธิบายสินค้า (ภาษาอังกฤษ)");
+    await waitFor(() => expect(invalid).toHaveFocus());
+    expect(invalid).toBeVisible(); expect(invalid).toHaveAttribute("aria-invalid", "true");
+    expect(mocks.createAdminMultiProduct).not.toHaveBeenCalled();
+  });
+
+  it("starts each editor with advanced details collapsed", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    await user.click(screen.getByRole("button", { name: "รายละเอียดเพิ่มเติม" }));
+    await user.click(screen.getByRole("button", { name: "กลับไปรายการสินค้า" }));
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    expect(screen.getByLabelText("วันรับประกัน")).not.toBeVisible();
+  });
+
+  it("opens invalid advanced fields and lets corrected details collapse again", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    const warranty = screen.getByLabelText("วันรับประกัน");
+    fireEvent.change(warranty, { target: { value: "-1" } });
+    await user.click(screen.getByRole("button", { name: "บันทึกสินค้า" }));
+    await waitFor(() => expect(warranty).toHaveFocus());
+    expect(warranty).toBeVisible();
+    expect(warranty).toHaveAttribute("aria-describedby", "admin-product-error");
+    fireEvent.change(warranty, { target: { value: "14" } });
+    expect(warranty).not.toHaveAttribute("aria-invalid");
+    expect(warranty).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "รายละเอียดเพิ่มเติม" }));
+    expect(warranty).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "บันทึกสินค้า" }));
+    await waitFor(() => expect(mocks.updateAdminProduct).toHaveBeenCalledWith(37, expect.objectContaining({ warrantyDays: 14, version: 0 })));
+  });
+
+  it("hands off the saved SKU and restores list focus on pristine return", async () => {
+    const user = userEvent.setup(); const handoff = vi.fn();
+    render(<AdminProductsConsole onManageFulfillment={handoff} />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    await user.click(screen.getByRole("button", { name: "จัดการการส่งมอบ" }));
+    expect(handoff).toHaveBeenCalledWith({ id: 37, nameTh: "สินค้า Phase 3" });
+    await user.click(screen.getByRole("button", { name: "กลับไปรายการสินค้า" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" })).toHaveFocus());
+  });
+
+  it("keeps sale status before advanced details and shows the saved SKU identity", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    const status = screen.getByRole("combobox", { name: "สถานะสินค้า" });
+    const advanced = screen.getByRole("button", { name: "รายละเอียดเพิ่มเติม" });
+    expect(status.compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("สินค้า Phase 3 · SKU #37")).toBeInTheDocument();
+  });
+
+  it("places shared content before sales and images and explains independent uploads", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    const name = screen.getByLabelText("ชื่อสินค้า (ภาษาไทย)");
+    const price = screen.getByLabelText("ราคา (บาท)");
+    const image = screen.getByLabelText("รูปสินค้า");
+    expect(name.compareDocumentPosition(price) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(price.compareDocumentPosition(image) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/อัปโหลดรูปบันทึกแยก/u)).toBeInTheDocument();
+  });
+
   it("renders the product table and opens the create form", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
     expect(await screen.findByRole("row", { name: /สินค้า Phase 3/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ลบ สินค้า Phase 3" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ลบ สินค้า Phase 3 รหัส 37" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
     expect(screen.getByRole("heading", { name: "เพิ่มสินค้า" })).toBeInTheDocument();
     expect(screen.getByLabelText("รหัส URL")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "เพิ่มสินค้า" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "เพิ่มสินค้า" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ยกเลิก" }).querySelector("svg")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "บันทึกสินค้า" }).querySelector("svg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ค้นหา" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
   });
 
   it("uses a custom keyboard-accessible selection mode dropdown", async () => {
@@ -173,6 +306,27 @@ describe("AdminProductsConsole", () => {
     expect(screen.getByRole("button", { name: "ลบรายการย่อยใหม่ที่ 3" })).toBeInTheDocument();
   });
 
+  it("retains the surviving child DOM, values, and disclosures after removing a middle draft", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(screen.getByRole("button", { name: "เพิ่มสินค้า" }));
+    await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
+    await user.click(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" }));
+    await user.click(screen.getByRole("button", { name: "เพิ่มรายการย่อย" }));
+    const survivor = screen.getByLabelText("รายการย่อยใหม่ที่ 3 · รหัส URL");
+    await waitFor(() => expect(survivor).toHaveFocus());
+    await user.type(survivor, "surviving-draft");
+    await user.click(screen.getByRole("button", { name: "รายการย่อยใหม่ที่ 3 · รายละเอียดเพิ่มเติม" }));
+    await user.click(screen.getByRole("button", { name: "ลบรายการย่อยใหม่ที่ 2" }));
+    expect(screen.getByLabelText("รายการย่อยใหม่ที่ 2 · รหัส URL")).toBe(survivor);
+    expect(survivor).toHaveValue("surviving-draft");
+    expect(screen.getByLabelText("รายการย่อยใหม่ที่ 2 · วันรับประกัน")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /ตัวเลือกที่ 2 ·/u }));
+    expect(survivor).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: /ตัวเลือกที่ 2 ·/u }));
+    expect(survivor).toHaveValue("surviving-draft");
+  });
+
   it("asks for shared card data once instead of repeating it for every child", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
@@ -201,7 +355,11 @@ describe("AdminProductsConsole", () => {
     expect(form?.querySelector(".admin-form-layout.is-multi")).toBeInTheDocument();
     expect(form?.querySelector(".admin-configuration-card")).toBeInTheDocument();
     expect(form?.querySelector(".admin-options-panel")).toBeInTheDocument();
-    expect(form?.querySelector(".admin-form-sidebar .admin-group-card-fields")).toBeInTheDocument();
+    const shared = form?.querySelector(".admin-group-card-fields");
+    const children = form?.querySelector(".admin-options-panel");
+    expect(shared).toBeInTheDocument();
+    expect(shared!.compareDocumentPosition(children!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "ข้อมูลที่แสดงบนหน้าร้าน" })).toBeInTheDocument();
     expect(screen.getByLabelText("คำโปรยบน product card (ภาษาไทย)")).toBeInstanceOf(HTMLTextAreaElement);
     expect(screen.getByLabelText("คำโปรยบน product card (ภาษาอังกฤษ)")).toBeInstanceOf(HTMLTextAreaElement);
   });
@@ -230,10 +388,10 @@ describe("AdminProductsConsole", () => {
 
     render(<AdminProductsConsole />);
 
-    expect(await screen.findByRole("button", { name: "เพิ่มรายการย่อยในกลุ่ม phase3-multi" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "เพิ่มรายการย่อยในกลุ่ม phase3-multi" }));
+    expect(await screen.findByRole("button", { name: "เพิ่มตัวเลือก สินค้า Phase 3 รหัส 37" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "เพิ่มตัวเลือก สินค้า Phase 3 รหัส 37" }));
 
-    expect(await screen.findByRole("heading", { name: "เพิ่มรายการย่อยในกลุ่ม" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "เพิ่มตัวเลือกในกลุ่ม" })).toBeInTheDocument();
     expect(screen.getByLabelText("ชื่อบน product card (ภาษาไทย)")).toHaveValue("แพ็กเกจรวม");
     expect(screen.getByRole("group", { name: "รายการสินค้าย่อย" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "เพิ่มรายการย่อย" }));
@@ -254,6 +412,21 @@ describe("AdminProductsConsole", () => {
       [expect.objectContaining({ slug: "phase3-multi-three", nameTh: "แพ็กเกจรวม" })],
       expect.objectContaining({ nameTh: "แพ็กเกจรวม", version: 0 }),
     ));
+  });
+
+  it("opens a group as pristine and returns without a discard prompt", async () => {
+    const user = userEvent.setup();
+    const navigation = vi.fn();
+    const multi = { ...product, selectionMode: "MULTI_OPTION" as const, optionGroup: "test-group" };
+    mocks.fetchAdminProducts.mockResolvedValue({ items: [multi], total: 1 });
+    mocks.fetchAdminMultiProduct.mockResolvedValue({ ...multi, items: [multi] });
+    render(<AdminProductsConsole onNavigationStateChange={navigation} />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไขข้อมูลกลุ่ม สินค้า Phase 3 รหัส 37" }));
+    await screen.findByRole("heading", { name: "แก้ไขข้อมูลกลุ่ม" });
+    expect(navigation).toHaveBeenLastCalledWith({ dirty: false, busy: false });
+    await user.click(screen.getByRole("button", { name: "กลับไปรายการสินค้า" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
   });
 
   it("updates shared card data with the group version", async () => {
@@ -281,7 +454,7 @@ describe("AdminProductsConsole", () => {
     mocks.updateAdminMultiProductGroup.mockResolvedValue({ ...group, version: 5 });
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "แก้ไขข้อมูลกลุ่ม phase3-multi" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไขข้อมูลกลุ่ม สินค้า Phase 3 รหัส 37" }));
     const cardName = await screen.findByLabelText("ชื่อบน product card (ภาษาไทย)");
     await user.clear(cardName);
     await user.type(cardName, "แพ็กเกจใหม่");
@@ -357,7 +530,7 @@ describe("AdminProductsConsole", () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     await user.click(screen.getByRole("combobox", { name: "โหมดตัวเลือก" }));
     await user.click(screen.getByRole("option", { name: "สินค้าหลายตัวเลือก (MULTI_OPTION)" }));
 
@@ -366,14 +539,23 @@ describe("AdminProductsConsole", () => {
     expect(screen.getByText("แก้ไขรายการย่อยนี้ทีละรายการจากตารางด้านล่าง เพื่อรักษา version และสต็อกของแต่ละรายการ")).toBeInTheDocument();
   });
 
-  it("scrolls the edit form into view when editing a product", async () => {
+  it("focuses the edit heading when editing a product", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     await waitFor(() =>
-      expect(mocks.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" }),
+      expect(screen.getByRole("heading", { name: "แก้ไขสินค้า" })).toHaveFocus(),
     );
+  });
+
+  it("returns keyboard focus to the list after a successful save", async () => {
+    const user = userEvent.setup();
+    render(<AdminProductsConsole />);
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    await user.click(screen.getByRole("button", { name: "บันทึกสินค้า" }));
+    await screen.findByRole("table");
+    await waitFor(() => expect(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" })).toHaveFocus());
   });
 
   it("offers a fresh login when the admin session expires", async () => {
@@ -424,7 +606,7 @@ describe("AdminProductsConsole", () => {
     render(<AdminProductsConsole />);
 
     expect(screen.queryByLabelText("รูปสินค้า")).not.toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     expect(screen.getByLabelText("รูปสินค้า")).toHaveAttribute("accept", "image/jpeg,image/png");
     expect(screen.queryByText("บันทึกสินค้าแล้วจึงอัปโหลดรูปสินค้าได้")).not.toBeInTheDocument();
   });
@@ -432,7 +614,7 @@ describe("AdminProductsConsole", () => {
   it("uploads a selected product image with the current product version", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     const file = new File(["image-bytes"], "cover.jpg", { type: "image/jpeg" });
 
     await user.upload(screen.getByLabelText("รูปสินค้า"), file);
@@ -447,7 +629,7 @@ describe("AdminProductsConsole", () => {
     const imageProduct = { ...product, hasImage: true, imageContentType: "image/jpeg" as const, imageSizeBytes: 123, imageWidth: 10, imageHeight: 10 };
     mocks.fetchAdminProducts.mockResolvedValue({ items: [imageProduct], total: 1 });
     render(<AdminProductsConsole />);
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     await user.click(screen.getByRole("button", { name: "ลบรูปสินค้า" }));
 
     const confirmation = screen.getByRole("dialog", { name: "ยืนยันการลบรูปสินค้า" });
@@ -458,7 +640,7 @@ describe("AdminProductsConsole", () => {
   it("rejects a client-side image type outside the server allowlist", async () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     fireEvent.change(screen.getByLabelText("รูปสินค้า"), { target: { files: [new File(["gif"], "cover.gif", { type: "image/gif" })] } });
 
     expect(await screen.findByRole("alert")).toHaveTextContent("รองรับเฉพาะ JPEG และ PNG");
@@ -473,14 +655,14 @@ describe("AdminProductsConsole", () => {
     }));
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     await user.upload(screen.getByLabelText("รูปสินค้า"), new File(["image-bytes"], "cover.jpg", { type: "image/jpeg" }));
     await user.click(screen.getByRole("button", { name: "อัปโหลดรูปสินค้า" }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "กำลังอัปโหลด…" })).toBeDisabled());
     expect(screen.getByRole("button", { name: "ยกเลิก" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "บันทึกสินค้า" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "ลบ สินค้า Phase 3" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "กลับไปรายการสินค้า" })).toBeDisabled();
     expect(screen.getByLabelText("รหัส URL")).toBeDisabled();
 
     resolveUpload?.({
@@ -513,7 +695,7 @@ describe("AdminProductsConsole", () => {
       .mockResolvedValueOnce(latestProduct);
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     const file = new File(["image-bytes"], "cover.jpg", { type: "image/jpeg" });
     await user.upload(screen.getByLabelText("รูปสินค้า"), file);
     await user.click(screen.getByRole("button", { name: "อัปโหลดรูปสินค้า" }));
@@ -544,9 +726,14 @@ describe("AdminProductsConsole", () => {
     mocks.uploadAdminProductImage.mockReset().mockResolvedValue(latestProduct);
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
-    await user.type(await screen.findByLabelText("ค้นหาสินค้า"), "stale");
-    await user.click(screen.getByRole("button", { name: "ค้นหา" }));
+    const edit = await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" });
+    await user.type(screen.getByLabelText("ค้นหาสินค้า"), "stale");
+    // Start the request and open the existing row before its loading render.
+    const { act } = await import("@testing-library/react");
+    act(() => {
+      fireEvent.submit(screen.getByRole("search"));
+      fireEvent.click(edit);
+    });
     await waitFor(() => expect(staleResolvers).toHaveLength(2));
 
     const firstFile = new File(["first-image"], "first.jpg", { type: "image/jpeg" });
@@ -555,8 +742,8 @@ describe("AdminProductsConsole", () => {
     await waitFor(() => expect(mocks.uploadAdminProductImage).toHaveBeenLastCalledWith(product.id, firstFile, 0));
 
     staleResolvers.forEach((resolve) => resolve({ items: [product], total: 1 }));
-    await user.click(screen.getByRole("button", { name: "ปิดฟอร์มสินค้า" }));
-    await user.click(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3" }));
+    await user.click(screen.getByRole("button", { name: "กลับไปรายการสินค้า" }));
+    await user.click(screen.getByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
     const secondFile = new File(["second-image"], "second.jpg", { type: "image/jpeg" });
     await user.upload(screen.getByLabelText("รูปสินค้า"), secondFile);
     await user.click(screen.getByRole("button", { name: "อัปโหลดรูปสินค้า" }));
@@ -568,7 +755,9 @@ describe("AdminProductsConsole", () => {
     const user = userEvent.setup();
     render(<AdminProductsConsole />);
 
-    await user.click(await screen.findByRole("button", { name: "ลบ สินค้า Phase 3" }));
+    await user.click(await screen.findByRole("button", { name: "แก้ไข สินค้า Phase 3 รหัส 37" }));
+    fireEvent.click(screen.getByText("การดำเนินการถาวร"));
+    await user.click(screen.getByRole("button", { name: "ลบ สินค้า Phase 3 รหัส 37" }));
     const confirmation = screen.getByRole("dialog", { name: "ยืนยันการลบสินค้า" });
     expect(confirmation).toHaveTextContent("สินค้า Phase 3");
     await user.click(within(confirmation).getByRole("button", { name: "ลบสินค้า" }));

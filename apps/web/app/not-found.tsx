@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SITE_BRAND_DISPLAY } from "@/lib/brand";
 
 export default function NotFound() {
   return (
@@ -7,10 +8,10 @@ export default function NotFound() {
       <div className="not-found-orbit" aria-hidden="true">
         <span />
       </div>
-      <h1>Lost beyond Pluto</h1>
+      <h1>Lost beyond the catalog</h1>
       <p>The page you requested is not part of this catalog.</p>
       <Link className="primary-button" href="/th">
-        Return to Pluto Shop
+        Return to {SITE_BRAND_DISPLAY}
       </Link>
     </main>
   );

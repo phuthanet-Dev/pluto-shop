@@ -1,5 +1,5 @@
 [Unit]
-Description=Pluto Shop encrypted production backup
+Description=Phuto Shop encrypted production backup
 Wants=network-online.target
 After=docker.service network-online.target
 Requires=docker.service

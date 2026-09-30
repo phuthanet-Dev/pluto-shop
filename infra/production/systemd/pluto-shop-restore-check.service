@@ -1,5 +1,5 @@
 [Unit]
-Description=Pluto Shop full backup restore verification
+Description=Phuto Shop full backup restore verification
 Wants=network-online.target
 After=docker.service network-online.target
 Requires=docker.service

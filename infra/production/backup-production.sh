@@ -51,7 +51,7 @@ send_alert() {
 cleanup() {
   local status=$?
   if (( status != 0 )); then
-    send_alert "Pluto Shop backup failed (tag: $BACKUP_TAG)"
+    send_alert "Phuto Shop backup failed (tag: $BACKUP_TAG)"
   fi
   if [[ -n "$WORKDIR" && "$WORKDIR" == /tmp/pluto-shop-backup.* ]]; then
     rm -rf -- "$WORKDIR"

@@ -1,6 +1,6 @@
-# PlutoShop Production Runbook
+# Phuto Shop Production Runbook
 
-เอกสารนี้เป็น runbook สำหรับการนำ PlutoShop ขึ้น VPS จริง โดยแยกจาก `compose.yaml` ที่ใช้พัฒนาในเครื่อง
+เอกสารนี้เป็น runbook สำหรับการนำ Phuto Shop ขึ้น VPS จริง โดยแยกจาก `compose.yaml` ที่ใช้พัฒนาในเครื่อง
 
 ## ภาพรวม
 
@@ -56,6 +56,8 @@ Caddy container
 - `KEYCLOAK_REALM_FILE=./infra/production/runtime/realm-production.json`
 - SMTP และ `INWCLOUD_API_KEY`
 - Restic repository/password/S3 credentials
+
+Branding rollout: realm imports apply to a new realm; Keycloak startup import skips an existing `pluto` realm. Rendering this file or restarting the stack does not update existing realm display labels or SMTP settings. For an existing deployment, an authorized administrator must separately update only the realm display name (`Phuto Shop`), client display name (`Phuto Shop Web`), audience mapper display name (`Phuto Shop API audience`), and intended SMTP sender display name. Preserve realm `pluto`, client ID `pluto-web`, audience `pluto-api`, users, sessions, security settings, and any explicit SMTP display-name override. Deploy the theme asset update separately; do not delete or recreate the realm to apply branding.
 
 เก็บ recovery secrets อย่างน้อยสองสถานที่ที่แยกกัน และจำลองการกู้คืนจริงตามรอบที่กำหนด ไม่ถือว่า “มี backup” เพียงเพราะมีไฟล์อยู่ใน bucket
 

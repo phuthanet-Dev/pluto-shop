@@ -1,7 +1,7 @@
 {
   "realm": "pluto",
   "enabled": true,
-  "displayName": "Pluto Shop",
+  "displayName": "Phuto Shop",
   "loginTheme": "pluto",
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
@@ -25,7 +25,7 @@
   "clients": [
     {
       "clientId": "pluto-web",
-      "name": "Pluto Shop Web",
+      "name": "Phuto Shop Web",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
@@ -58,7 +58,7 @@
           }
         },
         {
-          "name": "Pluto API audience",
+          "name": "Phuto Shop API audience",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,

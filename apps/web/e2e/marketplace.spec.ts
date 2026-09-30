@@ -21,7 +21,7 @@ async function tabUntil(
   throw new Error(`Keyboard focus never reached ${selector}`);
 }
 
-test.describe("Pluto Shop marketplace", () => {
+test.describe("Phuto Shop marketplace", () => {
   test("protects admin and exposes OIDC login and signup redirects", async ({ page }) => {
     const session = await page.request.get("/api/auth/session");
     expect(session.status()).toBe(200);

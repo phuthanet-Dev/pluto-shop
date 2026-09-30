@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { AdminDisclosure } from "@/components/admin/admin-disclosure";
+import { AdminSelect } from "@/components/admin/admin-select";
 import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 import {
   AdminProductsApiError,
@@ -60,6 +62,8 @@ function AdminIcon({ kind }: { kind: "plus" | "edit" | "trash" | "search" | "sav
 }
 
 type ProductFormState = {
+  draftKey?: string;
+  initialSortOrder?: string;
   slug: string;
   nameTh: string;
   nameEn: string;
@@ -92,152 +96,6 @@ const selectionModeOptions: ReadonlyArray<{
   { value: "MULTI_OPTION", label: "สินค้าหลายตัวเลือก", description: "รวมรายการย่อยหลายรายการและเลือกก่อนดูรายละเอียด" },
 ];
 
-function AdminSelectionModeDropdown({
-  value,
-  onChange,
-}: {
-  value: ProductFormState["selectionMode"];
-  onChange: (value: ProductFormState["selectionMode"]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(() =>
-    Math.max(0, selectionModeOptions.findIndex((option) => option.value === value)),
-  );
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const listboxId = "admin-product-selection-mode-listbox";
-  const selectedIndex = Math.max(0, selectionModeOptions.findIndex((option) => option.value === value));
-  const selectedOption = selectionModeOptions[selectedIndex];
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [open]);
-
-  function openDropdown() {
-    setHighlightedIndex(selectedIndex);
-    setOpen(true);
-  }
-
-  function chooseOption(index: number) {
-    const option = selectionModeOptions[index];
-    if (!option) return;
-    onChange(option.value);
-    setHighlightedIndex(index);
-    setOpen(false);
-    triggerRef.current?.focus();
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      if (!open) {
-        openDropdown();
-        return;
-      }
-      setHighlightedIndex((current) => (current + 1) % selectionModeOptions.length);
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!open) {
-        openDropdown();
-        return;
-      }
-      setHighlightedIndex((current) => (current - 1 + selectionModeOptions.length) % selectionModeOptions.length);
-      return;
-    }
-    if (event.key === "Home" && open) {
-      event.preventDefault();
-      setHighlightedIndex(0);
-      return;
-    }
-    if (event.key === "End" && open) {
-      event.preventDefault();
-      setHighlightedIndex(selectionModeOptions.length - 1);
-      return;
-    }
-    if (event.key === "Escape" && open) {
-      event.preventDefault();
-      setOpen(false);
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      if (!open) {
-        openDropdown();
-      } else {
-        chooseOption(highlightedIndex);
-      }
-    }
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className={`admin-custom-select-field${open ? " is-open" : ""}`}
-      onBlur={() => {
-        window.requestAnimationFrame(() => {
-          if (!containerRef.current?.contains(document.activeElement)) setOpen(false);
-        });
-      }}
-    >
-      <span className="admin-field-label">โหมดตัวเลือก</span>
-      <button
-        ref={triggerRef}
-        className="admin-select-trigger"
-        type="button"
-        role="combobox"
-        aria-label="โหมดตัวเลือก"
-        aria-controls={listboxId}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-activedescendant={open ? `${listboxId}-${highlightedIndex}` : undefined}
-        onClick={() => (open ? setOpen(false) : openDropdown())}
-        onKeyDown={handleKeyDown}
-      >
-        <span className="admin-select-value">
-          <strong>{selectedOption.label}</strong>{" "}
-          <span>({selectedOption.value})</span>
-        </span>
-        <svg className="admin-select-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-          <path d="m5 7.5 5 5 5-5" />
-        </svg>
-      </button>
-      {open ? (
-        <div
-          id={listboxId}
-          className="admin-select-menu"
-          role="listbox"
-          aria-label="โหมดตัวเลือก"
-        >
-          {selectionModeOptions.map((option, index) => (
-            <div
-              id={`${listboxId}-${index}`}
-              key={option.value}
-              className="admin-select-option"
-              role="option"
-              aria-label={`${option.label} (${option.value})`}
-              aria-selected={option.value === value}
-              data-highlighted={index === highlightedIndex ? "true" : undefined}
-              onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              onClick={() => chooseOption(index)}
-            >
-              <span className="admin-select-option-title">{option.label} <em>({option.value})</em></span>
-              <span className="admin-select-option-description">{option.description}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 type AdminMetadataOption<Value extends string> = {
   value: Value;
   label: string;
@@ -254,151 +112,6 @@ const productStatusOptions: ReadonlyArray<AdminMetadataOption<AdminProductStatus
   { value: "INACTIVE", label: "ปิดการขาย", description: "เก็บสินค้าไว้ใน Admin แต่ไม่เปิดให้ซื้อใหม่" },
   { value: "HIDDEN", label: "ซ่อนจากแคตตาล็อก", description: "ไม่แสดงในหน้าสาธารณะจนกว่าจะเปิดใช้งาน" },
 ];
-
-function AdminProductMetadataDropdown<Value extends string>({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: Value;
-  options: ReadonlyArray<AdminMetadataOption<Value>>;
-  onChange: (value: Value) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const listboxId = `${id}-listbox`;
-  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
-  const selectedOption = options[selectedIndex] ?? options[0];
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [open]);
-
-  function openDropdown() {
-    setHighlightedIndex(selectedIndex);
-    setOpen(true);
-  }
-
-  function chooseOption(index: number) {
-    const option = options[index];
-    if (!option) return;
-    onChange(option.value);
-    setHighlightedIndex(index);
-    setOpen(false);
-    triggerRef.current?.focus();
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      if (!open) {
-        openDropdown();
-        return;
-      }
-      setHighlightedIndex((current) => (current + 1) % options.length);
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!open) {
-        openDropdown();
-        return;
-      }
-      setHighlightedIndex((current) => (current - 1 + options.length) % options.length);
-      return;
-    }
-    if (event.key === "Home" && open) {
-      event.preventDefault();
-      setHighlightedIndex(0);
-      return;
-    }
-    if (event.key === "End" && open) {
-      event.preventDefault();
-      setHighlightedIndex(options.length - 1);
-      return;
-    }
-    if (event.key === "Escape" && open) {
-      event.preventDefault();
-      setOpen(false);
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      if (!open) {
-        openDropdown();
-      } else {
-        chooseOption(highlightedIndex);
-      }
-    }
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className={`admin-custom-select-field${open ? " is-open" : ""}`}
-      onBlur={() => {
-        window.requestAnimationFrame(() => {
-          if (!containerRef.current?.contains(document.activeElement)) setOpen(false);
-        });
-      }}
-    >
-      <span className="admin-field-label">{label}</span>
-      <button
-        ref={triggerRef}
-        className="admin-select-trigger"
-        type="button"
-        role="combobox"
-        aria-label={label}
-        aria-controls={listboxId}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-activedescendant={open ? `${listboxId}-${highlightedIndex}` : undefined}
-        onClick={() => (open ? setOpen(false) : openDropdown())}
-        onKeyDown={handleKeyDown}
-      >
-        <span className="admin-select-value">
-          <strong>{selectedOption.label}</strong>{" "}
-          <span>({selectedOption.value})</span>
-        </span>
-        <svg className="admin-select-chevron" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-          <path d="m5 7.5 5 5 5-5" />
-        </svg>
-      </button>
-      {open ? (
-        <div id={listboxId} className="admin-select-menu" role="listbox" aria-label={label}>
-          {options.map((option, index) => (
-            <div
-              id={`${listboxId}-${index}`}
-              key={option.value}
-              className="admin-select-option"
-              role="option"
-              aria-label={`${option.label} (${option.value})`}
-              aria-selected={option.value === value}
-              data-highlighted={index === highlightedIndex ? "true" : undefined}
-              onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              onClick={() => chooseOption(index)}
-            >
-              <span className="admin-select-option-title">{option.label} <em>({option.value})</em></span>
-              <span className="admin-select-option-description">{option.description}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 const MAX_MULTI_CHILDREN = 100;
 const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -431,6 +144,8 @@ function blankForm(sortOrder: number): ProductFormState {
 function blankMultiChild(sortOrder: number): ProductFormState {
   return {
     ...blankForm(sortOrder),
+    draftKey: crypto.randomUUID(),
+    initialSortOrder: String(sortOrder),
     selectionMode: "MULTI_OPTION",
   };
 }
@@ -551,7 +266,19 @@ async function fetchAdminProductsWithCatalogMax(query: string) {
   };
 }
 
-export function AdminProductsConsole() {
+export function AdminProductsConsole({ onNavigationStateChange, onManageFulfillment }: {
+  onNavigationStateChange?: (state: { dirty: boolean; busy: boolean }) => void;
+  onManageFulfillment?: (product: Pick<AdminProduct, "id" | "nameTh">) => void;
+} = {}) {
+  const [openChildren, setOpenChildren] = useState<Record<string, boolean>>({});
+  const [openAdvanced, setOpenAdvanced] = useState<Record<string, boolean>>({});
+  const [invalidTarget, setInvalidTarget] = useState<{ child: number; field: string } | null>(null);
+  const originName = useRef<string | null>(null);
+  const returnFocusPending = useRef(false);
+  const exitTriggerRef = useRef<HTMLElement | null>(null);
+  const consoleRef = useRef<HTMLElement>(null);
+  const [baseline, setBaseline] = useState("");
+  const [pendingExit, setPendingExit] = useState<(() => void) | null>(null);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -579,6 +306,16 @@ export function AdminProductsConsole() {
   const revealFormRef = useRef(false);
   const listRequestEpochRef = useRef(0);
   const mutationBusy = saving || imageSaving || deleting;
+  const draftSnapshot = (draft: ProductFormState | null, children: ProductFormState[]) => JSON.stringify([draft && { ...draft, version: 0 }, children.map((child) => ({ ...child, version: 0 }))]);
+  const dirty = form !== null && (draftSnapshot(form, multiChildren) !== baseline || imageFile !== null);
+  useEffect(() => { onNavigationStateChange?.({ dirty, busy: mutationBusy }); }, [dirty, mutationBusy, onNavigationStateChange]);
+  function requestExit(action: () => void) {
+    if (mutationBusy) return;
+    if (dirty) {
+      exitTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPendingExit(() => action);
+    } else action();
+  }
 
   const reload = useCallback(async (): Promise<AdminProduct[] | null> => {
     const requestEpoch = ++listRequestEpochRef.current;
@@ -630,10 +367,22 @@ export function AdminProductsConsole() {
     if (!form || !revealFormRef.current) return;
     revealFormRef.current = false;
     const frame = window.requestAnimationFrame(() => {
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      formRef.current?.querySelector<HTMLElement>("h2")?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [form, editingId]);
+
+  useEffect(() => {
+    if (form) { returnFocusPending.current = true; return; }
+    if (!returnFocusPending.current || loading || mutationBusy) return;
+    const frame = requestAnimationFrame(() => {
+      const buttons = consoleRef.current?.querySelectorAll<HTMLButtonElement>("button");
+      const origin = Array.from(buttons ?? []).find((button) => (button.getAttribute("aria-label") ?? button.textContent) === originName.current);
+      (origin ?? consoleRef.current?.querySelector<HTMLElement>("h1"))?.focus();
+      returnFocusPending.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [form, loading, mutationBusy]);
 
   useEffect(() => {
     return () => {
@@ -652,11 +401,16 @@ export function AdminProductsConsole() {
 
   function openCreate() {
     if (mutationBusy) return;
-    revealFormRef.current = false;
+    originName.current = "เพิ่มสินค้า";
+    setOpenChildren({});
+    setOpenAdvanced({});
+    setInvalidTarget(null);
+    revealFormRef.current = true;
     setFormMode("create");
     setEditingId(null);
     setEditingGroup(null);
     setGroupVersion(0);
+    setBaseline(draftSnapshot(blankForm(nextCatalogOrder), []));
     setForm(blankForm(nextCatalogOrder));
     setMultiChildren([]);
     setImageProduct(null);
@@ -668,11 +422,16 @@ export function AdminProductsConsole() {
 
   function openEdit(product: AdminProduct) {
     if (mutationBusy) return;
+    originName.current = `แก้ไข ${product.nameTh} รหัส ${product.id}`;
+    setOpenChildren({});
+    setOpenAdvanced({});
+    setInvalidTarget(null);
     revealFormRef.current = true;
     setFormMode("product-edit");
     setEditingId(product.id);
     setEditingGroup(null);
     setGroupVersion(0);
+    setBaseline(draftSnapshot(productForm(product), []));
     setForm(productForm(product));
     setMultiChildren([]);
     setImageProduct(product);
@@ -684,6 +443,10 @@ export function AdminProductsConsole() {
 
   async function openGroupForm(product: AdminProduct, mode: "group-edit" | "group-append") {
     if (!product.optionGroup || mutationBusy) return;
+    originName.current = `${mode === "group-edit" ? "แก้ไขข้อมูลกลุ่ม" : "เพิ่มตัวเลือก"} ${product.nameTh} รหัส ${product.id}`;
+    setOpenChildren({});
+    setOpenAdvanced({});
+    setInvalidTarget(null);
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -698,7 +461,9 @@ export function AdminProductsConsole() {
       setEditingId(null);
       setEditingGroup(group.optionGroup);
       setGroupVersion(group.version);
-      setForm(groupForm(group, highestSortOrder + 1));
+      const draft = groupForm(group, highestSortOrder + 1);
+      setBaseline(draftSnapshot(draft, []));
+      setForm(draft);
       setMultiChildren([]);
       setImageProduct(null);
       clearImageSelection();
@@ -723,13 +488,23 @@ export function AdminProductsConsole() {
     setImageProduct(null);
     clearImageSelection();
     setDeleteImageOpen(false);
+
   }
 
   function updateForm<K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) {
+    if (invalidTarget?.child === 0 && invalidTarget.field === key) { setInvalidTarget(null); setError(null); }
     setForm((current) => current ? { ...current, [key]: value } : current);
   }
 
   function changeSelectionMode(value: ProductFormState["selectionMode"]) {
+    if (value === "SINGLE_OPTION" && multiChildren.some((child) =>
+      child.slug || child.descriptionTh || child.descriptionEn || child.optionLabelTh || child.optionLabelEn
+      || child.priceBaht !== "0.00" || child.stockQuantity !== "0" || child.warrantyDays !== "0"
+      || child.stockWarningThreshold !== "5" || child.deliveryType !== "INSTANT" || child.status !== "ACTIVE"
+      || child.sortOrder !== child.initialSortOrder)) {
+      requestExit(() => { updateForm("selectionMode", value); setMultiChildren([]); });
+      return;
+    }
     updateForm("selectionMode", value);
     if (value === "SINGLE_OPTION" || formMode !== "create") {
       setMultiChildren([]);
@@ -745,6 +520,7 @@ export function AdminProductsConsole() {
     key: K,
     value: ProductFormState[K],
   ) {
+    if (invalidTarget?.child === index + 1 && invalidTarget.field === key) { setInvalidTarget(null); setError(null); }
     setMultiChildren((current) => current.map((child, childIndex) =>
       childIndex === index ? { ...child, [key]: value } : child));
   }
@@ -759,13 +535,10 @@ export function AdminProductsConsole() {
       .map((child) => Number(child.sortOrder))
       .filter(Number.isInteger);
     const highestDraftOrder = draftOrders.length > 0 ? Math.max(...draftOrders) : nextCatalogOrder;
-    setMultiChildren((current) => [
-      ...current,
-      {
-        ...blankMultiChild(Math.max(nextCatalogOrder, highestDraftOrder + 1)),
-        optionGroup: form?.optionGroup ?? "",
-      },
-    ]);
+    const child = { ...blankMultiChild(Math.max(nextCatalogOrder, highestDraftOrder + 1)), optionGroup: form?.optionGroup ?? "" };
+    setOpenChildren((current) => ({ ...current, [child.draftKey!]: true }));
+    setMultiChildren((current) => [...current, child]);
+    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>(`[data-child="${multiChildren.length + 1}"][data-field="slug"]`)?.focus());
   }
 
   function removeMultiChild(index: number) {
@@ -778,6 +551,23 @@ export function AdminProductsConsole() {
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form || mutationBusy) return;
+    setInvalidTarget(null);
+    const fields = formRef.current?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[data-field], textarea[data-field]");
+    const invalid = Array.from(fields ?? []).find((field) => !field.disabled && (!field.checkValidity() || (field.required && !field.value.trim()) || (["slug", "optionGroup"].includes(field.dataset.field ?? "") && !slugPattern.test(field.value.trim())) || (field.dataset.field === "priceBaht" && bahtToMinor(field.value) === null)));
+    if (invalid) {
+      const child = Number(invalid.dataset.child ?? 0);
+      const field = invalid.dataset.field!;
+      setInvalidTarget({ child, field });
+      if (["warrantyDays", "stockWarningThreshold", "sortOrder"].includes(field)) {
+        const key = child > 0 ? multiChildren[child - 1].draftKey! : "first";
+        setOpenAdvanced((current) => ({ ...current, [key]: true }));
+      }
+      if (child > 0) setOpenChildren((current) => ({ ...current, [multiChildren[child - 1].draftKey!]: true }));
+      else setOpenChildren((current) => ({ ...current, first: true }));
+      setError(`กรุณาตรวจสอบ ${invalid.getAttribute("aria-label") ?? "ข้อมูลสินค้า"}`);
+      requestAnimationFrame(() => invalid.focus());
+      return;
+    }
 
     if (formMode === "group-edit") {
       const cardValidationError = [
@@ -1030,47 +820,51 @@ export function AdminProductsConsole() {
     }
   }
 
+  function fieldAttributes(field: string, child: number) {
+    const invalid = invalidTarget?.child === child && invalidTarget.field === field;
+    return { "data-field": field, "data-child": child, "aria-invalid": invalid || undefined, "aria-describedby": invalid ? "admin-product-error" : undefined };
+  }
+
   function renderGroupCardFields(readOnly: boolean) {
     if (!form) return null;
     return (
       <fieldset className="admin-multi-child-card admin-group-card-fields">
-        <legend>ข้อมูลบน Product Card</legend>
+        <legend>ข้อมูลที่แสดงบนหน้าร้าน</legend>
         <div className="admin-sidebar-heading">
           <div>
-            <span className="admin-sidebar-kicker">ข้อมูลรวมของกลุ่ม</span>
-            <h3>ข้อมูลบน Product Card</h3>
+            <h3>ข้อมูลที่แสดงบนหน้าร้าน</h3>
           </div>
-          <span className="admin-shared-badge">SHARED</span>
+          <span className="admin-shared-badge">ใช้ร่วมกันทุกตัวเลือก</span>
         </div>
         <p className="admin-form-help">
           ข้อมูลนี้จะถูกใช้ร่วมกับทุกตัวเลือกในกลุ่ม
           {readOnly ? " หากต้องการแก้ไข ให้ใช้ปุ่มแก้ไขข้อมูลกลุ่ม" : ""}
         </p>
         <div className="admin-group-card-section">
-          <span className="admin-group-card-section-title">ชื่อบน Product Card</span>
+          <span className="admin-group-card-section-title">ชื่อที่แสดงบนหน้าร้าน</span>
           <label className="admin-localized-field">
             <span className="admin-language-badge">TH</span>
             <span className="admin-language-name">ภาษาไทย</span>
-            <input aria-label="ชื่อบน product card (ภาษาไทย)" value={form.nameTh} onChange={(event) => updateForm("nameTh", event.target.value)} maxLength={180} disabled={readOnly} required />
+            <input aria-label="ชื่อบน product card (ภาษาไทย)" {...fieldAttributes("nameTh", 0)} value={form.nameTh} onChange={(event) => updateForm("nameTh", event.target.value)} maxLength={180} disabled={readOnly} required />
           </label>
           <label className="admin-localized-field">
             <span className="admin-language-badge">EN</span>
             <span className="admin-language-name">ภาษาอังกฤษ</span>
-            <input aria-label="ชื่อบน product card (ภาษาอังกฤษ)" value={form.nameEn} onChange={(event) => updateForm("nameEn", event.target.value)} maxLength={180} disabled={readOnly} required />
+            <input aria-label="ชื่อบน product card (ภาษาอังกฤษ)" {...fieldAttributes("nameEn", 0)} value={form.nameEn} onChange={(event) => updateForm("nameEn", event.target.value)} maxLength={180} disabled={readOnly} required />
           </label>
         </div>
         <div className="admin-group-card-section">
-          <span className="admin-group-card-section-title">คำโปรยบน Product Card</span>
+          <span className="admin-group-card-section-title">คำโปรยบนหน้าร้าน</span>
           <label className="admin-localized-field admin-localized-field-textarea">
             <span className="admin-language-badge">TH</span>
             <span className="admin-language-name">ภาษาไทย</span>
-            <textarea aria-label="คำโปรยบน product card (ภาษาไทย)" value={form.shortDescriptionTh} onChange={(event) => updateForm("shortDescriptionTh", event.target.value)} maxLength={500} disabled={readOnly} required />
+            <textarea aria-label="คำโปรยบน product card (ภาษาไทย)" {...fieldAttributes("shortDescriptionTh", 0)} value={form.shortDescriptionTh} onChange={(event) => updateForm("shortDescriptionTh", event.target.value)} maxLength={500} disabled={readOnly} required />
             <span className="admin-character-count">{form.shortDescriptionTh.length} / 500</span>
           </label>
           <label className="admin-localized-field admin-localized-field-textarea">
             <span className="admin-language-badge">EN</span>
             <span className="admin-language-name">ภาษาอังกฤษ</span>
-            <textarea aria-label="คำโปรยบน product card (ภาษาอังกฤษ)" value={form.shortDescriptionEn} onChange={(event) => updateForm("shortDescriptionEn", event.target.value)} maxLength={500} disabled={readOnly} required />
+            <textarea aria-label="คำโปรยบน product card (ภาษาอังกฤษ)" {...fieldAttributes("shortDescriptionEn", 0)} value={form.shortDescriptionEn} onChange={(event) => updateForm("shortDescriptionEn", event.target.value)} maxLength={500} disabled={readOnly} required />
             <span className="admin-character-count">{form.shortDescriptionEn.length} / 500</span>
           </label>
         </div>
@@ -1088,30 +882,36 @@ export function AdminProductsConsole() {
     const fieldLabel = (label: string) => labelPrefix ? `${labelPrefix} · ${label}` : label;
     return (
       <>
-        <label>{fieldLabel("รหัส URL")}<input aria-label={fieldLabel("รหัส URL")} value={child.slug} onChange={(event) => update("slug", event.target.value)} required /></label>
         {includeSharedFields ? (
           <>
-            <label>{fieldLabel("ชื่อสินค้า (ภาษาไทย)")}<input aria-label={fieldLabel("ชื่อสินค้า (ภาษาไทย)")} value={child.nameTh} onChange={(event) => update("nameTh", event.target.value)} required /></label>
-            <label>{fieldLabel("ชื่อสินค้า (ภาษาอังกฤษ)")}<input aria-label={fieldLabel("ชื่อสินค้า (ภาษาอังกฤษ)")} value={child.nameEn} onChange={(event) => update("nameEn", event.target.value)} required /></label>
-            <label className="admin-form-wide">{fieldLabel("คำโปรยสั้น (ภาษาไทย)")}<textarea aria-label={fieldLabel("คำโปรยสั้น (ภาษาไทย)")} maxLength={500} value={child.shortDescriptionTh} onChange={(event) => update("shortDescriptionTh", event.target.value)} required /></label>
-            <label className="admin-form-wide">{fieldLabel("คำโปรยสั้น (ภาษาอังกฤษ)")}<textarea aria-label={fieldLabel("คำโปรยสั้น (ภาษาอังกฤษ)")} maxLength={500} value={child.shortDescriptionEn} onChange={(event) => update("shortDescriptionEn", event.target.value)} required /></label>
+            <label>{fieldLabel("ชื่อสินค้า (ภาษาไทย)")}<input aria-label={fieldLabel("ชื่อสินค้า (ภาษาไทย)")} {...fieldAttributes("nameTh", childIndex)} value={child.nameTh} onChange={(event) => update("nameTh", event.target.value)} required /></label>
+            <label>{fieldLabel("ชื่อสินค้า (ภาษาอังกฤษ)")}<input aria-label={fieldLabel("ชื่อสินค้า (ภาษาอังกฤษ)")} {...fieldAttributes("nameEn", childIndex)} value={child.nameEn} onChange={(event) => update("nameEn", event.target.value)} required /></label>
+            <label className="admin-form-wide">{fieldLabel("คำโปรยสั้น (ภาษาไทย)")}<textarea aria-label={fieldLabel("คำโปรยสั้น (ภาษาไทย)")} maxLength={500} {...fieldAttributes("shortDescriptionTh", childIndex)} value={child.shortDescriptionTh} onChange={(event) => update("shortDescriptionTh", event.target.value)} required /></label>
+            <label className="admin-form-wide">{fieldLabel("คำโปรยสั้น (ภาษาอังกฤษ)")}<textarea aria-label={fieldLabel("คำโปรยสั้น (ภาษาอังกฤษ)")} maxLength={500} {...fieldAttributes("shortDescriptionEn", childIndex)} value={child.shortDescriptionEn} onChange={(event) => update("shortDescriptionEn", event.target.value)} required /></label>
           </>
         ) : null}
-        <label className="admin-form-wide">{fieldLabel("คำอธิบายสินค้า (ภาษาไทย)")}<textarea aria-label={fieldLabel("คำอธิบายสินค้า (ภาษาไทย)")} value={child.descriptionTh} onChange={(event) => update("descriptionTh", event.target.value)} required /></label>
-        <label className="admin-form-wide">{fieldLabel("คำอธิบายสินค้า (ภาษาอังกฤษ)")}<textarea aria-label={fieldLabel("คำอธิบายสินค้า (ภาษาอังกฤษ)")} value={child.descriptionEn} onChange={(event) => update("descriptionEn", event.target.value)} required /></label>
+        <label className="admin-form-wide">{fieldLabel("คำอธิบายสินค้า (ภาษาไทย)")}<textarea aria-label={fieldLabel("คำอธิบายสินค้า (ภาษาไทย)")} {...fieldAttributes("descriptionTh", childIndex)} value={child.descriptionTh} onChange={(event) => update("descriptionTh", event.target.value)} required /></label>
+        <label className="admin-form-wide">{fieldLabel("คำอธิบายสินค้า (ภาษาอังกฤษ)")}<textarea aria-label={fieldLabel("คำอธิบายสินค้า (ภาษาอังกฤษ)")} {...fieldAttributes("descriptionEn", childIndex)} value={child.descriptionEn} onChange={(event) => update("descriptionEn", event.target.value)} required /></label>
         {child.selectionMode === "MULTI_OPTION" ? (
           <>
-            <label>{fieldLabel("ชื่อ option (ภาษาไทย)")}<input aria-label={fieldLabel("ชื่อ option (ภาษาไทย)")} value={child.optionLabelTh} onChange={(event) => update("optionLabelTh", event.target.value)} required /></label>
-            <label>{fieldLabel("ชื่อ option (ภาษาอังกฤษ)")}<input aria-label={fieldLabel("ชื่อ option (ภาษาอังกฤษ)")} value={child.optionLabelEn} onChange={(event) => update("optionLabelEn", event.target.value)} required /></label>
+            <label>{fieldLabel("ชื่อ option (ภาษาไทย)")}<input aria-label={fieldLabel("ชื่อ option (ภาษาไทย)")} {...fieldAttributes("optionLabelTh", childIndex)} value={child.optionLabelTh} onChange={(event) => update("optionLabelTh", event.target.value)} required /></label>
+            <label>{fieldLabel("ชื่อ option (ภาษาอังกฤษ)")}<input aria-label={fieldLabel("ชื่อ option (ภาษาอังกฤษ)")} {...fieldAttributes("optionLabelEn", childIndex)} value={child.optionLabelEn} onChange={(event) => update("optionLabelEn", event.target.value)} required /></label>
           </>
         ) : null}
-        <label>{fieldLabel("ราคา (บาท)")}<input aria-label={fieldLabel("ราคา (บาท)")} type="text" inputMode="decimal" value={child.priceBaht} onChange={(event) => update("priceBaht", event.target.value)} required /></label>
-        <label>{fieldLabel("จำนวนสต็อก")}<input aria-label={fieldLabel("จำนวนสต็อก")} type="number" min="0" step="1" value={child.stockQuantity} onChange={(event) => update("stockQuantity", event.target.value)} required /></label>
-        <AdminProductMetadataDropdown id={`delivery-type-${childIndex}`} label={fieldLabel("รูปแบบการส่งมอบ")} value={child.deliveryType} options={deliveryTypeOptions} onChange={(value) => update("deliveryType", value)} />
-        <label>{fieldLabel("วันรับประกัน")}<input aria-label={fieldLabel("วันรับประกัน")} type="number" min="0" step="1" value={child.warrantyDays} onChange={(event) => update("warrantyDays", event.target.value)} required /></label>
-        <label>{fieldLabel("เกณฑ์เตือนสต็อก")}<input aria-label={fieldLabel("เกณฑ์เตือนสต็อก")} type="number" min="0" step="1" value={child.stockWarningThreshold} onChange={(event) => update("stockWarningThreshold", event.target.value)} required /></label>
-        <label>{fieldLabel("ลำดับแสดงผล")}<input aria-label={fieldLabel("ลำดับแสดงผล")} type="number" min="1" step="1" value={child.sortOrder} onChange={(event) => update("sortOrder", event.target.value)} required /></label>
-        <AdminProductMetadataDropdown id={`product-status-${childIndex}`} label={fieldLabel("สถานะสินค้า")} value={child.status} options={productStatusOptions} onChange={(value) => update("status", value)} />
+        <h3 className="admin-form-wide">ราคาและการขาย</h3>
+        <label>{fieldLabel("ราคา (บาท)")}<input aria-label={fieldLabel("ราคา (บาท)")} type="text" inputMode="decimal" {...fieldAttributes("priceBaht", childIndex)} value={child.priceBaht} onChange={(event) => update("priceBaht", event.target.value)} required /></label>
+        <label>{fieldLabel("จำนวนสต็อก")}<input aria-label={fieldLabel("จำนวนสต็อก")} type="number" min="0" step="1" {...fieldAttributes("stockQuantity", childIndex)} value={child.stockQuantity} onChange={(event) => update("stockQuantity", event.target.value)} required /></label>
+        <AdminSelect label={fieldLabel("รูปแบบการส่งมอบ")} value={child.deliveryType} options={deliveryTypeOptions} onChange={(value) => update("deliveryType", value)} />
+        <AdminSelect label={fieldLabel("สถานะสินค้า")} value={child.status} options={productStatusOptions} onChange={(value) => update("status", value)} />
+        <div className="admin-form-wide"><AdminDisclosure title={fieldLabel("รายละเอียดเพิ่มเติม")} open={openAdvanced[childIndex === 0 ? "first" : child.draftKey!] ?? false} onOpenChange={(open) => setOpenAdvanced((current) => ({ ...current, [childIndex === 0 ? "first" : child.draftKey!]: open }))}>
+          <div className="admin-form-grid">        <label>{fieldLabel("วันรับประกัน")}<input aria-label={fieldLabel("วันรับประกัน")} type="number" min="0" step="1" {...fieldAttributes("warrantyDays", childIndex)} value={child.warrantyDays} onChange={(event) => update("warrantyDays", event.target.value)} required /></label>
+        <label>{fieldLabel("เกณฑ์เตือนสต็อก")}<input aria-label={fieldLabel("เกณฑ์เตือนสต็อก")} type="number" min="0" step="1" {...fieldAttributes("stockWarningThreshold", childIndex)} value={child.stockWarningThreshold} onChange={(event) => update("stockWarningThreshold", event.target.value)} required /></label>
+        <label>{fieldLabel("ลำดับแสดงผล")}<input aria-label={fieldLabel("ลำดับแสดงผล")} type="number" min="1" step="1" {...fieldAttributes("sortOrder", childIndex)} value={child.sortOrder} onChange={(event) => update("sortOrder", event.target.value)} required /></label>
+</div>
+        </AdminDisclosure></div>
+        <h3 className="admin-form-wide">รหัสและการจัดกลุ่ม</h3>
+        <label>{fieldLabel("รหัส URL")}<input aria-label={fieldLabel("รหัส URL")} {...fieldAttributes("slug", childIndex)} value={child.slug} onChange={(event) => update("slug", event.target.value)} required /></label>
+        <p className="admin-form-help admin-form-wide">รหัสนี้ใช้ระบุสินค้า การแก้ไขอาจกระทบลิงก์เดิม</p>
       </>
     );
   }
@@ -1121,12 +921,13 @@ export function AdminProductsConsole() {
     : products.find((product) => product.id === editingId) ?? null;
 
   return (
-    <section className="admin-products-console" aria-labelledby="admin-products-title">
+    <section ref={consoleRef} className="admin-products-console" aria-labelledby={form ? "admin-product-form-title" : "admin-products-title"}>
+      {!form ? <>
       <div className="admin-console-header">
         <div>
-          <span className="state-code">แอดมิน / แคตตาล็อก</span>
-          <h1 id="admin-products-title">แคตตาล็อกสินค้า</h1>
-          <p>เพิ่ม แก้ไข จัดการสต็อก และลบสินค้าออกจากฐานข้อมูลพร้อมรถเข็นของผู้ใช้ทุกคน</p>
+          <h1 id="admin-products-title" tabIndex={-1}>แคตตาล็อกสินค้า</h1>
+          <p>ค้นหาสินค้าเพื่อแก้ไขราคา ตัวเลือก และการแสดงบนหน้าร้าน</p>
+          <p>แสดง {products.length} รายการ</p>
         </div>
         <button className="primary-button" type="button" onClick={openCreate} disabled={mutationBusy}>
           <AdminIcon kind="plus" />
@@ -1169,9 +970,10 @@ export function AdminProductsConsole() {
           </button>
         ) : null}
       </form>
+      </> : null}
 
       {error ? (
-        <p className="admin-feedback error" role="alert">
+        <p id="admin-product-error" className="admin-feedback error" role="alert">
           {error}
           {sessionExpired ? (
             <Link href="/api/auth/login?callbackUrl=%2Fadmin" prefetch={false}>เข้าสู่ระบบใหม่</Link>
@@ -1180,6 +982,7 @@ export function AdminProductsConsole() {
       ) : null}
       {notice ? <p className="admin-feedback success" role="status">{notice}</p> : null}
 
+      <FeedbackDialog open={pendingExit !== null} onOpenChange={(open) => { if (!open && !mutationBusy) { setPendingExit(null); requestAnimationFrame(() => { if (exitTriggerRef.current?.isConnected) exitTriggerRef.current.focus(); }); } }} title="ละทิ้งการแก้ไข?" description="ข้อมูลที่ยังไม่บันทึกจะหายไป การอัปโหลดที่เสร็จแล้วจะไม่ถูกย้อนกลับ" closeLabel="ปิดคำยืนยัน" cancelLabel="แก้ไขต่อ" confirmLabel="ละทิ้งการแก้ไข" tone="warning" busy={mutationBusy} onConfirm={() => { if (!mutationBusy) { pendingExit?.(); setPendingExit(null); } }} />
       <FeedbackDialog
         open={deleteCandidate !== null}
         onOpenChange={(open) => {
@@ -1215,26 +1018,118 @@ export function AdminProductsConsole() {
       />
 
       {form ? (
-        <form ref={formRef} className="admin-product-form" onSubmit={submitForm} aria-labelledby="admin-product-form-title">
+        <form ref={formRef} noValidate className="admin-product-form" onSubmit={submitForm} aria-labelledby="admin-product-form-title">
           <div className="admin-form-heading">
             <div className="admin-form-heading-copy">
-              <div className="admin-form-heading-kicker">
-                <span className="state-code">
-                  {formMode === "create" ? "สร้างสินค้า" : formMode === "product-edit" ? "แก้ไขรายการย่อย" : formMode === "group-append" ? "เพิ่มรายการย่อยในกลุ่ม" : "แก้ไขข้อมูลกลุ่ม"}
-                </span>
-                {form.selectionMode === "MULTI_OPTION" ? <span className="admin-mode-badge">MULTI OPTION</span> : null}
-              </div>
-              <h2 id="admin-product-form-title">
-                {formMode === "create" ? "เพิ่มสินค้า" : formMode === "product-edit" ? "แก้ไขรายการย่อย" : formMode === "group-append" ? "เพิ่มรายการย่อยในกลุ่ม" : "แก้ไขข้อมูลกลุ่ม"}
+              <h2 id="admin-product-form-title" tabIndex={-1}>
+                {formMode === "create" ? "เพิ่มสินค้า" : formMode === "product-edit" ? (form.selectionMode === "MULTI_OPTION" ? "แก้ไขตัวเลือก" : "แก้ไขสินค้า") : formMode === "group-append" ? "เพิ่มตัวเลือกในกลุ่ม" : "แก้ไขข้อมูลกลุ่ม"}
               </h2>
-              <p className="admin-form-subtitle">กำหนดรูปแบบและข้อมูลที่จะแสดงบน Product Card</p>
+              <p className="admin-form-subtitle">กำหนดรูปแบบและข้อมูลที่แสดงบนหน้าร้าน</p>
+              {currentEditingProduct ? <p>{currentEditingProduct.nameTh} · SKU #{currentEditingProduct.id}</p> : editingGroup ? <p>กลุ่มตัวเลือก: {editingGroup}</p> : null}
             </div>
-            <button className="icon-button" type="button" aria-label="ปิดฟอร์มสินค้า" onClick={closeForm} disabled={mutationBusy}>×</button>
+            <button className="text-button" type="button" onClick={() => requestExit(closeForm)} disabled={mutationBusy}>กลับไปรายการสินค้า</button>
           </div>
+          <fieldset className="admin-form-fields" disabled={mutationBusy}>
+            <div className={`admin-form-layout${form.selectionMode === "MULTI_OPTION" ? " is-multi" : " is-single"}`}>
+              <div className="admin-form-main">
+                <section className="admin-panel admin-configuration-card" aria-labelledby="admin-configuration-title">
+                  <div className="admin-panel-heading">
+                    <div className="admin-panel-heading-copy">
+                      <h3 id="admin-configuration-title">การตั้งค่ากลุ่มตัวเลือก</h3>
+                      <p>กำหนดรูปแบบและข้อมูลที่แสดงบนหน้าร้าน</p>
+                    </div>
+                  </div>
+                  <div className="admin-config-grid">
+                    {formMode === "create" || formMode === "product-edit" ? (
+                      <div className="admin-config-field">
+                        <AdminSelect label="โหมดตัวเลือก" options={selectionModeOptions} value={form.selectionMode} onChange={changeSelectionMode} />
+                        <p className="admin-field-helper">กำหนดรูปแบบการเลือกสินค้าของกลุ่ม</p>
+                      </div>
+                    ) : (
+                      <div className="admin-config-field admin-config-readonly">
+                        <span className="admin-field-label">โหมดตัวเลือก</span>
+                        <div className="admin-config-mode-value">
+                          <strong>สินค้าหลายตัวเลือก</strong>
+                          <span>(MULTI_OPTION)</span>
+                        </div>
+                        <span className="admin-field-helper">คงโหมดเดิมเพื่อรักษาลิงก์ของกลุ่ม</span>
+                      </div>
+                    )}
+                    {form.selectionMode === "MULTI_OPTION" ? (
+                      <label className="admin-config-field">
+                        <span className="admin-field-label">กลุ่มตัวเลือก <span className="admin-required" aria-hidden="true">*</span></span>
+                        <input aria-label="กลุ่มตัวเลือก" {...fieldAttributes("optionGroup", 0)} value={form.optionGroup} onChange={(event) => updateForm("optionGroup", event.target.value)} placeholder="เช่น claude-full-access" readOnly={formMode === "group-edit" || formMode === "group-append"} required />
+                        <span className="admin-field-helper">ชื่อสำหรับใช้จัดกลุ่มตัวเลือกสินค้า</span>
+                      </label>
+                    ) : null}
+                  </div>
+                </section>
+
+                {form.selectionMode === "MULTI_OPTION" ? renderGroupCardFields(formMode === "product-edit") : null}
+                {form.selectionMode === "MULTI_OPTION" ? (
+                  <section className="admin-panel admin-options-panel" aria-labelledby="admin-options-title">
+                    <div className="admin-panel-heading admin-options-heading">
+                        <div className="admin-panel-heading-copy">
+                        <div className="admin-panel-heading-row">
+                          <h3 id="admin-options-title">รายการตัวเลือก</h3>
+                          <span className="admin-count-badge">{formMode === "group-edit" ? "จัดการจากตาราง" : `${multiChildren.length + 1} รายการ`}</span>
+                        </div>
+                        <p>เพิ่มและกำหนดรายละเอียดของตัวเลือกแต่ละรายการในกลุ่ม</p>
+                      </div>
+                    </div>
+                    {formMode === "group-edit" ? (
+                      <div className="admin-options-empty-state">
+                        <span className="admin-empty-icon"><AdminIcon kind="layers" /></span>
+                        <strong>จัดการรายการย่อยจากตารางสินค้า</strong>
+                        <p>แก้ไขรายการย่อยนี้ทีละรายการจากตารางด้านล่าง เพื่อรักษา version และสต็อกของแต่ละรายการ</p>
+                      </div>
+                    ) : (
+                      <div className="admin-multi-children" role="group" aria-label="รายการสินค้าย่อย">
+                        <fieldset className="admin-multi-child-card">
+                          <legend>{formMode === "group-append" ? "รายการย่อยใหม่ที่ 1" : "รายการย่อยที่ 1"}</legend>
+                          <AdminDisclosure title={`ตัวเลือกที่ 1 · ${form.optionLabelTh || "ยังไม่ตั้งชื่อ"} · ${form.priceBaht} บาท`} open={openChildren.first ?? true} onOpenChange={(open) => setOpenChildren((current) => ({ ...current, first: open }))}><div className="admin-form-grid">{renderProductFields(form, "", updateForm, 0, false)}</div></AdminDisclosure>
+                        </fieldset>
+                        {multiChildren.map((child, index) => (
+                          <fieldset className="admin-multi-child-card" key={child.draftKey}>
+                            <legend>รายการย่อยใหม่ที่ {index + 2}</legend>
+                            {multiChildren.length > (formMode === "group-append" ? 0 : 1) ? (
+                              <button className="text-button danger admin-remove-child" type="button" onClick={() => removeMultiChild(index)} disabled={mutationBusy}>
+                                ลบรายการย่อยใหม่ที่ {index + 2}
+                              </button>
+                            ) : null}
+                            <AdminDisclosure title={`ตัวเลือกที่ ${index + 2} · ${child.optionLabelTh || "ยังไม่ตั้งชื่อ"} · ${child.priceBaht} บาท`} open={openChildren[child.draftKey!] ?? false} onOpenChange={(open) => setOpenChildren((current) => ({ ...current, [child.draftKey!]: open }))}><div className="admin-form-grid">{renderProductFields(child, `รายการย่อยใหม่ที่ ${index + 2}`, (key, value) => updateMultiChild(index, key, value), index + 1, false)}</div></AdminDisclosure>
+                          </fieldset>
+                        ))}
+                        {formMode === "create" || formMode === "group-append" ? (
+                          <button className="secondary-button admin-add-child admin-text-icon-button" type="button" onClick={addMultiChild} disabled={mutationBusy || multiChildren.length + 1 >= MAX_MULTI_CHILDREN}>
+                            <AdminIcon kind="plus" />
+                            <span>เพิ่มรายการย่อย</span>
+                          </button>
+                        ) : (
+                          <p className="admin-form-help">แก้ไขรายการย่อยนี้ทีละรายการจากตารางด้านล่าง เพื่อรักษา version และสต็อกของแต่ละรายการ</p>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                ) : (
+                  <section className="admin-panel admin-product-details-panel" aria-labelledby="admin-product-details-title">
+                    <div className="admin-panel-heading">
+                      <div className="admin-panel-heading-copy">
+                        <h3 id="admin-product-details-title">ข้อมูลสินค้า</h3>
+                        <p>ข้อมูลเฉพาะของสินค้าที่ใช้แสดงและจัดการในแคตตาล็อก</p>
+                      </div>
+                    </div>
+                    <div className="admin-form-grid">{renderProductFields(form, "", updateForm, 0)}</div>
+                  </section>
+                )}
+              </div>
+
+            </div>
+          </fieldset>
           {formMode === "product-edit" && imageProduct ? (
             <fieldset className="admin-product-image-panel">
               <legend>รูปสินค้า</legend>
-              <p className="admin-form-help">รองรับ JPEG หรือ PNG ขนาดไม่เกิน 5 MiB ระบบจะตรวจชนิดไฟล์และเนื้อหาจริงอีกครั้งที่ API</p>
+              <p className="admin-form-help">อัปโหลดรูปบันทึกแยกจากข้อมูลสินค้า ยกเลิกฟอร์มจะไม่ย้อนรูปที่อัปโหลดแล้ว รองรับ JPEG หรือ PNG ไม่เกิน 5 MiB</p>
               {imagePreviewUrl || imageProduct.hasImage ? (
                 <div className="admin-product-image-preview">
                   <Image
@@ -1271,128 +1166,29 @@ export function AdminProductsConsole() {
           ) : formMode === "create" ? (
             <p className="admin-form-help admin-form-wide">บันทึกสินค้าแล้วจึงอัปโหลดรูปสินค้าได้</p>
           ) : null}
-          <fieldset className="admin-form-fields" disabled={mutationBusy}>
-            <div className={`admin-form-layout${form.selectionMode === "MULTI_OPTION" ? " is-multi" : " is-single"}`}>
-              <div className="admin-form-main">
-                <section className="admin-panel admin-configuration-card" aria-labelledby="admin-configuration-title">
-                  <div className="admin-panel-heading">
-                    <span className="admin-section-icon"><AdminIcon kind="layers" /></span>
-                    <div className="admin-panel-heading-copy">
-                      <h3 id="admin-configuration-title">การตั้งค่ากลุ่มตัวเลือก</h3>
-                      <p>กำหนดรูปแบบและข้อมูลที่จะแสดงบน Product Card</p>
-                    </div>
-                  </div>
-                  <div className="admin-config-grid">
-                    {formMode === "create" || formMode === "product-edit" ? (
-                      <div className="admin-config-field">
-                        <AdminSelectionModeDropdown value={form.selectionMode} onChange={changeSelectionMode} />
-                        <p className="admin-field-helper">กำหนดรูปแบบการเลือกสินค้าของกลุ่ม</p>
-                      </div>
-                    ) : (
-                      <div className="admin-config-field admin-config-readonly">
-                        <span className="admin-field-label">โหมดตัวเลือก</span>
-                        <div className="admin-config-mode-value">
-                          <strong>สินค้าหลายตัวเลือก</strong>
-                          <span>(MULTI_OPTION)</span>
-                        </div>
-                        <span className="admin-field-helper">คงโหมดเดิมเพื่อรักษาลิงก์ของกลุ่ม</span>
-                      </div>
-                    )}
-                    {form.selectionMode === "MULTI_OPTION" ? (
-                      <label className="admin-config-field">
-                        <span className="admin-field-label">กลุ่มตัวเลือก <span className="admin-required" aria-hidden="true">*</span></span>
-                        <input aria-label="กลุ่มตัวเลือก" value={form.optionGroup} onChange={(event) => updateForm("optionGroup", event.target.value)} placeholder="เช่น claude-full-access" readOnly={formMode === "group-edit" || formMode === "group-append"} required />
-                        <span className="admin-field-helper">ชื่อสำหรับใช้จัดกลุ่มตัวเลือกสินค้า</span>
-                      </label>
-                    ) : null}
-                  </div>
-                </section>
-
-                {form.selectionMode === "MULTI_OPTION" ? (
-                  <section className="admin-panel admin-options-panel" aria-labelledby="admin-options-title">
-                    <div className="admin-panel-heading admin-options-heading">
-                      <span className="admin-section-icon"><AdminIcon kind="layers" /></span>
-                      <div className="admin-panel-heading-copy">
-                        <div className="admin-panel-heading-row">
-                          <h3 id="admin-options-title">รายการตัวเลือก</h3>
-                          <span className="admin-count-badge">{formMode === "group-edit" ? "จัดการจากตาราง" : `${multiChildren.length + 1} รายการ`}</span>
-                        </div>
-                        <p>เพิ่มและกำหนดรายละเอียดของตัวเลือกแต่ละรายการในกลุ่ม</p>
-                      </div>
-                    </div>
-                    {formMode === "group-edit" ? (
-                      <div className="admin-options-empty-state">
-                        <span className="admin-empty-icon"><AdminIcon kind="layers" /></span>
-                        <strong>จัดการรายการย่อยจากตารางสินค้า</strong>
-                        <p>แก้ไขรายการย่อยนี้ทีละรายการจากตารางด้านล่าง เพื่อรักษา version และสต็อกของแต่ละรายการ</p>
-                      </div>
-                    ) : (
-                      <div className="admin-multi-children" role="group" aria-label="รายการสินค้าย่อย">
-                        <fieldset className="admin-multi-child-card">
-                          <legend>{formMode === "group-append" ? "รายการย่อยใหม่ที่ 1" : "รายการย่อยที่ 1"}</legend>
-                          <div className="admin-form-grid">{renderProductFields(form, "", updateForm, 0, false)}</div>
-                        </fieldset>
-                        {multiChildren.map((child, index) => (
-                          <fieldset className="admin-multi-child-card" key={`multi-child-${index}`}>
-                            <legend>รายการย่อยใหม่ที่ {index + 2}</legend>
-                            {multiChildren.length > (formMode === "group-append" ? 0 : 1) ? (
-                              <button className="text-button danger admin-remove-child" type="button" onClick={() => removeMultiChild(index)} disabled={mutationBusy}>
-                                ลบรายการย่อยใหม่ที่ {index + 2}
-                              </button>
-                            ) : null}
-                            <div className="admin-form-grid">{renderProductFields(child, `รายการย่อยใหม่ที่ ${index + 2}`, (key, value) => updateMultiChild(index, key, value), index + 1, false)}</div>
-                          </fieldset>
-                        ))}
-                        {formMode === "create" || formMode === "group-append" ? (
-                          <button className="secondary-button admin-add-child admin-text-icon-button" type="button" onClick={addMultiChild} disabled={mutationBusy || multiChildren.length + 1 >= MAX_MULTI_CHILDREN}>
-                            <AdminIcon kind="plus" />
-                            <span>เพิ่มรายการย่อย</span>
-                          </button>
-                        ) : (
-                          <p className="admin-form-help">แก้ไขรายการย่อยนี้ทีละรายการจากตารางด้านล่าง เพื่อรักษา version และสต็อกของแต่ละรายการ</p>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                ) : (
-                  <section className="admin-panel admin-product-details-panel" aria-labelledby="admin-product-details-title">
-                    <div className="admin-panel-heading">
-                      <div className="admin-panel-heading-copy">
-                        <h3 id="admin-product-details-title">รายละเอียดสินค้า</h3>
-                        <p>ข้อมูลเฉพาะของสินค้าที่ใช้แสดงและจัดการในแคตตาล็อก</p>
-                      </div>
-                    </div>
-                    <div className="admin-form-grid">{renderProductFields(form, "", updateForm, 0)}</div>
-                  </section>
-                )}
-              </div>
-              {form.selectionMode === "MULTI_OPTION" ? (
-                <aside className="admin-form-sidebar">
-                  {renderGroupCardFields(formMode === "product-edit")}
-                </aside>
-              ) : null}
-            </div>
-          </fieldset>
           {formMode === "product-edit" && currentEditingProduct?.optionGroup ? (
             <div className="admin-form-group-actions" role="group" aria-label="การทำงานของกลุ่มตัวเลือก">
-              <button className="secondary-button admin-text-icon-button" type="button" onClick={() => void openGroupForm(currentEditingProduct, "group-edit")} disabled={mutationBusy}>
+              <button className="secondary-button admin-text-icon-button" type="button" onClick={() => requestExit(() => void openGroupForm(currentEditingProduct, "group-edit"))} disabled={mutationBusy}>
                 <AdminIcon kind="edit" />
                 <span>แก้ไขข้อมูลกลุ่มนี้</span>
               </button>
-              <button className="primary-button admin-text-icon-button" type="button" onClick={() => void openGroupForm(currentEditingProduct, "group-append")} disabled={mutationBusy}>
+              <button className="secondary-button admin-text-icon-button" type="button" onClick={() => requestExit(() => void openGroupForm(currentEditingProduct, "group-append"))} disabled={mutationBusy}>
                 <AdminIcon kind="plus" />
                 <span>เพิ่มรายการย่อยในกลุ่มนี้</span>
               </button>
             </div>
           ) : null}
+          {currentEditingProduct && onManageFulfillment ? <button className="secondary-button" type="button" disabled={mutationBusy} onClick={() => onManageFulfillment({ id: currentEditingProduct.id, nameTh: currentEditingProduct.nameTh })}>จัดการการส่งมอบ</button> : null}
+          {currentEditingProduct ? <details className="admin-danger-section"><summary>การดำเนินการถาวร</summary><p>ลบสินค้าและนำออกจากรถเข็นทั้งหมด ไม่สามารถกู้คืนได้</p><button className="text-button danger" type="button" aria-label={`ลบ ${currentEditingProduct.nameTh} รหัส ${currentEditingProduct.id}`} onClick={() => requestDeleteProduct(currentEditingProduct)} disabled={mutationBusy}><AdminIcon kind="trash" />ลบสินค้า</button></details> : null}
           <div className="admin-form-actions">
-            <button className="secondary-button admin-text-icon-button" type="button" onClick={closeForm} disabled={mutationBusy}><AdminIcon kind="cancel" /><span>ยกเลิก</span></button>
+            <button className="secondary-button admin-text-icon-button" type="button" onClick={() => requestExit(closeForm)} disabled={mutationBusy}><AdminIcon kind="cancel" /><span>ยกเลิก</span></button>
             <button className="primary-button admin-text-icon-button" type="submit" disabled={mutationBusy}><AdminIcon kind="save" /><span>{saving ? "กำลังบันทึก…" : formMode === "group-edit" ? "บันทึกข้อมูลกลุ่ม" : formMode === "group-append" ? "บันทึกและเพิ่มรายการย่อย" : "บันทึกสินค้า"}</span></button>
           </div>
         </form>
       ) : null}
 
-      <div className="admin-table-wrap">
+      {!form ? <div className="admin-table-wrap">
+        <button className="text-button" type="button" disabled={mutationBusy || loading} onClick={() => void reload()}>โหลดใหม่</button>
         <table className="admin-product-table">
           <caption className="sr-only">ตารางจัดการสินค้า</caption>
           <thead><tr><th scope="col">สินค้า</th><th scope="col">ราคา</th><th scope="col">สต็อก</th><th scope="col">ส่งมอบ</th><th scope="col">ลำดับ</th><th scope="col">สถานะ</th><th scope="col"><span className="sr-only">การทำงาน</span></th></tr></thead>
@@ -1416,18 +1212,18 @@ export function AdminProductsConsole() {
                 <td className="admin-row-actions">
                   {product.selectionMode === "MULTI_OPTION" && product.optionGroup ? (
                     <>
-                      <button className="text-button admin-icon-button" type="button" aria-label={`เพิ่มรายการย่อยในกลุ่ม ${product.optionGroup}`} onClick={() => void openGroupForm(product, "group-append")} disabled={mutationBusy}><AdminIcon kind="plus" /></button>
-                      <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไขข้อมูลกลุ่ม ${product.optionGroup}`} onClick={() => void openGroupForm(product, "group-edit")} disabled={mutationBusy}><AdminIcon kind="edit" /></button>
+                      <button className="text-button admin-icon-button" type="button" aria-label={`เพิ่มตัวเลือก ${product.nameTh} รหัส ${product.id}`} onClick={() => void openGroupForm(product, "group-append")} disabled={mutationBusy}><AdminIcon kind="plus" /><span>เพิ่มตัวเลือก</span></button>
+                      <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไขข้อมูลกลุ่ม ${product.nameTh} รหัส ${product.id}`} onClick={() => void openGroupForm(product, "group-edit")} disabled={mutationBusy}><AdminIcon kind="edit" /><span>แก้ไขข้อมูลกลุ่ม</span></button>
                     </>
                   ) : null}
-                  <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไข ${product.nameTh}`} onClick={() => openEdit(product)} disabled={mutationBusy}><AdminIcon kind="edit" /></button>
-                  <button className="text-button danger admin-icon-button" type="button" aria-label={`ลบ ${product.nameTh}`} onClick={() => requestDeleteProduct(product)} disabled={mutationBusy}><AdminIcon kind="trash" /></button>
+                  <button className="text-button admin-icon-button" type="button" aria-label={`แก้ไข ${product.nameTh} รหัส ${product.id}`} onClick={() => openEdit(product)} disabled={mutationBusy}><AdminIcon kind="edit" /><span>แก้ไข</span></button>
+
                 </td>
               </tr>
             )) : null}
           </tbody>
         </table>
-      </div>
+      </div> : null}
     </section>
   );
 }

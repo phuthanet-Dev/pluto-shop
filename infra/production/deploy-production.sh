@@ -71,7 +71,7 @@ send_alert() {
 on_exit() {
   local status=$?
   if (( status != 0 )); then
-    send_alert "Pluto Shop deployment failed for image tag $IMAGE_TAG"
+    send_alert "Phuto Shop deployment failed for image tag $IMAGE_TAG"
   fi
   exit "$status"
 }

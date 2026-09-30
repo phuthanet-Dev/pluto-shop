@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Marketplace, productDisplayKey } from "@/components/marketplace";
 import { useCartStore } from "@/stores/cart";
 import { productResponse } from "./fixtures";
@@ -33,6 +33,10 @@ describe("cart and product details", () => {
     );
     useCartStore.setState({ cartIds: [], quantities: {}, mode: "guest", hasHydrated: false });
     useCartStore.persist.clearStorage();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("keeps product-card keys unique across single products and option groups", () => {
@@ -215,7 +219,8 @@ describe("cart and product details", () => {
   });
 
   it("starts PromptPay checkout from an authenticated cart and shows the QR dialog", async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers({ now: new Date("2026-08-29T12:00:00+07:00"), shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const authFetcher = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({
         authenticated: true,
@@ -268,13 +273,69 @@ describe("cart and product details", () => {
     if (!(chooser instanceof HTMLElement)) throw new Error("Payment method dialog is not mounted");
     await user.click(within(chooser).getByRole("button", { name: "Pay with PromptPay" }));
 
-    const paymentDialog = await screen.findByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    const paymentDialog = await screen.findByRole("dialog", { name: "Phuto Shop PromptPay payment" });
     expect(within(paymentDialog).getByRole("img", { name: "PromptPay QR code" })).toBeInTheDocument();
     expect(within(paymentDialog).getByText("Market-test-payment")).toBeInTheDocument();
     expect(paymentFetcher).toHaveBeenCalledWith("/api/v1/checkout/promptpay", expect.objectContaining({ method: "POST" }));
     await user.click(within(paymentDialog).getByRole("button", { name: "Check payment" }));
     expect(await within(paymentDialog).findByRole("status")).toHaveTextContent("Payment completed");
     expect(useCartStore.getState().cartIds).toEqual([]);
+  });
+
+  it("starts TrueMoney voucher redemption through the BFF and shows a sanitized result", async () => {
+    const user = userEvent.setup();
+    const authFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({
+        authenticated: true,
+        user: { sub: "truewallet-user", email: "truewallet@example.invalid", name: "TrueWallet User", roles: ["CUSTOMER"] },
+      }), { status: 200 }),
+    );
+    const cartFetcher = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ items: [{ productId: 1, quantity: 1 }], removedProductIds: [], version: 1 }), { status: 200 }),
+    );
+    const paymentFetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({
+        orderId: 19,
+        transactionId: "tw-internal-test",
+        amountMinor: 129900,
+        currency: "THB",
+        providerAmountMinor: 129900,
+        status: "PAID",
+        message: "Payment completed",
+      }), { status: 200 }),
+    );
+    useCartStore.setState({ cartIds: [1], quantities: { "1": 1 }, mode: "account", hasHydrated: true });
+
+    render(
+      <Marketplace
+        locale="en"
+        trueWalletEnabled
+        fetcher={fetcher}
+        authFetcher={authFetcher}
+        cartFetcher={cartFetcher}
+        paymentFetcher={paymentFetcher}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    await screen.findByText("Pluto Glyph Set");
+    await user.click(screen.getByRole("button", { name: "Cart" }));
+    const drawer = screen.getByRole("dialog", { name: "Cart" });
+    await user.click(within(drawer).getByRole("button", { name: "Choose payment method" }));
+    const chooser = await screen.findByRole("dialog", { name: "Choose a payment method" });
+    await user.click(within(chooser).getByRole("button", { name: "Pay with TrueMoney Wallet" }));
+    const input = within(chooser).getByLabelText("TrueMoney voucher link");
+    expect(input).toHaveAttribute("type", "password");
+    await user.type(input, "https://gift.truemoney.com/campaign/?v=synthetic-voucher");
+    await user.click(within(chooser).getByRole("button", { name: "Redeem TrueMoney voucher" }));
+
+    const result = await screen.findByRole("dialog", { name: "Phuto Shop TrueMoney Wallet payment" });
+    expect(within(result).getByRole("status")).toHaveTextContent("Payment completed");
+    expect(within(result).queryByText(/synthetic-voucher/)).not.toBeInTheDocument();
+    expect(paymentFetcher).toHaveBeenCalledWith("/api/v1/checkout/truewallet", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ voucher_link: "https://gift.truemoney.com/campaign/?v=synthetic-voucher" }),
+    }));
   });
 
   it("does not show the bundle type label on product cards", async () => {

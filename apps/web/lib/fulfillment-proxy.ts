@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { profileWriteSchema } from "@/lib/fulfillment-profile-validation";
 
 import { getAccessToken } from "@/lib/auth-server";
 
@@ -43,23 +44,6 @@ const secureInventorySchema = z.discriminatedUnion("fulfillmentType", [
     publicMetadata: publicMetadataSchema,
   }).strict(),
 ]);
-const fulfillmentStepSchema = z.object({
-  stepOrder: z.number().int().positive(),
-  audience: z.enum(["CUSTOMER", "OPERATOR"]),
-  titleTh: z.string().min(1).max(180),
-  titleEn: z.string().min(1).max(180),
-  bodyTh: z.string().min(1).max(4000),
-  bodyEn: z.string().min(1).max(4000),
-  linkUrl: z.string().url().max(2048).nullable(),
-  enabled: z.boolean(),
-}).strict();
-const profileWriteSchema = z.object({
-  fulfillmentType: z.enum(["NONE", "DISCORD_ACCOUNT", "LICENSE_KEY", "INVITE_URL", "REDEEM_CODE", "MANUAL_INSTRUCTION"]),
-  provider: providerSchema.nullable(),
-  payloadSchemaVersion: z.number().int().positive(),
-  version: z.number().int().nonnegative(),
-  steps: z.array(fulfillmentStepSchema).max(50).optional(),
-}).strict();
 const reasonSchema = z.object({
   reason: z.enum(["CUSTOMER_SUPPORT", "INCIDENT_RESPONSE", "INVENTORY_AUDIT", "FULFILLMENT_RECOVERY"]),
 }).strict();
@@ -71,9 +55,9 @@ class RequestBodyTooLargeError extends Error {
   }
 }
 
-function problem(status: number, title: string): NextResponse {
+function problem(status: number, title: string, errors?: { field: string; code: string }[]): NextResponse {
   return NextResponse.json(
-    { type: "about:blank", title, status },
+    { type: "about:blank", title, status, ...(errors ? { errors } : {}) },
     { status, headers: { "content-type": "application/problem+json" } },
   );
 }
@@ -144,13 +128,20 @@ function bodySchema(method: string, upstreamPath: string): z.ZodType | undefined
   return undefined;
 }
 
-function validBody(body: ArrayBuffer, schema: z.ZodType | undefined): boolean {
-  if (!schema) return true;
+function bodyErrors(body: ArrayBuffer, schema: z.ZodType | undefined): { field: string; code: string }[] {
+  if (!schema) return [];
   try {
     const decoded = new TextDecoder("utf-8", { fatal: true }).decode(body);
-    return schema.safeParse(JSON.parse(decoded)).success;
+    const result = schema.safeParse(JSON.parse(decoded));
+    if (result.success) return [];
+    // Never expose Zod messages, unknown keys, payload values, or secret field paths.
+    return result.error.issues.slice(0, 50).map((issue) => {
+      const path = issue.path.join(".");
+      const safeProfilePath = /^(?:fulfillmentType|provider|payloadSchemaVersion|version|steps(?:\.\d+(?:\.(?:stepOrder|audience|titleTh|titleEn|bodyTh|bodyEn|linkUrl|enabled))?)?)$/u;
+      return { field: schema === profileWriteSchema && safeProfilePath.test(path) ? path : "body", code: "invalid" };
+    });
   } catch {
-    return false;
+    return [{ field: "body", code: "invalid" }];
   }
 }
 
@@ -171,9 +162,8 @@ export async function proxyFulfillmentRequest(
 
   try {
     const requestBody = request.method === "GET" ? undefined : await readBody(request);
-    if (requestBody && !validBody(requestBody, bodySchema(request.method, upstreamPath))) {
-      return problem(400, "Invalid fulfillment request body");
-    }
+    const errors = requestBody ? bodyErrors(requestBody, bodySchema(request.method, upstreamPath)) : [];
+    if (errors.length) return problem(400, "Invalid fulfillment request body", errors);
     const internalApiUrl = process.env.INTERNAL_API_URL;
     if (!internalApiUrl) return problem(502, "Fulfillment service unavailable");
     const base = new URL(internalApiUrl);

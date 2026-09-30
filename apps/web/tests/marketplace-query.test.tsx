@@ -40,6 +40,17 @@ describe("marketplace querying", () => {
     document.documentElement.lang = "en";
   });
 
+  it.each(["en", "th"] as const)("brands the %s header, footer, and explore copy", async (locale) => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
+      new Response(JSON.stringify(productResponse), { status: 200 }),
+    );
+    const { container } = render(<Marketplace locale={locale} fetcher={fetcher} />, { wrapper: Wrapper });
+    expect(screen.getByRole("link", { name: "Phuto Shop home" })).toHaveTextContent("Phuto Shop");
+    expect(container.querySelector(".footer-brand")).toHaveTextContent("Phuto Shop");
+    expect(container.querySelector(".hero-kicker")).toHaveTextContent("Phuto Shop / EXPLORE 01");
+    expect(await screen.findByText(locale === "th" ? productResponse.items[0].nameTh : productResponse.items[0].nameEn)).toBeInTheDocument();
+  });
+
   it("shows loading feedback then debounces search into the URL and API", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -119,7 +130,7 @@ describe("marketplace querying", () => {
     const image = await screen.findByRole("img", { name: "Pluto Glyph Set" });
     expect(decodeURIComponent(image.getAttribute("src") ?? "")).toContain(imageUrl);
     expect(image).toHaveAttribute("loading", "lazy");
-    expect(image).toHaveAttribute("data-unoptimized", "true");
+    expect(image).toHaveAttribute("data-unoptimized", "false");
   });
 
   it("keeps the deterministic artwork fallback when a product has no image", async () => {
@@ -215,7 +226,7 @@ describe("marketplace querying", () => {
       );
     });
 
-    expect(screen.getByRole("link", { name: "Pluto Shop home" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Phuto Shop home" })).toHaveAttribute(
       "href",
       "/en",
     );

@@ -19,6 +19,9 @@ test("buildLocalEnv creates required values without the example placeholder", ()
   assert.match(content, /^FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=[A-Za-z0-9_-]{43}$/m);
   assert.match(content, /^FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=[A-Za-z0-9_-]{43}$/m);
   assert.match(content, /^FULFILLMENT_SECURITY_KEY_VERSION=1$/m);
+  assert.match(content, /^INWCLOUD_TRUEWALLET_ENABLED=true$/m);
+  assert.match(content, /^INWCLOUD_TRUEWALLET_AMOUNT_UNIT=BAHT$/m);
+  assert.match(content, /^INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64=[A-Za-z0-9_-]{43}$/m);
   assert.notEqual(
     content.match(/^FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=(.+)$/m)?.[1],
     content.match(/^FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=(.+)$/m)?.[1],
@@ -65,6 +68,7 @@ test("ensureLocalEnv upgrades a legacy env without replacing database secrets", 
   assert.match(content, /^AUTH_SESSION_SECRET=[0-9a-f]{64}$/mu);
   assert.match(content, /^FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=[A-Za-z0-9_-]{43}$/mu);
   assert.match(content, /^FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=[A-Za-z0-9_-]{43}$/mu);
+  assert.match(content, /^INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64=[A-Za-z0-9_-]{43}$/mu);
   assert.match(content, /^OIDC_INTERNAL_ISSUER=http:\/\/keycloak:8080\/realms\/pluto$/mu);
   assert.doesNotMatch(content, /unused-secret/);
 });

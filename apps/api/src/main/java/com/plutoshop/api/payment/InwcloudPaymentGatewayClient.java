@@ -1,12 +1,14 @@
 package com.plutoshop.api.payment;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -26,12 +28,20 @@ public class InwcloudPaymentGatewayClient {
 
     private final RestClient restClient;
     private final String apiKey;
+    private final String trueWalletAmountUnit;
 
+    public InwcloudPaymentGatewayClient(RestClient restClient, String apiKey) {
+        this(restClient, apiKey, "BAHT");
+    }
+
+    @Autowired
     public InwcloudPaymentGatewayClient(
             RestClient restClient,
-            @Value("${payment.inwcloud.api-key:}") String apiKey) {
+            @Value("${payment.inwcloud.api-key:}") String apiKey,
+            @Value("${payment.inwcloud.truewallet-amount-unit:}") String trueWalletAmountUnit) {
         this.restClient = restClient;
         this.apiKey = apiKey;
+        this.trueWalletAmountUnit = trueWalletAmountUnit;
     }
 
     public GeneratedPayment generate(BigDecimal amount) {
@@ -56,6 +66,28 @@ public class InwcloudPaymentGatewayClient {
         }
     }
 
+    public RedeemedPayment redeem(String voucherLink) {
+        requireConfigured();
+        requireTrueWalletAmountUnit();
+        if (voucherLink == null || voucherLink.isBlank() || voucherLink.length() > 2_000) {
+            throw new PaymentGatewayException("TrueWallet voucher link is invalid");
+        }
+        try {
+            Map<?, ?> root = postTrueWallet("/v1/truewallet/redeem", Map.of("voucher_link", voucherLink));
+            if (!"success".equalsIgnoreCase(textValue(root, "status"))) {
+                throw new TrueWalletRedeemUncertainException("TrueWallet provider returned an unconfirmed status");
+            }
+            Map<?, ?> data = requiredMap(root, "data");
+            return new RedeemedPayment(trueWalletAmountMinorValue(data));
+        } catch (TrueWalletRedeemRejectedException exception) {
+            throw exception;
+        } catch (TrueWalletRedeemUncertainException exception) {
+            throw exception;
+        } catch (PaymentGatewayException exception) {
+            throw new TrueWalletRedeemUncertainException("TrueWallet provider response is invalid", exception);
+        }
+    }
+
     public CheckedPayment check(String transactionId) {
         requireConfigured();
         if (transactionId == null || !TRANSACTION_ID.matcher(transactionId).matches()) {
@@ -66,8 +98,8 @@ public class InwcloudPaymentGatewayClient {
         String message = textValue(root, "message");
         if ("success".equals(status)) return new CheckedPayment(ProviderPaymentStatus.PAID, message);
         if ("pending".equals(status)) return new CheckedPayment(ProviderPaymentStatus.PENDING, message);
-        if (!status.isBlank()) return new CheckedPayment(ProviderPaymentStatus.FAILED, message);
-        throw new PaymentGatewayException("Payment gateway response is incomplete");
+        if ("failed".equals(status)) return new CheckedPayment(ProviderPaymentStatus.FAILED, message);
+        return new CheckedPayment(ProviderPaymentStatus.REVIEW, message);
     }
 
     private Map<?, ?> post(String path, Object body) {
@@ -96,6 +128,30 @@ public class InwcloudPaymentGatewayClient {
         }
     }
 
+    private Map<?, ?> postTrueWallet(String path, Object body) {
+        try {
+            Map<?, ?> response = restClient.post()
+                    .uri(path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+            if (response == null) {
+                throw new PaymentGatewayException("Payment gateway response is invalid");
+            }
+            return response;
+        } catch (RestClientResponseException exception) {
+            LOGGER.warn("TrueWallet provider HTTP failure status={}", exception.getStatusCode().value());
+            throw new TrueWalletRedeemUncertainException("TrueWallet provider request is uncertain", exception);
+        } catch (RestClientException exception) {
+            LOGGER.warn("TrueWallet provider client failure type={}", exception.getClass().getSimpleName());
+            throw new TrueWalletRedeemUncertainException("TrueWallet provider request is uncertain", exception);
+        }
+    }
+
     private static String safeFailureReason(PaymentGatewayException exception) {
         if (exception.getCause() instanceof RestClientResponseException response) {
             return "provider-http-" + response.getStatusCode().value();
@@ -104,9 +160,20 @@ public class InwcloudPaymentGatewayClient {
         return exception.getMessage() == null ? "unknown" : exception.getMessage();
     }
 
-    private void requireConfigured() {
+    void requireConfigured() {
         if (apiKey == null || apiKey.isBlank()) {
             throw new PaymentConfigurationException("Payment gateway is not configured");
+        }
+    }
+
+    void requireTrueWalletConfigured() {
+        requireConfigured();
+        requireTrueWalletAmountUnit();
+    }
+
+    private void requireTrueWalletAmountUnit() {
+        if (!"BAHT".equalsIgnoreCase(trueWalletAmountUnit)) {
+            throw new PaymentConfigurationException("TrueWallet amount unit must be explicitly configured as BAHT");
         }
     }
 
@@ -152,9 +219,7 @@ public class InwcloudPaymentGatewayClient {
 
     private static long amountMinorValue(Map<?, ?> data) {
         Object rawValue = data.get("amount");
-        String value = rawValue instanceof String string
-                ? string.trim()
-                : rawValue instanceof Number number ? number.toString() : "";
+        String value = exactDecimalText(rawValue);
         if (value.isBlank() || value.length() > 64) {
             throw new PaymentGatewayException("Payment gateway response is incomplete");
         }
@@ -165,6 +230,27 @@ public class InwcloudPaymentGatewayClient {
         } catch (NumberFormatException | ArithmeticException exception) {
             throw new PaymentGatewayException("Payment gateway amount is invalid", exception);
         }
+    }
+
+    private static String exactDecimalText(Object rawValue) {
+        if (rawValue instanceof String string) return string.trim();
+        if (rawValue instanceof BigDecimal decimal) return decimal.toPlainString();
+        if (rawValue instanceof BigInteger
+                || rawValue instanceof Byte
+                || rawValue instanceof Short
+                || rawValue instanceof Integer
+                || rawValue instanceof Long) {
+            return rawValue.toString();
+        }
+        if (rawValue instanceof Float || rawValue instanceof Double) {
+            throw new PaymentGatewayException("Payment gateway amount is not an exact decimal");
+        }
+        return "";
+    }
+
+    private long trueWalletAmountMinorValue(Map<?, ?> data) {
+        requireTrueWalletAmountUnit();
+        return amountMinorValue(data);
     }
 
     private static URI requiredQrUrl(Map<?, ?> data) {
@@ -184,5 +270,8 @@ public class InwcloudPaymentGatewayClient {
     }
 
     public record CheckedPayment(ProviderPaymentStatus status, String message) {
+    }
+
+    public record RedeemedPayment(long amountMinor) {
     }
 }

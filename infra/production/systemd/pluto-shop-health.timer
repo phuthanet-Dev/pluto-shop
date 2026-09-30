@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Pluto Shop production endpoint health check every five minutes
+Description=Run the Phuto Shop production endpoint health check every five minutes
 
 [Timer]
 OnBootSec=5m

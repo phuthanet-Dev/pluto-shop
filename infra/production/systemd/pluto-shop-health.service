@@ -1,5 +1,5 @@
 [Unit]
-Description=Pluto Shop production endpoint health check
+Description=Phuto Shop production endpoint health check
 Wants=network-online.target
 After=network-online.target
 

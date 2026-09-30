@@ -1,5 +1,7 @@
 "use client";
 
+import { SITE_BRAND_DISPLAY } from "@/lib/brand";
+
 import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
@@ -28,10 +30,13 @@ import {
   cancelPromptPayPayment,
   checkPromptPayPayment,
   createPromptPayPayment,
+  createTrueWalletPayment,
+  fetchActivePayment,
   isPromptPayAvailableAt,
   PaymentApiError,
   type PromptPayCheckout,
   type PromptPayStatus,
+  type TrueWalletPayment,
 } from "@/lib/payment-api";
 import {
   fetchProducts,
@@ -51,10 +56,13 @@ import { useCartStore } from "@/stores/cart";
 
 type MarketplaceProps = {
   locale: Locale;
+  trueWalletEnabled?: boolean;
+  activePaymentRecoveryEnabled?: boolean;
   fetcher?: typeof fetch;
   authFetcher?: typeof fetch;
   cartFetcher?: typeof fetch;
   paymentFetcher?: typeof fetch;
+  activePaymentFetcher?: typeof fetch;
 };
 
 type SearchForm = {
@@ -88,7 +96,7 @@ const copyByLocale = {
     cartLoading: "กำลังโหลดรถเข็น",
     cartError: "ไม่สามารถโหลดรถเข็นได้",
     cartTotal: "รวมทั้งหมด",
-    cartPaymentLocked: "รถเข็นถูกล็อกชั่วคราวขณะรอชำระเงินจาก QR นี้ กรุณายกเลิกการชำระเงินก่อนแก้ไขรถเข็น",
+    cartPaymentLocked: "รถเข็นถูกล็อกชั่วคราวขณะตรวจสอบการชำระเงิน กรุณารอผลหรือติดต่อผู้ดูแลก่อนแก้ไขรถเข็น",
     detailTotal: "รวมสินค้า",
     closeCart: "ปิดรถเข็น",
     cartEmpty: "รถเข็นยังว่างอยู่",
@@ -151,14 +159,29 @@ const copyByLocale = {
     promptPayHours: "เปิดให้บริการ 01:30–23:30 น. (เวลาไทย)",
     promptPayClosed: "ปิดบริการ 23:30–01:30 น. (เวลาไทย)",
     trueMoney: "TrueMoney Wallet",
-    trueMoneyUnavailable: "ยังไม่พร้อมใช้งาน",
-    trueMoneyContractPending: "รอยืนยัน contract ก่อนเปิดรับ voucher",
+    payWithTrueMoney: "เติมเงินด้วย TrueMoney Wallet",
+    trueMoneyAvailable: "เปิดใช้งาน",
+    trueMoneyUnavailable: "ยังไม่เปิดให้บริการ",
+    trueMoneyInstruction: "วางลิงก์ซองของขวัญ TrueMoney เพื่อให้ระบบตรวจสอบและเติมเงิน",
+    trueMoneyVoucherLabel: "ลิงก์ voucher TrueMoney",
+    trueMoneyVoucherPlaceholder: "https://gift.truemoney.com/campaign/?v=…",
+    trueMoneyVoucherRequired: "กรุณาวางลิงก์ voucher TrueMoney ก่อนดำเนินการ",
+    trueMoneyRedeem: "แลกซอง TrueMoney",
+    trueMoneyCancel: "กลับไปเลือกวิธีอื่น",
+    trueMoneyPaymentTitle: "เติมเงินด้วย TrueMoney Wallet",
+    trueMoneyPaymentDescription: "ระบบตรวจสอบซองของขวัญกับผู้ให้บริการและคำนวณยอดจากออเดอร์ของคุณ",
+    trueMoneyPaymentDialogName: `หน้าชำระเงิน ${SITE_BRAND_DISPLAY} TrueMoney Wallet`,
+    trueMoneyPaymentPending: "กำลังตรวจสอบซองของขวัญ",
+    trueMoneyPaymentPaid: "เติมเงินสำเร็จ",
+    trueMoneyPaymentFailed: "ซองของขวัญไม่สามารถใช้งานได้",
+    trueMoneyPaymentReview: "ต้องตรวจสอบการชำระเงินเพิ่มเติม",
+    trueMoneyPaymentNoRetry: "อย่าส่งซองเดิมซ้ำ หากสถานะยังตรวจสอบอยู่ กรุณาติดต่อผู้ดูแล",
     loginToCheckout: "เข้าสู่ระบบเพื่อชำระเงิน",
     continuePayment: "ดูการชำระเงินต่อ",
     paymentPayeeLabel: "ระบบรับชำระ",
-    paymentPayeeName: "Pluto Shop",
+    paymentPayeeName: SITE_BRAND_DISPLAY,
     paymentPayeeDetail: "PromptPay checkout",
-    paymentDialogName: "หน้าชำระเงิน Pluto Shop PromptPay",
+    paymentDialogName: `หน้าชำระเงิน ${SITE_BRAND_DISPLAY} PromptPay`,
     paymentQrCancelled: "QR พร้อมเพย์ไม่พร้อมใช้งานเนื่องจากยกเลิกการชำระเงินแล้ว",
     paymentQrExpired: "QR พร้อมเพย์ไม่พร้อมใช้งานเนื่องจากหมดอายุแล้ว",
     paymentAmountLabel: "ยอดที่ต้องชำระ",
@@ -173,13 +196,13 @@ const copyByLocale = {
     paymentCopyError: "ไม่สามารถคัดลอกข้อมูลการชำระเงินได้",
     paymentRemaining: "เวลาที่เหลือ",
     paymentAutoCheck: "ตรวจสอบอัตโนมัติทุก 5 วินาที",
-    paymentCancel: "ยกเลิกการชำระเงิน",
-    paymentCancelTitle: "ยืนยันการยกเลิก",
-    paymentCancelConfirmAction: "ยืนยันยกเลิก",
+    paymentCancel: "ส่งตรวจสอบแทนการยกเลิก",
+    paymentCancelTitle: "ส่งรายการตรวจสอบกับผู้ให้บริการ",
+    paymentCancelConfirmAction: "ส่งตรวจสอบ",
     paymentCancelKeep: "กลับไปชำระเงิน",
-    paymentCancelBusy: "กำลังยกเลิก…",
-    paymentCancelConfirm: "ต้องการยกเลิกการชำระเงินนี้หรือไม่? ระบบจะหยุดตรวจสอบ QR นี้ สินค้าจะยังอยู่ในรถเข็นของคุณ และการยกเลิกนี้ไม่ใช่การคืนเงินจากผู้ให้บริการ",
-    paymentCancelPending: "กำลังยกเลิกการชำระเงิน",
+    paymentCancelBusy: "กำลังส่งตรวจสอบ…",
+    paymentCancelConfirm: "ต้องการยกเลิกการชำระเงินนี้หรือไม่? ระบบจะส่งรายการเข้าสู่การตรวจสอบกับผู้ให้บริการแทนการคืนเงิน สินค้าจะยังถูกสำรองไว้จนกว่าจะยืนยันผลได้",
+    paymentCancelPending: "กำลังส่งคำขอตรวจสอบ",
     paymentCancelled: "ยกเลิกการชำระเงินแล้ว",
     paymentCancelError: "ไม่สามารถยกเลิกการชำระเงินได้ กรุณาลองตรวจสอบสถานะอีกครั้ง",
     paymentDismiss: "ปิดหน้าต่าง",
@@ -189,6 +212,7 @@ const copyByLocale = {
     paymentPaid: "ชำระเงินสำเร็จ",
     paymentExpired: "QR หมดอายุแล้ว",
     paymentFailed: "การชำระเงินไม่สำเร็จ",
+    paymentReview: "การชำระเงินอยู่ระหว่างการตรวจสอบ",
     paymentCheck: "ตรวจสอบการชำระเงิน",
     paymentTransaction: "Transaction ID",
     paymentExpires: "หมดอายุ",
@@ -217,7 +241,7 @@ const copyByLocale = {
     cartLoading: "Loading cart",
     cartError: "Could not load cart",
     cartTotal: "Cart total",
-    cartPaymentLocked: "This cart is locked while the current QR payment is pending. Cancel the payment before editing your cart.",
+    cartPaymentLocked: "This cart is temporarily locked while the payment is being checked. Wait for the result or contact support before editing it.",
     detailTotal: "Item total",
     closeCart: "Close cart",
     cartEmpty: "Your cart is empty.",
@@ -280,14 +304,29 @@ const copyByLocale = {
     promptPayHours: "Available 01:30–23:30 (Bangkok time)",
     promptPayClosed: "Closed 23:30–01:30 (Bangkok time)",
     trueMoney: "TrueMoney Wallet",
-    trueMoneyUnavailable: "Not available yet",
-    trueMoneyContractPending: "Provider contract verification is required before voucher redemption",
+    payWithTrueMoney: "Pay with TrueMoney Wallet",
+    trueMoneyAvailable: "Available",
+    trueMoneyUnavailable: "Unavailable",
+    trueMoneyInstruction: "Paste a TrueMoney gift voucher link for the system to verify and redeem.",
+    trueMoneyVoucherLabel: "TrueMoney voucher link",
+    trueMoneyVoucherPlaceholder: "https://gift.truemoney.com/campaign/?v=…",
+    trueMoneyVoucherRequired: "Paste a TrueMoney voucher link before continuing",
+    trueMoneyRedeem: "Redeem TrueMoney voucher",
+    trueMoneyCancel: "Back to payment methods",
+    trueMoneyPaymentTitle: "Pay with TrueMoney Wallet",
+    trueMoneyPaymentDescription: "The system verifies the voucher with the provider and uses your server-calculated order total.",
+    trueMoneyPaymentDialogName: `${SITE_BRAND_DISPLAY} TrueMoney Wallet payment`,
+    trueMoneyPaymentPending: "Checking the gift voucher",
+    trueMoneyPaymentPaid: "Payment completed",
+    trueMoneyPaymentFailed: "The gift voucher could not be used",
+    trueMoneyPaymentReview: "Payment needs additional review",
+    trueMoneyPaymentNoRetry: "Do not submit the same voucher again while it is being checked. Contact support if needed.",
     loginToCheckout: "Log in to pay",
     continuePayment: "Continue payment",
     paymentPayeeLabel: "Payment receiver",
-    paymentPayeeName: "Pluto Shop",
+    paymentPayeeName: SITE_BRAND_DISPLAY,
     paymentPayeeDetail: "PromptPay checkout",
-    paymentDialogName: "Pluto Shop PromptPay payment",
+    paymentDialogName: `${SITE_BRAND_DISPLAY} PromptPay payment`,
     paymentQrCancelled: "PromptPay QR code unavailable because the payment was cancelled",
     paymentQrExpired: "PromptPay QR code unavailable because the payment expired",
     paymentAmountLabel: "Amount due",
@@ -302,13 +341,13 @@ const copyByLocale = {
     paymentCopyError: "Could not copy the payment payload",
     paymentRemaining: "Time remaining",
     paymentAutoCheck: "Automatic status check every 5 seconds",
-    paymentCancel: "Cancel payment",
-    paymentCancelTitle: "Cancel payment?",
-    paymentCancelConfirmAction: "Confirm cancellation",
+    paymentCancel: "Send for review instead",
+    paymentCancelTitle: "Send payment for provider review?",
+    paymentCancelConfirmAction: "Send for review",
     paymentCancelKeep: "Keep payment",
-    paymentCancelBusy: "Cancelling…",
-    paymentCancelConfirm: "Cancel this payment? The system will stop checking this QR, the items will remain in your cart, and this is not a provider refund.",
-    paymentCancelPending: "Cancelling payment",
+    paymentCancelBusy: "Sending for review…",
+    paymentCancelConfirm: "Send this payment for provider reconciliation instead of releasing it locally? The reservation stays active until the result is confirmed.",
+    paymentCancelPending: "Sending for review",
     paymentCancelled: "Payment cancelled",
     paymentCancelError: "Could not cancel the payment. Please check the status again.",
     paymentDismiss: "Close payment window",
@@ -318,6 +357,7 @@ const copyByLocale = {
     paymentPaid: "Payment completed",
     paymentExpired: "This QR code has expired",
     paymentFailed: "Payment was not completed",
+    paymentReview: "Payment requires manual review",
     paymentCheck: "Check payment",
     paymentTransaction: "Transaction ID",
     paymentExpires: "Expires",
@@ -357,7 +397,7 @@ function ProductArt({ product }: { product: Product }) {
           alt={product.nameEn}
           fill
           sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 25vw"
-          unoptimized
+          quality={75}
           onError={() => setFailedImageKey(imageKey)}
         />
       </div>
@@ -436,10 +476,13 @@ function SkeletonGrid({ label }: { label: string }) {
 
 export function Marketplace({
   locale,
+  trueWalletEnabled = false,
+  activePaymentRecoveryEnabled = false,
   fetcher = fetch,
   authFetcher = fetch,
   cartFetcher = fetch,
   paymentFetcher = fetch,
+  activePaymentFetcher = fetch,
 }: MarketplaceProps) {
   const copy = copyByLocale[locale];
   const pathname = usePathname();
@@ -453,9 +496,14 @@ export function Marketplace({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [optionChooser, setOptionChooser] = useState<OptionChooserState | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
-  const [payment, setPayment] = useState<PaymentViewState | null>(null);
+  const [paymentState, setPayment] = useState<PaymentViewState | null>(null);
+  const [trueWalletPaymentState, setTrueWalletPayment] = useState<TrueWalletPayment | null>(null);
+  const [dismissedRecoveredPaymentId, setDismissedRecoveredPaymentId] = useState<string | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [trueWalletPaymentOpen, setTrueWalletPaymentOpen] = useState(false);
   const [paymentMethodOpen, setPaymentMethodOpen] = useState(false);
+  const [trueWalletFormOpen, setTrueWalletFormOpen] = useState(false);
+  const [trueWalletVoucher, setTrueWalletVoucher] = useState("");
   const [refundStepsOpen, setRefundStepsOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentChecking, setPaymentChecking] = useState(false);
@@ -478,6 +526,7 @@ export function Marketplace({
   const cartSyncSubjectRef = useRef<string | null>(null);
   const previousAuthenticatedRef = useRef(false);
   const lastServerCartRef = useRef("");
+  const trueWalletIdempotencyKeyRef = useRef<string | null>(null);
 
   const {
     clearErrors,
@@ -552,6 +601,20 @@ export function Marketplace({
     staleTime: 60_000,
     retry: false,
   });
+  const activePaymentQuery = useQuery({
+    queryKey: [
+      "payment",
+      "active",
+      authSession.data?.authenticated ? authSession.data.user.sub : "anonymous",
+    ],
+    queryFn: () => fetchActivePayment(activePaymentFetcher),
+    enabled: activePaymentRecoveryEnabled
+      && hasHydratedCart
+      && authSession.data?.authenticated === true,
+    staleTime: 5_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const cartProducts = useQuery({
     queryKey: ["products", "cart", "unfiltered"],
     queryFn: ({ signal }) => fetchProducts(emptyFilters, signal, fetcher),
@@ -621,6 +684,59 @@ export function Marketplace({
       });
   }, [authSession.data, cartFetcher, cartIds, cartMode, cartQuantities, setCartItems]);
 
+  const recoveredActivePayment = activePaymentQuery.data;
+  const recoveryIsDismissed = recoveredActivePayment?.transactionId === dismissedRecoveredPaymentId;
+  const recoveredPromptPay = recoveredActivePayment?.paymentMethod === "PROMPTPAY"
+    && !recoveryIsDismissed
+    && recoveredActivePayment.qrUrl
+    && recoveredActivePayment.payload
+    && recoveredActivePayment.expiresAt
+    ? {
+        orderId: recoveredActivePayment.orderId,
+        transactionId: recoveredActivePayment.transactionId,
+        amountMinor: recoveredActivePayment.amountMinor,
+        currency: recoveredActivePayment.currency,
+        qrUrl: recoveredActivePayment.qrUrl,
+        payload: recoveredActivePayment.payload,
+        expiresAt: recoveredActivePayment.expiresAt,
+        status: recoveredActivePayment.status,
+        message: recoveredActivePayment.message,
+      }
+    : null;
+  const recoveredTrueWallet = recoveredActivePayment?.paymentMethod === "TRUEWALLET"
+    && !recoveryIsDismissed
+    ? {
+        orderId: recoveredActivePayment.orderId,
+        transactionId: recoveredActivePayment.transactionId,
+        amountMinor: recoveredActivePayment.amountMinor,
+        currency: recoveredActivePayment.currency,
+        providerAmountMinor: null,
+        status: recoveredActivePayment.status,
+        message: recoveredActivePayment.message,
+      }
+    : null;
+  const payment = recoveredPromptPay
+    && paymentState?.transactionId === recoveredPromptPay.transactionId
+    ? paymentState
+    : recoveredPromptPay ?? paymentState;
+  const trueWalletPayment = recoveredTrueWallet
+    && trueWalletPaymentState?.transactionId === recoveredTrueWallet.transactionId
+    ? trueWalletPaymentState
+    : recoveredTrueWallet ?? trueWalletPaymentState;
+  const activePaymentResolvedLocally = recoveredActivePayment !== undefined
+    && recoveredActivePayment !== null
+    && ((paymentState?.transactionId === recoveredActivePayment.transactionId
+      && paymentState.status !== "PENDING"
+      && paymentState.status !== "REVIEW")
+      || (trueWalletPaymentState?.transactionId === recoveredActivePayment.transactionId
+        && trueWalletPaymentState.status !== "PENDING"
+        && trueWalletPaymentState.status !== "REVIEW"));
+  const activePaymentStillLocked = recoveredActivePayment !== null
+    && recoveredActivePayment !== undefined
+    && !activePaymentResolvedLocally;
+  const promptPayDialogOpen = paymentOpen || recoveredPromptPay !== null;
+  const trueWalletDialogOpen = trueWalletPaymentOpen || recoveredTrueWallet !== null;
+
   const applyFilters = handleSubmit((values) => {
     clearErrors("maxPrice");
     const rawPrice = values.maxPrice.trim();
@@ -678,7 +794,16 @@ export function Marketplace({
     (total, product) => total + product.priceMinor * (cartQuantities[String(product.id)] ?? 1),
     0,
   );
-  const cartLockedForPayment = payment?.status === "PENDING";
+  const paymentRecoveryBlocked = activePaymentRecoveryEnabled
+    && hasHydratedCart
+    && authSession.data?.authenticated === true
+    && (activePaymentQuery.isPending || activePaymentQuery.isError);
+  const cartLockedForPayment = paymentRecoveryBlocked
+    || activePaymentStillLocked
+    || payment?.status === "PENDING"
+    || payment?.status === "REVIEW"
+    || trueWalletPayment?.status === "PENDING"
+    || trueWalletPayment?.status === "REVIEW";
   const selectedProductInCart =
     selectedProduct !== null && cartIds.includes(selectedProduct.id);
   const hasFilters =
@@ -752,8 +877,70 @@ export function Marketplace({
     }
   }
 
+  async function startTrueWalletPayment() {
+    if (!authSession.data?.authenticated || cartIds.length === 0) return;
+    if (!trueWalletEnabled) {
+      setPaymentError(copy.trueMoneyUnavailable);
+      return;
+    }
+    if (!trueWalletVoucher.trim()) {
+      setPaymentError(copy.trueMoneyVoucherRequired);
+      return;
+    }
+    const idempotencyKey = trueWalletIdempotencyKeyRef.current
+      ?? `truewallet-${globalThis.crypto.randomUUID()}`;
+    trueWalletIdempotencyKeyRef.current = idempotencyKey;
+    setPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      const created = await createTrueWalletPayment(trueWalletVoucher, paymentFetcher, idempotencyKey);
+      setTrueWalletPayment(created);
+      setTrueWalletPaymentOpen(true);
+      setTrueWalletVoucher("");
+      setTrueWalletFormOpen(false);
+      setPaymentMethodOpen(false);
+      setCartOpen(false);
+      trueWalletIdempotencyKeyRef.current = null;
+      if (created.status === "PAID") clearCart();
+    } catch (error) {
+      if (error instanceof Error && error.message === "TrueWallet voucher link is invalid") {
+        trueWalletIdempotencyKeyRef.current = null;
+      }
+      setPaymentError(
+        error instanceof PaymentApiError && error.status === 401
+          ? copy.paymentSessionExpired
+          : error instanceof PaymentApiError && error.message !== "Payment request failed"
+            ? error.message
+            : copy.paymentError,
+      );
+    } finally {
+      setTrueWalletVoucher("");
+      setPaymentLoading(false);
+    }
+  }
+
   function openPaymentMethodDialog() {
     setPaymentError(null);
+    if (recoveredActivePayment && recoveryIsDismissed) {
+      setDismissedRecoveredPaymentId(null);
+      setCartOpen(false);
+      if (recoveredActivePayment.paymentMethod === "PROMPTPAY") setPaymentOpen(true);
+      else setTrueWalletPaymentOpen(true);
+      return;
+    }
+    if (payment?.status === "PENDING" || payment?.status === "REVIEW") {
+      setCartOpen(false);
+      setPaymentOpen(true);
+      return;
+    }
+    if (trueWalletPayment?.status === "PENDING" || trueWalletPayment?.status === "REVIEW") {
+      setCartOpen(false);
+      setTrueWalletPaymentOpen(true);
+      return;
+    }
+    setTrueWalletFormOpen(false);
+    setTrueWalletVoucher("");
+    trueWalletIdempotencyKeyRef.current = null;
     setCartOpen(false);
     window.setTimeout(() => setPaymentMethodOpen(true), 0);
   }
@@ -807,18 +994,18 @@ export function Marketplace({
   }, [copy.paymentCancelError, payment, paymentCancelling, paymentFetcher]);
 
   useEffect(() => {
-    if (!paymentOpen || !payment || payment.status !== "PENDING") return;
+    if (!promptPayDialogOpen || !payment || payment.status !== "PENDING") return;
     const timer = window.setInterval(() => void checkPaymentStatus(), 5_000);
     return () => window.clearInterval(timer);
-  }, [checkPaymentStatus, payment, paymentOpen]);
+  }, [checkPaymentStatus, payment, promptPayDialogOpen]);
 
   useEffect(() => {
-    if (!paymentOpen || payment?.status !== "PENDING") return;
+    if (!promptPayDialogOpen || payment?.status !== "PENDING") return;
     const tick = () => setPaymentNow(Date.now());
     tick();
     const timer = window.setInterval(tick, 1_000);
     return () => window.clearInterval(timer);
-  }, [payment?.status, paymentOpen]);
+  }, [payment?.status, promptPayDialogOpen]);
 
   const priceControl = (
     <>
@@ -861,11 +1048,11 @@ export function Marketplace({
       </a>
       <header className="site-header">
         <div className="header-inner">
-          <Link href={`/${locale}`} className="brand" aria-label="Pluto Shop home">
+          <Link href={`/${locale}`} className="brand" aria-label={`${SITE_BRAND_DISPLAY} home`}>
             <span className="brand-mark" aria-hidden="true">
               <span />
             </span>
-            <span>Pluto Shop</span>
+            <span>{SITE_BRAND_DISPLAY}</span>
           </Link>
           <nav className="header-actions" aria-label="Primary navigation">
             {authSession.data ? (
@@ -886,14 +1073,20 @@ export function Marketplace({
                   <span className="cart-icon" aria-hidden="true" />
                   <span className="cart-label">{copy.cart}</span>
                   {hasHydratedCart ? (
-                    <span className="cart-count">{cartItemCount}</span>
+                    <span
+                      key={cartItemCount}
+                      className="cart-count"
+                      data-has-items={cartItemCount > 0 ? "true" : undefined}
+                    >
+                      {cartItemCount}
+                    </span>
                   ) : null}
                 </button>
               </DialogTrigger>
               <DialogContent className="cart-drawer">
                 <div className="drawer-header">
                   <div>
-                    <p className="eyebrow">Pluto Shop</p>
+                    <p className="eyebrow">{SITE_BRAND_DISPLAY}</p>
                     <DialogTitle>{copy.cart}</DialogTitle>
                     <DialogDescription>
                       {copy.cartDescription}
@@ -993,11 +1186,14 @@ export function Marketplace({
                         <button
                           className="primary-button"
                           type="button"
-                          disabled={paymentLoading}
+                          disabled={paymentLoading || paymentRecoveryBlocked}
                           onClick={() => {
-                            if (payment?.status === "PENDING") {
+                            if (payment?.status === "PENDING" || payment?.status === "REVIEW") {
                               setCartOpen(false);
                               setPaymentOpen(true);
+                            } else if (trueWalletPayment?.status === "PENDING" || trueWalletPayment?.status === "REVIEW") {
+                              setCartOpen(false);
+                              setTrueWalletPaymentOpen(true);
                             } else {
                               openPaymentMethodDialog();
                             }
@@ -1006,6 +1202,9 @@ export function Marketplace({
                           {paymentLoading
                             ? copy.paymentPending
                             : payment?.status === "PENDING"
+                              || payment?.status === "REVIEW"
+                              || trueWalletPayment?.status === "PENDING"
+                              || trueWalletPayment?.status === "REVIEW"
                               ? copy.continuePayment
                               : copy.checkout}
                         </button>
@@ -1038,13 +1237,16 @@ export function Marketplace({
                 setPaymentMethodOpen(open);
                 if (!open) {
                   setPaymentError(null);
+                  setTrueWalletFormOpen(false);
+                  setTrueWalletVoucher("");
+                  trueWalletIdempotencyKeyRef.current = null;
                 }
               }}
             >
               <DialogContent className="payment-method-dialog" aria-describedby={undefined}>
                 <div className="payment-dialog-header">
                   <div>
-                    <p className="eyebrow">Pluto / Checkout</p>
+                    <p className="eyebrow">{SITE_BRAND_DISPLAY} / Checkout</p>
                     <DialogTitle>{copy.choosePaymentMethod}</DialogTitle>
                   </div>
                   <DialogClose asChild>
@@ -1077,16 +1279,68 @@ export function Marketplace({
                       </span>
                     </button>
                     <button
-                      className="payment-method-option payment-method-option-disabled"
+                      className="payment-method-option"
                       type="button"
-                      aria-label={copy.trueMoney}
-                      disabled
+                      aria-label={copy.payWithTrueMoney}
+                      disabled={!trueWalletEnabled || paymentLoading}
+                      onClick={() => {
+                        setTrueWalletFormOpen(true);
+                        setPaymentError(null);
+                      }}
                     >
                       <PaymentMethodLogo brand="truemoney" />
-                      <span className="payment-method-option-description">{copy.trueMoneyUnavailable}</span>
-                      <span className="payment-method-option-note">{copy.trueMoneyContractPending}</span>
+                      <span className="payment-method-option-description">
+                        {trueWalletEnabled ? copy.trueMoneyAvailable : copy.trueMoneyUnavailable}
+                      </span>
+                      <span className="payment-method-option-note">{copy.trueMoneyInstruction}</span>
                     </button>
                   </div>
+                  {trueWalletFormOpen ? (
+                    <form
+                      className="truewallet-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void startTrueWalletPayment();
+                      }}
+                    >
+                      <label className="field-label" htmlFor="truewallet-voucher-link">
+                        <span>{copy.trueMoneyVoucherLabel}</span>
+                        <input
+                          id="truewallet-voucher-link"
+                          name="truewallet-voucher-link"
+                          type="password"
+                          autoComplete="off"
+                          spellCheck={false}
+                          maxLength={2_000}
+                          placeholder={copy.trueMoneyVoucherPlaceholder}
+                          value={trueWalletVoucher}
+                          onChange={(event) => setTrueWalletVoucher(event.target.value)}
+                          aria-describedby="truewallet-voucher-hint"
+                        />
+                      </label>
+                      <p className="field-hint" id="truewallet-voucher-hint">
+                        {copy.trueMoneyInstruction}
+                      </p>
+                      <div className="truewallet-form-actions">
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={paymentLoading}
+                          onClick={() => {
+                            setTrueWalletFormOpen(false);
+                            setTrueWalletVoucher("");
+                            setPaymentError(null);
+                            trueWalletIdempotencyKeyRef.current = null;
+                          }}
+                        >
+                          {copy.trueMoneyCancel}
+                        </button>
+                        <button className="primary-button" type="submit" disabled={paymentLoading}>
+                          {paymentLoading ? copy.paymentPending : copy.trueMoneyRedeem}
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                   {paymentError ? (
                     <p className="payment-dialog-error" role="alert">
                       {paymentError}
@@ -1118,7 +1372,85 @@ export function Marketplace({
               closeLabel={copy.refundClose}
               understoodLabel={copy.refundUnderstood}
             />
-            <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+            <Dialog
+              open={trueWalletDialogOpen}
+              onOpenChange={(open) => {
+                setTrueWalletPaymentOpen(open);
+                if (!open && recoveredActivePayment?.paymentMethod === "TRUEWALLET") {
+                  setDismissedRecoveredPaymentId(recoveredActivePayment.transactionId);
+                }
+                if (!open && trueWalletPaymentState && trueWalletPaymentState.status !== "PENDING" && trueWalletPaymentState.status !== "REVIEW") {
+                  setTrueWalletPayment(null);
+                }
+              }}
+            >
+              {trueWalletPayment ? (
+                <DialogContent
+                  className="payment-dialog truewallet-payment-dialog"
+                  aria-label={copy.trueMoneyPaymentDialogName}
+                >
+                  <div className="payment-dialog-header">
+                    <div className="payment-payee">
+                      <PaymentMethodLogo brand="truemoney" />
+                      <div className="payment-payee-copy">
+                        <span className="payment-payee-label">{copy.paymentPayeeLabel}</span>
+                        <DialogTitle>
+                          <span className="sr-only">{copy.trueMoneyPaymentDialogName}</span>
+                          <span aria-hidden="true">{copy.trueMoneyPaymentTitle}</span>
+                        </DialogTitle>
+                        <DialogDescription>{copy.trueMoneyPaymentDescription}</DialogDescription>
+                      </div>
+                    </div>
+                    <DialogClose asChild>
+                      <button className="icon-button" type="button" aria-label={copy.closePayment}>
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    </DialogClose>
+                  </div>
+                  <div className="truewallet-payment-body">
+                    <div className="payment-amount-card">
+                      <div>
+                        <span className="payment-amount-label">{copy.paymentAmountLabel}</span>
+                        <strong>{formatThb(trueWalletPayment.amountMinor, locale)}</strong>
+                      </div>
+                    </div>
+                    <div
+                      className={`payment-state-card payment-state-${trueWalletPayment.status.toLowerCase()}`}
+                      role="status"
+                    >
+                      <span className={`payment-status payment-status-${trueWalletPayment.status.toLowerCase()}`}>
+                        {trueWalletPayment.status === "PAID"
+                          ? copy.trueMoneyPaymentPaid
+                          : trueWalletPayment.status === "FAILED"
+                            ? copy.trueMoneyPaymentFailed
+                            : trueWalletPayment.status === "REVIEW"
+                              ? copy.trueMoneyPaymentReview
+                              : copy.trueMoneyPaymentPending}
+                      </span>
+                      <p>{trueWalletPayment.message}</p>
+                    </div>
+                    {trueWalletPayment.status === "PENDING" || trueWalletPayment.status === "REVIEW" ? (
+                      <p className="payment-dialog-error" role="note">{copy.trueMoneyPaymentNoRetry}</p>
+                    ) : null}
+                    <DialogClose asChild>
+                      <button className="payment-dismiss-button" type="button">
+                        <span aria-hidden="true">⊗</span>
+                        {copy.paymentDismiss}
+                      </button>
+                    </DialogClose>
+                  </div>
+                </DialogContent>
+              ) : null}
+            </Dialog>
+            <Dialog
+              open={promptPayDialogOpen}
+              onOpenChange={(open) => {
+                setPaymentOpen(open);
+                if (!open && recoveredActivePayment?.paymentMethod === "PROMPTPAY") {
+                  setDismissedRecoveredPaymentId(recoveredActivePayment.transactionId);
+                }
+              }}
+            >
               {payment ? (
                 <DialogContent className="payment-dialog" aria-label={copy.paymentDialogName}>
                   <div className="payment-dialog-header">
@@ -1197,6 +1529,7 @@ export function Marketplace({
                           type="button"
                           aria-label={copy.paymentCopyPayload}
                           aria-live="polite"
+                          data-copied={paymentCopied ? "true" : undefined}
                           onClick={() => void copyPaymentPayload()}
                         >
                           <span aria-hidden="true">▣</span>
@@ -1240,33 +1573,35 @@ export function Marketplace({
                                 ? copy.paymentExpired
                                 : payment.status === "CANCELLED"
                                   ? copy.paymentCancelled
-                                  : copy.paymentFailed}
+                                  : payment.status === "REVIEW"
+                                    ? copy.paymentReview
+                                    : copy.paymentFailed}
                           </span>
                         </div>
                       )}
                       {paymentError ? <p className="payment-dialog-error" role="alert">{paymentError}</p> : null}
-                      <div className={`payment-action-row${payment.status === "PENDING" ? "" : " payment-action-row-single"}`}>
+                      <div className={`payment-action-row${payment.status === "PAID" || payment.status === "FAILED" || payment.status === "EXPIRED" || payment.status === "CANCELLED" ? " payment-action-row-single" : ""}`}>
+                        {payment.status === "PENDING" || payment.status === "REVIEW" ? (
+                          <button
+                            className="payment-check-button"
+                            type="button"
+                            disabled={paymentChecking || paymentCancelling}
+                            onClick={() => void checkPaymentStatus()}
+                          >
+                            <span aria-hidden="true">⟳</span>
+                            {paymentChecking ? copy.paymentPending : copy.paymentCheck}
+                          </button>
+                        ) : null}
                         {payment.status === "PENDING" ? (
-                          <>
-                            <button
-                              className="payment-check-button"
-                              type="button"
-                              disabled={paymentChecking || paymentCancelling}
-                              onClick={() => void checkPaymentStatus()}
-                            >
-                              <span aria-hidden="true">⟳</span>
-                              {paymentChecking ? copy.paymentPending : copy.paymentCheck}
-                            </button>
-                            <button
-                              className="payment-cancel-button"
-                              type="button"
-                              disabled={paymentChecking || paymentCancelling}
-                              onClick={requestCancelPayment}
-                            >
-                              <span aria-hidden="true">⊗</span>
-                              {paymentCancelling ? copy.paymentCancelPending : copy.paymentCancel}
-                            </button>
-                          </>
+                          <button
+                            className="payment-cancel-button"
+                            type="button"
+                            disabled={paymentChecking || paymentCancelling}
+                            onClick={requestCancelPayment}
+                          >
+                            <span aria-hidden="true">⊗</span>
+                            {paymentCancelling ? copy.paymentCancelPending : copy.paymentCancel}
+                          </button>
                         ) : null}
                         {payment.status !== "PENDING" ? (
                           <DialogClose asChild>
@@ -1302,11 +1637,11 @@ export function Marketplace({
       <main id="main-content">
         <section className="hero" aria-labelledby="marketplace-title">
           <nav className="breadcrumb" aria-label="Breadcrumb">
-            <span>Pluto Shop</span>
+            <span>{SITE_BRAND_DISPLAY}</span>
             <span aria-hidden="true">/</span>
             <span>{copy.explore}</span>
           </nav>
-          <p className="hero-kicker">PLUTO / EXPLORE 01</p>
+          <p className="hero-kicker">{SITE_BRAND_DISPLAY} / EXPLORE 01</p>
           <h1 id="marketplace-title">Creative Asset Marketplace</h1>
           <p className="hero-introduction">{copy.introduction}</p>
           <ul className="trust-statuses" aria-label="Marketplace assurances">
@@ -1362,7 +1697,7 @@ export function Marketplace({
                 <DialogContent className="filter-drawer">
                   <div className="drawer-header">
                     <div>
-                      <p className="eyebrow">Pluto / Explore</p>
+                      <p className="eyebrow">{SITE_BRAND_DISPLAY} / Explore</p>
                       <DialogTitle>{copy.filters}</DialogTitle>
                       <DialogDescription>{copy.maxPriceHint}</DialogDescription>
                     </div>
@@ -1563,7 +1898,7 @@ export function Marketplace({
 
       <footer className="site-footer">
         <div>
-          <span className="footer-brand">Pluto Shop</span>
+          <span className="footer-brand">{SITE_BRAND_DISPLAY}</span>
           <span>
             {locale === "th"
               ? "สินทรัพย์สร้างสรรค์ จัดหมวดหมู่อย่างตั้งใจ"

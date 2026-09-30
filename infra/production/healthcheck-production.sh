@@ -43,7 +43,7 @@ if ! curl --fail --silent --show-error --max-time 15 \
 fi
 
 if (( status != 0 )); then
-  send_alert 'Pluto Shop production health check failed'
+  send_alert 'Phuto Shop production health check failed'
 else
   printf '%s\n' 'Production health check passed.'
 fi

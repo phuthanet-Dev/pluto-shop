@@ -72,8 +72,28 @@
   --border-strong: rgba(255, 255, 255, 0.16);
   --accent: #8b5cf6;
   --accent-bright: #ad8bff;
+  --accent-soft: #d9c9ff;
+  --accent-action: #7550d6;
+  --accent-action-hover: #845de4;
   --success: #70d6a0;
+  --success-strong: #94e5bb;
   --danger: #ff8e9e;
+  --danger-strong: #ffb0bb;
+  --danger-soft: #ffd2d9;
+  --danger-ink: #330b14;
+  --warning: #ffc170;
+  --warning-soft: #f4d99d;
+  --warning-ink: #211705;
+  --warning-strong: #eec56c;
+  --warning-hover: #f5d890;
+  --info: #6eaaff;
+  --info-strong: #2e74e8;
+  --info-soft: #c9e0ff;
+  --success-ink: #082116;
+  --success-deep: #0ca978;
+  --on-accent: #fff;
+  --surface-input: #0b0b10;
+  --surface-dialog: #0b080d;
   --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   --header-height: 68px;
   --content-width: 1420px;
@@ -297,7 +317,7 @@ button:disabled {
   border: 1px solid rgba(173, 139, 255, 0.42);
   border-radius: 50%;
   background: rgba(139, 92, 246, 0.16);
-  color: #dfd1ff;
+  color: var(--accent-soft);
   font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 0.58rem;
   font-weight: 700;
@@ -434,7 +454,7 @@ button:disabled {
 }
 
 .account-menu-item-primary {
-  color: #dfd1ff;
+  color: var(--accent-soft);
 }
 
 .account-menu-item-meta {
@@ -474,8 +494,12 @@ button:disabled {
   place-items: center;
   border-radius: 999px;
   background: rgba(139, 92, 246, 0.18);
-  color: #d9c9ff;
+  color: var(--accent-soft);
   font-size: 0.68rem;
+}
+
+.cart-count[data-has-items="true"] {
+  animation: cart-count-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 #main-content {
@@ -520,6 +544,7 @@ button:disabled {
 
 .breadcrumb span:first-child {
   color: var(--muted-strong);
+  text-transform: none;
 }
 
 .hero-kicker,
@@ -534,12 +559,15 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.hero-kicker,
+.eyebrow {
+  text-transform: none;
+}
+
 .hero h1 {
   max-width: 880px;
   margin: 0;
-  background: linear-gradient(102deg, #fff 8%, #d8d0e6 54%, #9172d5 104%);
-  background-clip: text;
-  color: transparent;
+  color: var(--ink);
   font-size: clamp(2.8rem, 7vw, 6.7rem);
   font-weight: 640;
   letter-spacing: -0.067em;
@@ -600,7 +628,7 @@ button:disabled {
   align-items: center;
   border: 1px solid var(--border-strong);
   border-radius: 12px;
-  background: #0b0b10;
+  background: var(--surface-input);
   box-shadow: 0 16px 60px rgba(0, 0, 0, 0.2);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -750,7 +778,7 @@ button:disabled {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0b0b10;
+  background: var(--surface-input);
   transition: border-color 150ms ease;
 }
 
@@ -764,7 +792,7 @@ button:disabled {
   height: 44px;
   place-items: center;
   border-right: 1px solid var(--border);
-  color: #77717f;
+  color: var(--accent-soft);
 }
 
 .price-input-shell input {
@@ -832,7 +860,7 @@ button:disabled {
 }
 
 .stock-toggle input:checked + .toggle-track span {
-  background: #cfbcff;
+  background: var(--accent-soft);
   transform: translateX(14px);
 }
 
@@ -858,12 +886,12 @@ button:disabled {
 
 .primary-button {
   border: 1px solid rgba(173, 139, 255, 0.4);
-  background: #7550d6;
+  background: var(--accent-action);
   color: #fff;
 }
 
 .primary-button:not(:disabled):hover {
-  background: #845de4;
+  background: var(--accent-action-hover);
 }
 
 .secondary-button {
@@ -947,23 +975,10 @@ button:disabled {
   isolation: isolate;
 }
 
-.product-art::before,
 .product-art::after {
   position: absolute;
   content: "";
   pointer-events: none;
-}
-
-.product-art::before {
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 22px 22px;
-  mask-image: linear-gradient(to bottom, #000, transparent 85%);
-}
-
-.product-art::after {
   width: 64%;
   aspect-ratio: 1;
   border: 1px solid hsl(var(--art-hue) 78% 72% / 0.26);
@@ -982,12 +997,6 @@ button:disabled {
   transform: rotate(calc(var(--art-tilt) + 36deg));
 }
 
-.product-art-3::before {
-  background-size: 14px 14px;
-  transform: rotate(11deg) scale(1.2);
-}
-
-.product-art-image::before,
 .product-art-image::after {
   display: none;
 }
@@ -1049,7 +1058,7 @@ button:disabled {
 }
 
 .card-title-row > strong {
-  color: #d8cbf5;
+  color: var(--accent-soft);
   font-family: "Cascadia Mono", monospace;
   font-size: 0.68rem;
   font-weight: 580;
@@ -1098,7 +1107,7 @@ button:disabled {
 }
 
 .manual-delivery {
-  color: #ffc170;
+  color: var(--warning);
 }
 
 .detail-button {
@@ -1112,7 +1121,7 @@ button:disabled {
 .detail-button:hover {
   border-color: rgba(173, 139, 255, 0.35);
   background: rgba(139, 92, 246, 0.07);
-  color: #e7ddff;
+  color: var(--accent-soft);
 }
 
 .skeleton-card {
@@ -1194,7 +1203,7 @@ button:disabled {
   z-index: 90;
   inset: 0;
   background: rgba(0, 0, 0, 0.76);
-  animation: overlay-in 150ms ease-out;
+  animation: overlay-in 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .dialog-content {
@@ -1211,7 +1220,7 @@ button:disabled {
   background: #0d0d12;
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.6);
   transform: translate(-50%, -50%);
-  animation: dialog-in 170ms ease-out;
+  animation: dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .feedback-dialog {
@@ -1256,9 +1265,9 @@ button:disabled {
 }
 
 .feedback-dialog-close {
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
 }
 
 .feedback-dialog-copy {
@@ -1327,29 +1336,29 @@ button:disabled {
 
 .feedback-dialog-button-danger {
   background: var(--danger);
-  color: #260b13;
+  color: var(--danger-ink);
 }
 
 .feedback-dialog-button-danger:hover:not(:disabled) {
-  background: #ffb0bb;
+  background: var(--danger-strong);
 }
 
 .feedback-dialog-button-warning {
-  background: #eec56c;
-  color: #211705;
+  background: var(--warning-strong);
+  color: var(--warning-ink);
 }
 
 .feedback-dialog-button-warning:hover:not(:disabled) {
-  background: #f5d890;
+  background: var(--warning-hover);
 }
 
 .feedback-dialog-button-success {
   background: var(--success);
-  color: #082116;
+  color: var(--success-ink);
 }
 
 .feedback-dialog-button-success:hover:not(:disabled) {
-  background: #94e5bb;
+  background: var(--success-strong);
 }
 
 .feedback-dialog-button:disabled {
@@ -1414,8 +1423,9 @@ button:disabled {
   border-right: 0;
   border-bottom: 0;
   border-radius: 0;
+  padding-bottom: env(safe-area-inset-bottom);
   transform: none;
-  animation: drawer-in 200ms ease-out;
+  animation: drawer-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .cart-list {
@@ -1471,9 +1481,9 @@ button:disabled {
 
 .cart-quantity-controls button {
   display: grid;
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1482,6 +1492,7 @@ button:disabled {
   cursor: pointer;
   font-size: 0.85rem;
   line-height: 1;
+  touch-action: manipulation;
 }
 
 .cart-quantity-controls button:hover:not(:disabled) {
@@ -1529,15 +1540,16 @@ button:disabled {
 
 .cart-remove-button {
   display: grid;
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: transparent;
   color: var(--muted-strong);
   font-size: 1.1rem;
+  touch-action: manipulation;
 }
 
 .cart-remove-button:hover:not(:disabled) {
@@ -1552,7 +1564,7 @@ button:disabled {
   border: 1px solid rgba(255, 196, 108, 0.28);
   border-radius: 9px;
   background: rgba(255, 196, 108, 0.08);
-  color: #f4d99d;
+  color: var(--warning-soft);
   font-size: 0.76rem;
   line-height: 1.55;
   overflow-wrap: anywhere;
@@ -1698,12 +1710,13 @@ button:disabled {
 }
 
 .payment-dialog .icon-button {
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   border: 0;
   color: var(--muted);
   font-size: 1.15rem;
+  touch-action: manipulation;
 }
 
 .payment-dialog .icon-button:hover {
@@ -1947,6 +1960,12 @@ button:disabled {
   white-space: nowrap;
 }
 
+.payment-copy-button[data-copied="true"] {
+  animation: payment-copy-confirm 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  border-color: var(--success);
+  background: rgba(112, 214, 160, 0.14);
+}
+
 .payment-copy-button:hover {
   background: rgba(112, 214, 160, 0.14);
 }
@@ -2066,7 +2085,7 @@ button:disabled {
 .payment-check-button,
 .payment-dismiss-button {
   display: inline-flex;
-  min-height: 38px;
+  min-height: 44px;
   min-width: 0;
   align-items: center;
   justify-content: center;
@@ -2089,7 +2108,7 @@ button:disabled {
 
 .payment-cancel-button {
   display: inline-flex;
-  min-height: 38px;
+  min-height: 44px;
   min-width: 0;
   align-items: center;
   justify-content: center;
@@ -2228,13 +2247,67 @@ button:disabled {
 .payment-method-dialog {
   width: min(calc(100vw - 32px), 620px);
   padding: 0;
-  background: #0b080d;
+  background: var(--surface-dialog);
 }
 
 .payment-method-body {
   display: grid;
   gap: 18px;
   padding: 25px;
+}
+
+.truewallet-form {
+  display: grid;
+  gap: 8px;
+  padding: 15px;
+  border: 1px solid rgba(173, 139, 255, 0.3);
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.truewallet-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.truewallet-form input:focus-visible {
+  border-color: var(--accent-bright);
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.truewallet-form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.truewallet-payment-dialog {
+  width: min(calc(100vw - 32px), 560px);
+}
+
+.truewallet-payment-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.truewallet-payment-body .payment-amount-card {
+  margin: 0;
+}
+
+.truewallet-payment-body .payment-state-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .payment-refund-notice {
@@ -2246,7 +2319,7 @@ button:disabled {
   border: 1px solid rgba(255, 142, 158, 0.38);
   border-radius: 10px;
   background: rgba(255, 142, 158, 0.1);
-  color: #ffd2d9;
+  color: var(--danger-soft);
 }
 
 .payment-refund-notice-icon {
@@ -2256,7 +2329,7 @@ button:disabled {
   place-items: center;
   border-radius: 50%;
   background: var(--danger);
-  color: #330b14;
+  color: var(--danger-ink);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -2281,7 +2354,7 @@ button:disabled {
 }
 
 .payment-refund-notice button:hover {
-  color: #ffb0bb;
+  color: var(--danger-strong);
 }
 
 .payment-method-options {
@@ -2472,7 +2545,7 @@ button:disabled {
   border: 1px solid rgba(255, 142, 158, 0.52);
   border-radius: 11px;
   background: rgba(255, 142, 158, 0.1);
-  color: #ffd2d9;
+  color: var(--danger-soft);
 }
 
 .refund-steps-warning-icon {
@@ -2482,7 +2555,7 @@ button:disabled {
   place-items: center;
   border-radius: 50%;
   background: var(--danger);
-  color: #330b14;
+  color: var(--danger-ink);
   font-weight: 800;
 }
 
@@ -2534,7 +2607,7 @@ button:disabled {
 }
 
 .refund-step-number-blue {
-  background: #2e74e8;
+  background: var(--info-strong);
 }
 
 .refund-step-number-violet {
@@ -2542,7 +2615,7 @@ button:disabled {
 }
 
 .refund-step-number-green {
-  background: #0ca978;
+  background: var(--success-deep);
 }
 
 .refund-step-copy {
@@ -2575,11 +2648,11 @@ button:disabled {
   border: 1px solid rgba(91, 159, 255, 0.5);
   border-radius: 11px;
   background: rgba(91, 159, 255, 0.1);
-  color: #c9e0ff;
+  color: var(--info-soft);
 }
 
 .refund-steps-note-icon {
-  color: #6eaaff;
+  color: var(--info);
   font-size: 1.25rem;
   line-height: 1;
 }
@@ -2625,8 +2698,9 @@ button:disabled {
   border-bottom: 0;
   border-left: 0;
   border-radius: 18px 18px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
   transform: none;
-  animation: sheet-in 200ms ease-out;
+  animation: sheet-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .mobile-filter-form {
@@ -2651,7 +2725,7 @@ button:disabled {
 .option-chooser-dialog {
   width: min(calc(100vw - 32px), 760px);
   padding: 0;
-  background: #0b080d;
+  background: var(--surface-dialog);
 }
 
 .option-chooser-header {
@@ -2793,7 +2867,7 @@ button:disabled {
 
 .dialog-price {
   margin: 24px 0;
-  color: #d7c7f8;
+  color: var(--accent-soft);
   font-family: "Cascadia Mono", monospace;
   font-size: 1.15rem;
 }
@@ -3121,6 +3195,36 @@ button:disabled {
 @keyframes skeleton-shift {
   to {
     background-position-x: -200%;
+  }
+}
+
+@keyframes cart-count-pop {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.76);
+  }
+
+  65% {
+    transform: scale(1.12);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes payment-copy-confirm {
+  0% {
+    transform: scale(0.96);
+  }
+
+  60% {
+    transform: scale(1.04);
+  }
+
+  100% {
+    transform: scale(1);
   }
 }
 
@@ -3455,6 +3559,14 @@ button:disabled {
 @media (max-width: 359px) {
   .cart-label {
     display: none;
+  }
+}
+
+@media (hover: none) {
+  .product-card:hover,
+  .payment-method-option:hover:not(:disabled),
+  .option-choice-card:hover {
+    transform: none;
   }
 }
 
@@ -4488,7 +4600,7 @@ button:disabled {
 
 .admin-status.inactive {
   background: rgba(255, 193, 112, 0.14);
-  color: #ffc170;
+  color: var(--warning);
 }
 
 .admin-status.hidden {
@@ -4502,7 +4614,7 @@ button:disabled {
   padding: 3px 6px;
   border-radius: 999px;
   background: rgba(255, 193, 112, 0.14);
-  color: #ffc170;
+  color: var(--warning);
   font-size: 0.64rem;
   font-weight: 700;
 }
@@ -4756,7 +4868,7 @@ button:disabled {
 .admin-status-reserved {
   border-color: rgba(255, 193, 112, 0.32);
   background: rgba(255, 193, 112, 0.1);
-  color: #ffc170;
+  color: var(--warning);
 }
 
 .admin-status-delivered {
@@ -4790,8 +4902,105 @@ button:disabled {
   border: 1px solid rgba(255, 193, 112, 0.28);
   border-radius: 9px;
   background: rgba(255, 193, 112, 0.06);
-  color: #ffc170;
+  color: var(--warning);
   overflow-wrap: anywhere;
+}
+
+/* Fulfillment task workspace: configuration and operations stay separate. */
+.admin-fulfillment-console [hidden],
+.admin-fulfillment-console .admin-select-value > span,
+.admin-fulfillment-console .admin-select-option-title > em {
+  display: none !important;
+}
+
+.admin-fulfillment-workflow,
+.admin-fulfillment-guide {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.admin-fulfillment-guide {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+
+.admin-fulfillment-guide h2,
+.admin-fulfillment-guide p {
+  margin: 0;
+}
+
+.admin-fulfillment-console .admin-fulfillment-task-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-fulfillment-console .admin-fulfillment-task-nav button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-fulfillment-console .admin-fulfillment-task-nav button[aria-pressed="true"] {
+  border-color: var(--accent-bright);
+  background: var(--surface-raised);
+  box-shadow: inset 3px 0 var(--accent-bright);
+}
+
+.admin-fulfillment-console .admin-fulfillment-task-nav button:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+}
+
+.admin-fulfillment-console .admin-fulfillment-task-nav button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-fulfillment-console .admin-fulfillment-grid[data-task="setup"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-fulfillment-console .admin-fulfillment-sidebar {
+  position: static;
+}
+
+.admin-fulfillment-console .admin-card-heading {
+  flex-wrap: wrap;
+}
+
+.admin-fulfillment-console .admin-fulfillment-prerequisite {
+  margin: 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--warning);
+  color: var(--warning);
+}
+
+.admin-fulfillment-console .admin-fulfillment-inventory-item {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1199px) {
+  .admin-fulfillment-console .admin-fulfillment-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-fulfillment-console .admin-fulfillment-task-nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .customer-fulfillment-page {
@@ -4878,7 +5087,7 @@ button:disabled {
 .customer-fulfillment-status-pending {
   border-color: rgba(255, 193, 112, 0.32);
   background: rgba(255, 193, 112, 0.1);
-  color: #ffc170;
+  color: var(--warning);
 }
 
 .customer-fulfillment-status-failed,
@@ -5152,12 +5361,29 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  html {
     scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  }
+
+  .skeleton-art,
+  .skeleton-line,
+  .cart-loading-line {
+    animation: none !important;
+    background-position: 0 0;
+  }
+
+  .dialog-overlay,
+  .dialog-content,
+  .cart-drawer,
+  .filter-drawer,
+  .cart-count[data-has-items="true"],
+  .payment-copy-button[data-copied="true"] {
+    animation: none !important;
+  }
+
+  .product-card:hover,
+  .payment-method-option:hover:not(:disabled),
+  .option-choice-card:hover {
+    transform: none;
   }
 }

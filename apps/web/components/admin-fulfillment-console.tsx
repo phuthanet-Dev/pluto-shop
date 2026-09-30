@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { profileWriteSchema, profileValidationMessage } from "@/lib/fulfillment-profile-validation";
+import { AdminSelect } from "@/components/admin/admin-select";
+import { AdminDisclosure } from "@/components/admin/admin-disclosure";
+import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 
 import {
   addAdminInventory,
@@ -23,12 +27,12 @@ import {
   type SecureInventoryWrite,
 } from "@/lib/admin-fulfillment";
 
-const fulfillmentTypeOptions: ReadonlyArray<{ value: FulfillmentType; label: string }> = [
-  { value: "NONE", label: "ไม่มี fulfillment อัตโนมัติ" },
-  { value: "DISCORD_ACCOUNT", label: "Discord account (email/password)" },
-  { value: "LICENSE_KEY", label: "License key" },
-  { value: "INVITE_URL", label: "Invite URL" },
-  { value: "REDEEM_CODE", label: "Redeem code" },
+const fulfillmentTypeOptions: ReadonlyArray<{ value: FulfillmentType; label: string; hideValue?: boolean }> = [
+  { value: "NONE", label: "ยังไม่กำหนดข้อมูลส่งมอบ" },
+  { value: "DISCORD_ACCOUNT", label: "อีเมล / รหัสผ่าน", hideValue: true },
+  { value: "LICENSE_KEY", label: "คีย์สิทธิ์ใช้งาน (License key)" },
+  { value: "INVITE_URL", label: "ลิงก์คำเชิญ (Invite URL)" },
+  { value: "REDEEM_CODE", label: "รหัสแลกรับ (Redeem code)" },
   { value: "MANUAL_INSTRUCTION", label: "ขั้นตอนดำเนินการด้วยตนเอง" },
 ];
 
@@ -52,9 +56,9 @@ function parseProductId(value: string): number | null {
 }
 
 function fieldLabel(type: FulfillmentType): string {
-  if (type === "LICENSE_KEY") return "License key";
-  if (type === "INVITE_URL") return "Invite URL";
-  if (type === "REDEEM_CODE") return "Redeem code";
+  if (type === "LICENSE_KEY") return "คีย์สิทธิ์ใช้งาน (License key)";
+  if (type === "INVITE_URL") return "ลิงก์คำเชิญ (Invite URL)";
+  if (type === "REDEEM_CODE") return "รหัสแลกรับ (Redeem code)";
   return "ข้อมูลลับ";
 }
 
@@ -124,8 +128,19 @@ function toBulkInventoryRequests(
   return null;
 }
 
-export function AdminFulfillmentConsole() {
-  const [productIdText, setProductIdText] = useState("");
+export function AdminFulfillmentConsole({ initialProduct, onNavigationStateChange }: {
+  initialProduct?: { id: number; nameTh: string };
+  onNavigationStateChange?: (state: { dirty: boolean; busy: boolean }) => void;
+} = {}) {
+  const epoch = useRef(0);
+  const [task, setTask] = useState<"setup" | "stock">("setup");
+  const [inventoryToolsOpen, setInventoryToolsOpen] = useState(false);
+  const [secretEditorOpen, setSecretEditorOpen] = useState(false);
+  const [importMode, setImportMode] = useState<"single" | "batch">("single");
+  const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null);
+  const [confirmation, setConfirmation] = useState<{ description: string; run: () => Promise<void> } | null>(null);
+  const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
+  const [productIdText, setProductIdText] = useState(initialProduct ? String(initialProduct.id) : "");
   const [fulfillmentIdText, setFulfillmentIdText] = useState("");
   const [profile, setProfile] = useState<AdminFulfillmentProfile | null>(null);
   const [inventory, setInventory] = useState<FulfillmentInventoryItem[]>([]);
@@ -144,14 +159,44 @@ export function AdminFulfillmentConsole() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const productId = parseProductId(productIdText);
+  const productId = loadedProductId;
+  useEffect(() => () => { epoch.current += 1; }, []);
+  const secretDirty = Boolean(email || password || secretValue || bulkValues || region);
+  const profileDirty = profile !== null && (type !== profile.fulfillmentType || provider !== (profile.provider ?? "") || JSON.stringify(steps) !== JSON.stringify(profile.steps.map(toStepWrite)));
+  const dirty = secretDirty || profileDirty;
+  useEffect(() => { onNavigationStateChange?.({ dirty, busy: busy || loading }); }, [dirty, busy, loading, onNavigationStateChange]);
+  function clearSecrets() {
+    setEmail(""); setPassword(""); setSecretValue(""); setBulkValues(""); setRegion(""); setRevealed({});
+  }
+  function requestDiscard(action: () => void, hasChanges = dirty) {
+    if (busy) return;
+    if (hasChanges) setPendingDiscard(() => action);
+    else action();
+  }
+  function confirmAction(description: string, run: () => Promise<void>) {
+    if (busy || loading) return;
+    setConfirmation({ description, run });
+  }
+  function clearProduct() {
+    epoch.current += 1;
+    setTask("setup"); setInventoryToolsOpen(false);
+    setSecretEditorOpen(false); setConfirmation(null);
+    setLoadedProductId(null); setProfile(null); setInventory([]); setRevealed({});
+    setEmail(""); setPassword(""); setSecretValue(""); setBulkValues(""); setRegion("");
+    setType("NONE"); setProvider(""); setSteps([]); setLoading(false);
+    setError(null); setNotice(null);
+  }
   const fulfillmentId = parseProductId(fulfillmentIdText);
   const secureType = type !== "NONE" && type !== "MANUAL_INSTRUCTION";
 
   async function loadProduct() {
+    if (busy) return;
+    clearProduct();
+    const requestEpoch = epoch.current;
+    const productId = parseProductId(productIdText);
     setRevealed({});
     if (!productId) {
-      setError("กรุณาระบุรหัสสินค้า/child ที่ถูกต้อง");
+      setError("กรุณาระบุรหัสสินค้า (SKU) ที่ถูกต้อง");
       return;
     }
     setLoading(true);
@@ -163,45 +208,63 @@ export function AdminFulfillmentConsole() {
         fetchAdminFulfillmentProfile(productId),
         fetchAdminInventory(productId),
       ]);
+      if (requestEpoch !== epoch.current) return;
+      if (loadedProfile.productId !== productId) throw new Error("รหัสสินค้าในการตอบกลับไม่ตรงกับ SKU ที่ขอ");
+      setLoadedProductId(productId);
       setProfile(loadedProfile);
       setType(loadedProfile.fulfillmentType);
       setProvider(loadedProfile.provider ?? "");
       setSteps(loadedProfile.steps.map(toStepWrite));
       setInventory(loadedInventory.items);
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถโหลด fulfillment ได้");
     } finally {
-      setLoading(false);
+      if (requestEpoch === epoch.current) setLoading(false);
     }
   }
 
   async function saveProfile() {
+    if (busy || loading) return;
+    const requestEpoch = epoch.current;
     if (!productId || !profile) return;
     setBusy(true);
     setError(null);
     setNotice(null);
     const request: AdminFulfillmentProfileWrite = {
       fulfillmentType: type,
-      provider: type === "NONE" ? null : provider,
+      // Keep persisted provider identity; DISCORD is the legacy account storage tag.
+      provider: type === "NONE" ? null : type === "DISCORD_ACCOUNT" ? (profile.fulfillmentType === type ? profile.provider : "DISCORD") : (provider.trim() ? provider : null),
       payloadSchemaVersion: 1,
       version: profile.version,
       steps,
     };
+    const validation = profileWriteSchema.safeParse(request);
+    if (!validation.success) {
+      setError(validation.error.issues.map((issue) => profileValidationMessage(issue.path)).join(" • "));
+      setBusy(false);
+      return;
+    }
     try {
       const saved = await updateAdminFulfillmentProfile(productId, request);
+      if (requestEpoch !== epoch.current) return;
+      if (saved.productId !== productId) throw new Error("รหัสสินค้าในการตอบกลับไม่ตรงกับ SKU ที่บันทึก กรุณาโหลดใหม่");
       setProfile(saved);
       setType(saved.fulfillmentType);
       setProvider(saved.provider ?? "");
       setSteps(saved.steps.map(toStepWrite));
       setNotice("บันทึก fulfillment profile แล้ว");
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถบันทึก fulfillment profile ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function addInventoryItem() {
+    if (busy || loading || profileDirty) return;
+    const requestEpoch = epoch.current;
     if (!productId || !secureType || !profile) return;
     const request = toInventoryRequest(type, provider, email, password, secretValue, region);
     if (!request) return;
@@ -210,10 +273,15 @@ export function AdminFulfillmentConsole() {
     setNotice(null);
     try {
       await addAdminInventory(productId, request);
+      if (requestEpoch !== epoch.current) return;
+      // The write committed independently of the summary refresh.
+      clearSecrets();
+      setNotice("บันทึกข้อมูลส่งมอบแล้ว หากโหลดสรุปไม่สำเร็จให้โหลดใหม่ ไม่ต้องเพิ่มซ้ำ");
       const [loadedProfile, loadedInventory] = await Promise.all([
         fetchAdminFulfillmentProfile(productId),
         fetchAdminInventory(productId),
       ]);
+      if (requestEpoch !== epoch.current) return;
       setProfile(loadedProfile);
       setInventory(loadedInventory.items);
       setEmail("");
@@ -221,13 +289,16 @@ export function AdminFulfillmentConsole() {
       setSecretValue("");
       setNotice("เพิ่ม inventory แบบเข้ารหัสแล้ว");
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถเพิ่ม inventory ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function importInventoryBatch() {
+    if (busy || loading || profileDirty) return;
+    const requestEpoch = epoch.current;
     if (!productId || !secureType || !profile) return;
     const requests = toBulkInventoryRequests(type, provider, bulkValues, region);
     if (!requests) {
@@ -238,51 +309,70 @@ export function AdminFulfillmentConsole() {
     setError(null);
     setNotice(null);
     try {
-      const [loadedInventory, loadedProfile] = await Promise.all([
-        importAdminInventory(productId, requests),
-        fetchAdminFulfillmentProfile(productId),
-      ]);
+      const loadedInventory = await importAdminInventory(productId, requests);
+      if (requestEpoch !== epoch.current) return;
+      // The import has committed even when the following summary refresh fails.
+      clearSecrets();
+      setNotice(`นำเข้าข้อมูล ${requests.length} รายการแล้ว ไม่ต้องนำเข้าซ้ำ`);
+      setInventory(loadedInventory.items);
+      const loadedProfile = await fetchAdminFulfillmentProfile(productId);
+      if (requestEpoch !== epoch.current) return;
       setProfile(loadedProfile);
       setInventory(loadedInventory.items);
       setBulkValues("");
       setNotice(`นำเข้า inventory ${requests.length} รายการแบบเข้ารหัสแล้ว`);
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถนำเข้า inventory ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function revealItem(item: FulfillmentInventoryItem) {
-    if (!productId) return;
+    if (busy || loading) return;
+    const requestEpoch = epoch.current;
+    if (!productId || !profile) return;
     setBusy(true);
     setError(null);
     try {
       const result = await revealAdminInventory(productId, item.id, revealReason);
+      if (requestEpoch !== epoch.current) return;
+      if (result.inventoryItemId !== item.id || result.fulfillmentType !== item.fulfillmentType || result.provider !== item.provider) {
+        throw new Error("ข้อมูลตอบกลับไม่ตรงกับรายการที่ขอเปิดเผย");
+      }
       setRevealed((current) => ({ ...current, [item.id]: result }));
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถเปิดเผยข้อมูลรายการได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function revokeItem(item: FulfillmentInventoryItem) {
-    if (!productId) return;
+    if (busy || loading) return;
+    const requestEpoch = epoch.current;
+    if (!productId || !profile) return;
     setBusy(true);
     setError(null);
     try {
       const updated = await revokeAdminInventory(productId, item.id, revealReason);
+      if (requestEpoch !== epoch.current) return;
+      setRevealed({});
       setInventory((current) => current.map((candidate) => candidate.id === item.id ? updated : candidate));
       setNotice(`ยกเลิก inventory #${item.id} แล้ว`);
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถยกเลิก inventory ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function markManualFulfillmentReady() {
+    if (busy || loading) return;
+    const requestEpoch = epoch.current;
     if (!fulfillmentId) {
       setError("กรุณาระบุรหัส fulfillment ที่ถูกต้อง");
       return;
@@ -292,30 +382,39 @@ export function AdminFulfillmentConsole() {
     setNotice(null);
     try {
       const result = await markAdminFulfillmentReady(fulfillmentId);
+      if (requestEpoch !== epoch.current) return;
       setNotice(`manual fulfillment #${result.fulfillmentId} พร้อมส่งมอบแล้ว`);
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถเตรียม manual fulfillment ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function quarantineItem(item: FulfillmentInventoryItem) {
-    if (!productId) return;
+    if (busy || loading) return;
+    const requestEpoch = epoch.current;
+    if (!productId || !profile) return;
     setBusy(true);
     setError(null);
     try {
       const updated = await quarantineAdminInventory(productId, item.id, revealReason);
+      if (requestEpoch !== epoch.current) return;
+      setRevealed({});
       setInventory((current) => current.map((candidate) => candidate.id === item.id ? updated : candidate));
       setNotice(`กักกัน inventory #${item.id} แล้ว`);
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถกักกัน inventory ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
   }
 
   async function retryFulfillment() {
+    if (busy || loading) return;
+    const requestEpoch = epoch.current;
     if (!fulfillmentId) {
       setError("กรุณาระบุรหัส fulfillment ที่ถูกต้อง");
       return;
@@ -325,66 +424,91 @@ export function AdminFulfillmentConsole() {
     setNotice(null);
     try {
       const result = await retryAdminFulfillment(fulfillmentId);
+      if (requestEpoch !== epoch.current) return;
       setNotice(`เริ่ม retry fulfillment #${result.fulfillmentId} แล้ว`);
     } catch (caught) {
+      if (requestEpoch !== epoch.current) return;
       setError(caught instanceof Error ? caught.message : "ไม่สามารถ retry fulfillment ได้");
     } finally {
-      setBusy(false);
+      if (requestEpoch === epoch.current) setBusy(false);
     }
+  }
+
+  function switchTask(next: "setup" | "stock") {
+    if (next === task || busy || loading || (next === "stock" && profileDirty)) return;
+    requestDiscard(() => {
+      clearSecrets(); setSecretEditorOpen(false); setInventoryToolsOpen(false); setTask(next);
+    }, secretDirty);
   }
 
   return (
     <section className="admin-fulfillment-console" aria-labelledby="admin-fulfillment-title">
       <div className="admin-section-heading">
         <div>
-          <span className="admin-eyebrow">SECURE DELIVERY</span>
-          <h2 id="admin-fulfillment-title">Fulfillment ของสินค้า / child</h2>
-          <p>กำหนดรูปแบบข้อมูลต่อ SKU และจัดการ inventory ที่เข้ารหัสแยกจาก catalog</p>
+          <h1 id="admin-fulfillment-title">{productId ? `การส่งมอบ: ${initialProduct?.id === productId ? initialProduct.nameTh : "สินค้า"} · SKU #${productId}` : "การส่งมอบ"}</h1>
+          <p>เริ่มที่เมนูสินค้า → เปิดสินค้าที่ต้องการ → จัดการการส่งมอบ แล้วโหลดข้อมูลด้านล่าง</p>
         </div>
       </div>
 
+      {!profile ? <div className="admin-fulfillment-guide">
+        <h2>1. เลือกสินค้า</h2>
+        <p>{initialProduct && initialProduct.id === parseProductId(productIdText) ? `เลือกแล้ว: ${initialProduct.nameTh} · SKU #${initialProduct.id}` : "เลือกจากเมนูสินค้าเพื่อไม่ต้องจำรหัส หรือระบุ SKU ที่ทราบด้านล่าง"}</p>
+        <p>2. ตั้งค่าสิ่งที่ลูกค้าได้รับ → 3. เติมคลังส่งมอบ</p>
+      </div> : null}
       <div className="admin-fulfillment-loader">
-        <label htmlFor="admin-fulfillment-product-id">รหัสสินค้า/child</label>
+        <label htmlFor="admin-fulfillment-product-id">รหัสสินค้า (SKU)</label>
         <input
           id="admin-fulfillment-product-id"
+          disabled={busy || confirmation !== null}
           value={productIdText}
           onChange={(event) => {
-            setProductIdText(event.target.value);
-            setRevealed({});
+            if (busy) return;
+            const value = event.target.value;
+            requestDiscard(() => { clearProduct(); setProductIdText(value); });
           }}
           inputMode="numeric"
           placeholder="เช่น 37"
         />
-        <button type="button" className="primary-button" onClick={loadProduct} disabled={loading}>
-          {loading ? "กำลังโหลด…" : "โหลดข้อมูล fulfillment"}
+        <button type="button" className="primary-button" onClick={() => requestDiscard(() => void loadProduct())} disabled={busy || loading}>
+          {loading ? "กำลังโหลด…" : "โหลดการส่งมอบ"}
         </button>
       </div>
 
       {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
       {notice ? <p className="admin-form-notice" role="status">{notice}</p> : null}
 
+      <FeedbackDialog open={pendingDiscard !== null} onOpenChange={(open) => { if (!open) setPendingDiscard(null); }} title="ละทิ้งการแก้ไข?" description="ข้อมูลที่ยังไม่บันทึกและข้อมูลลับในส่วนที่ปิดจะถูกล้าง การบันทึกที่เสร็จแล้วจะไม่ถูกย้อนกลับ" closeLabel="ปิดคำยืนยัน" cancelLabel="แก้ไขต่อ" confirmLabel="ละทิ้งการแก้ไข" tone="warning" busy={busy} onConfirm={() => { if (!busy) { pendingDiscard?.(); setPendingDiscard(null); } }} />
+      <FeedbackDialog open={confirmation !== null} onOpenChange={(open) => { if (!open) setConfirmation(null); }} title="ยืนยันการดำเนินการ" description={confirmation?.description ?? ""} closeLabel="ปิดคำยืนยัน" cancelLabel="ยกเลิกการดำเนินการ" confirmLabel="ยืนยันดำเนินการ" tone="warning" busy={busy} onConfirm={async () => { if (!busy) { await confirmation?.run(); setConfirmation(null); } }} />
+      <fieldset className="admin-form-fields" disabled={busy || loading}>
       {profile ? (
-        <div className="admin-fulfillment-grid">
+        <div className="admin-fulfillment-workflow">
+          <div className="admin-fulfillment-task-nav" role="group" aria-label="งานส่งมอบของสินค้า">
+            <button type="button" aria-pressed={task === "setup"} onClick={() => switchTask("setup")}>ตั้งค่าสิ่งที่ลูกค้าได้รับ</button>
+            <button type="button" aria-pressed={task === "stock"} disabled={profileDirty} onClick={() => switchTask("stock")}>จัดการคลังส่งมอบ</button>
+          </div>
+          <p className="admin-fulfillment-muted">ชำระเงินสำเร็จไม่ได้แปลว่าส่งมอบแล้ว วิธีส่งทันทีหรือให้ผู้ดูแลตรวจสอบตั้งค่าที่เมนูสินค้า ไม่ใช่ชนิดข้อมูลด้านล่าง</p>
+          {profileDirty ? <p className="admin-fulfillment-prerequisite" role="status">บันทึกรูปแบบการส่งมอบก่อนเพิ่มข้อมูลเข้าคลัง</p> : null}
+          <div className="admin-fulfillment-grid" data-task={task}>
           <div className="admin-fulfillment-main">
-            <section className="admin-fulfillment-card" aria-labelledby="admin-fulfillment-profile-title">
+            <section className="admin-fulfillment-card" hidden={task !== "setup"} aria-labelledby="admin-fulfillment-profile-title">
               <div className="admin-card-heading">
                 <div>
-                  <span className="admin-eyebrow">PROFILE</span>
-                  <h3 id="admin-fulfillment-profile-title">รูปแบบข้อมูลและขั้นตอน</h3>
+                  <h3 id="admin-fulfillment-profile-title">2. ตั้งค่าสิ่งที่ลูกค้าได้รับ</h3>
                 </div>
                 <span className="admin-fulfillment-version">v{profile.version}</span>
               </div>
-              <label htmlFor="admin-fulfillment-type">ชนิด fulfillment</label>
-              <select id="admin-fulfillment-type" value={type} onChange={(event) => setType(event.target.value as FulfillmentType)}>
-                {fulfillmentTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-              <label htmlFor="admin-fulfillment-provider">Provider</label>
-              <input id="admin-fulfillment-provider" value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="เช่น DISCORD" />
+              <p className="admin-fulfillment-muted">เลือกว่าแต่ละรายการจะมอบบัญชี คีย์ ลิงก์ หรือคำแนะนำให้ลูกค้า แล้วบันทึกก่อนเติมคลัง</p>
+              <AdminSelect disabled={busy || loading || task !== "setup"} label="ชนิดข้อมูลที่ลูกค้าได้รับ" value={type} options={fulfillmentTypeOptions} onChange={(value) => requestDiscard(() => { clearSecrets(); setType(value); }, secretDirty)} />
+              {type !== "DISCORD_ACCOUNT" ? <>
+                <label htmlFor="admin-fulfillment-provider">ผู้ให้บริการ</label>
+                <input id="admin-fulfillment-provider" value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="รหัสผู้ให้บริการ" />
+              </> : null}
 
+              <AdminDisclosure title="คำแนะนำเพิ่มเติมสำหรับลูกค้าและผู้ดูแล">
               <div className="admin-fulfillment-steps-heading">
                 <div>
-                  <h4>Customer steps / Operator steps</h4>
-                  <p>ขั้นตอนจะถูก snapshot ตอนสร้าง order และจะไม่รวมข้อมูลลับ</p>
+                  <h4>ขั้นตอนสำหรับลูกค้าและผู้ดูแล</h4>
+                  <p>ขั้นตอนจะถูกบันทึกเป็นสำเนาเมื่อสร้างคำสั่งซื้อ โดยไม่รวมข้อมูลลับ</p>
                 </div>
                 <button type="button" className="secondary-button" onClick={() => setSteps((current) => [...current, { ...emptyStep(), stepOrder: current.length + 1 }])}>
                   เพิ่มขั้นตอน
@@ -394,15 +518,7 @@ export function AdminFulfillmentConsole() {
                 {steps.map((step, index) => (
                   <fieldset className="admin-fulfillment-step" key={`${step.audience}-${index}`}>
                     <legend>ขั้นตอนที่ {index + 1}</legend>
-                    <label htmlFor={`fulfillment-step-audience-${index}`}>ผู้เห็นขั้นตอน</label>
-                    <select
-                      id={`fulfillment-step-audience-${index}`}
-                      value={step.audience}
-                      onChange={(event) => setSteps((current) => current.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, audience: event.target.value as "CUSTOMER" | "OPERATOR" } : candidate))}
-                    >
-                      <option value="CUSTOMER">CUSTOMER</option>
-                      <option value="OPERATOR">OPERATOR</option>
-                    </select>
+                    <AdminSelect disabled={busy || loading} label={`ผู้เห็นขั้นตอนที่ ${index + 1}`} value={step.audience} options={[{ value: "CUSTOMER", label: "ลูกค้า" }, { value: "OPERATOR", label: "ผู้ดูแล" }]} onChange={(value) => setSteps((current) => current.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, audience: value } : candidate))} />
                     <label htmlFor={`fulfillment-step-title-th-${index}`}>หัวข้อไทย</label>
                     <input id={`fulfillment-step-title-th-${index}`} value={step.titleTh} onChange={(event) => setSteps((current) => current.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, titleTh: event.target.value } : candidate))} />
                     <label htmlFor={`fulfillment-step-title-en-${index}`}>หัวข้ออังกฤษ</label>
@@ -415,37 +531,40 @@ export function AdminFulfillmentConsole() {
                   </fieldset>
                 ))}
               </div>
-              <button type="button" className="primary-button" onClick={saveProfile} disabled={busy}>บันทึก profile</button>
+              </AdminDisclosure>
+              <button type="button" className="primary-button" onClick={saveProfile} disabled={busy || loading}>บันทึกการส่งมอบ</button>
             </section>
 
-            <section className="admin-fulfillment-card" aria-labelledby="admin-fulfillment-inventory-title">
+            <section className="admin-fulfillment-card" hidden={task !== "stock"} aria-labelledby="admin-fulfillment-inventory-title">
               <div className="admin-card-heading">
                 <div>
-                  <span className="admin-eyebrow">INVENTORY</span>
-                  <h3 id="admin-fulfillment-inventory-title">เพิ่มหน่วยสินค้าลับ</h3>
+                  <h3 id="admin-fulfillment-inventory-title">3. เติมคลังส่งมอบ</h3>
                 </div>
-                <span className="admin-fulfillment-count">พร้อมขาย {profile.availableCount}</span>
+                <span className="admin-fulfillment-count">พร้อมส่งมอบ {profile.availableCount}</span>
               </div>
-              {secureType ? (
-                <div className="admin-fulfillment-reason-control">
-                  <label htmlFor="fulfillment-reveal-reason">เหตุผลเมื่อเปิดเผยข้อมูลลับ</label>
-                  <select id="fulfillment-reveal-reason" value={revealReason} onChange={(event) => setRevealReason(event.target.value)}>
-                    <option value="CUSTOMER_SUPPORT">บริการลูกค้า</option>
-                    <option value="INCIDENT_RESPONSE">ตอบสนองเหตุการณ์</option>
-                    <option value="INVENTORY_AUDIT">ตรวจสอบ inventory</option>
-                    <option value="FULFILLMENT_RECOVERY">กู้คืน fulfillment</option>
-                  </select>
-                </div>
-              ) : null}
+              <p aria-label="รูปแบบที่บันทึกแล้ว">{fulfillmentTypeOptions.find((option) => option.value === profile.fulfillmentType)?.label}{profile.provider ? ` · ${profile.provider}` : ""}</p>
+              <p className="admin-fulfillment-muted">คลังนี้เก็บข้อมูลที่ลูกค้าจะได้รับ แยกจากจำนวนสต็อกในเมนูสินค้า ใช้รูปแบบที่บันทึกแล้วเท่านั้น</p>
+              {secureType ? <button type="button" className="secondary-button" aria-expanded={secretEditorOpen} onClick={() => {
+                if (secretEditorOpen) requestDiscard(() => { clearSecrets(); setSecretEditorOpen(false); }, secretDirty);
+                else setSecretEditorOpen(true);
+              }}>{secretEditorOpen ? "ปิดเพิ่มข้อมูลส่งมอบ" : "เปิดเพิ่มข้อมูลส่งมอบ"}</button> : null}
               {!secureType ? (
-                <p className="admin-fulfillment-muted">ชนิดนี้ไม่มี encrypted inventory ให้เพิ่ม ใช้ profile และ customer steps แทน</p>
-              ) : (
+                <p className="admin-fulfillment-muted">ชนิดนี้ไม่มีคลังข้อมูลลับ ให้ตั้งค่ารูปแบบและขั้นตอนสำหรับลูกค้าแทน</p>
+              ) : secretEditorOpen ? (
                 <div className="admin-fulfillment-secret-form">
+                  {profileDirty ? <p className="admin-fulfillment-muted">บันทึกรูปแบบการส่งมอบก่อนเพิ่มข้อมูลเข้าคลัง</p> : null}
+                  <div className="admin-import-mode" role="group" aria-label="รูปแบบการเพิ่มข้อมูล">
+                    <button type="button" aria-pressed={importMode === "single"} onClick={() => { if (importMode !== "single") requestDiscard(() => { clearSecrets(); setImportMode("single"); }, secretDirty); }}>ทีละรายการ</button>
+                    <button type="button" aria-pressed={importMode === "batch"} onClick={() => { if (importMode !== "batch") requestDiscard(() => { clearSecrets(); setImportMode("batch"); }, secretDirty); }}>หลายรายการ</button>
+                  </div>
+                  <label htmlFor="fulfillment-region">ภูมิภาค (ข้อมูลไม่ลับ)</label>
+                  <input id="fulfillment-region" value={region} onChange={(event) => setRegion(event.target.value)} placeholder="เช่น GLOBAL" />
+                  {importMode === "single" ? <>
                   {type === "DISCORD_ACCOUNT" ? (
                     <>
-                      <label htmlFor="fulfillment-email">Email</label>
+                      <label htmlFor="fulfillment-email">อีเมล</label>
                       <input id="fulfillment-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" />
-                      <label htmlFor="fulfillment-password">Password</label>
+                      <label htmlFor="fulfillment-password">รหัสผ่าน</label>
                       <input id="fulfillment-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
                     </>
                   ) : (
@@ -454,9 +573,9 @@ export function AdminFulfillmentConsole() {
                       <input id="fulfillment-secret-value" type={type === "INVITE_URL" ? "url" : "password"} value={secretValue} onChange={(event) => setSecretValue(event.target.value)} autoComplete="off" />
                     </>
                   )}
-                  <label htmlFor="fulfillment-region">Metadata region (ไม่ลับ)</label>
-                  <input id="fulfillment-region" value={region} onChange={(event) => setRegion(event.target.value)} placeholder="เช่น GLOBAL" />
-                  <button type="button" className="primary-button" onClick={addInventoryItem} disabled={busy}>เพิ่ม inventory</button>
+
+                  <button type="button" className="primary-button" onClick={addInventoryItem} disabled={busy || loading || profileDirty}>เพิ่มข้อมูลส่งมอบ</button>
+                  </> : <>
                   <label htmlFor="fulfillment-bulk-values">นำเข้าหลายรายการ (หนึ่งรายการต่อบรรทัด)</label>
                   <textarea
                     id="fulfillment-bulk-values"
@@ -465,33 +584,37 @@ export function AdminFulfillmentConsole() {
                     placeholder={type === "DISCORD_ACCOUNT" ? "email<TAB>password" : "ค่าลับหนึ่งค่าต่อหนึ่งบรรทัด"}
                     autoComplete="off"
                   />
-                  <p className="admin-fulfillment-muted">Discord account ใช้ TAB คั่น email กับ password; ระบบจะ validate ทุกบรรทัดและไม่เก็บข้อมูลนี้ใน browser storage</p>
-                  <button type="button" className="secondary-button" onClick={importInventoryBatch} disabled={busy}>นำเข้าแบบ batch</button>
+                  <p className="admin-fulfillment-muted">อีเมล / รหัสผ่าน ใช้ TAB คั่นอีเมลกับรหัสผ่าน; ระบบจะ validate ทุกบรรทัดและไม่เก็บข้อมูลนี้ใน browser storage</p>
+                  <button type="button" className="secondary-button" onClick={importInventoryBatch} disabled={busy || loading || profileDirty}>นำเข้าหลายรายการ</button>
+                  </>}
                 </div>
-              )}
+              ) : null}
             </section>
           </div>
 
-          <aside className="admin-fulfillment-sidebar">
+          <aside className="admin-fulfillment-sidebar" hidden={task !== "stock"}>
             <section className="admin-fulfillment-card" aria-labelledby="admin-fulfillment-list-title">
               <div className="admin-card-heading">
                 <div>
-                  <span className="admin-eyebrow">AUDITABLE STOCK</span>
-                  <h3 id="admin-fulfillment-list-title">รายการ inventory</h3>
+                  <h3 id="admin-fulfillment-list-title">คลังข้อมูลส่งมอบ</h3>
                 </div>
                 <span className="admin-fulfillment-count">ทั้งหมด {inventory.length}</span>
               </div>
-              <p className="admin-fulfillment-muted">รายการนี้ไม่ decrypt secret และไม่แสดง ciphertext/nonce</p>
+              <p className="admin-fulfillment-muted">รายการนี้แสดงเฉพาะข้อมูลทั่วไป ไม่ถอดรหัสหรือแสดงข้อมูลที่เข้ารหัส</p>
+              <AdminDisclosure title="ตรวจสอบรายการและข้อมูลลับ" open={inventoryToolsOpen} onOpenChange={(open) => { if (!busy && !loading) { setRevealed({}); setInventoryToolsOpen(open); } }}>
+              {inventoryToolsOpen ? <>
+              <p className="admin-fulfillment-muted">เลือกเหตุผลก่อนเปิดเผย กักกัน หรือยกเลิก การดำเนินการจะถูกบันทึกเพื่อตรวจสอบย้อนหลัง</p>
+              <AdminSelect disabled={busy || loading} label="เหตุผลเมื่อเปิดเผยข้อมูลลับ" value={revealReason} onChange={setRevealReason} options={[{ value: "CUSTOMER_SUPPORT", label: "บริการลูกค้า" }, { value: "INCIDENT_RESPONSE", label: "ตอบสนองเหตุการณ์" }, { value: "INVENTORY_AUDIT", label: "ตรวจสอบคลังข้อมูล" }, { value: "FULFILLMENT_RECOVERY", label: "กู้คืนการส่งมอบ" }]} />
               <div className="admin-fulfillment-inventory-list">
-                {inventory.length === 0 ? <p className="admin-fulfillment-empty">ยังไม่มี inventory</p> : null}
+                {inventory.length === 0 ? <p className="admin-fulfillment-empty">ยังไม่มีข้อมูลส่งมอบ — หากใช้บัญชี คีย์ ลิงก์ หรือรหัส ให้เปิดเพิ่มข้อมูลส่งมอบเพื่อเริ่มเติมคลัง</p> : null}
                 {inventory.map((item) => (
                   <article className="admin-fulfillment-inventory-item" key={item.id}>
                     <div className="admin-fulfillment-item-topline">
                       <strong>#{item.id}</strong>
-                      <span className={`admin-status-pill admin-status-${item.status.toLowerCase()}`}>{item.status}</span>
+                      <span className={`admin-status-pill admin-status-${item.status.toLowerCase()}`}>{{ AVAILABLE: "พร้อมส่งมอบ", RESERVED: "สำรองแล้ว", DELIVERED: "ส่งมอบแล้ว", REVOKED: "ยกเลิกแล้ว", QUARANTINED: "กักกัน" }[item.status]}</span>
                     </div>
-                    <span>{item.fulfillmentType} · {item.provider}</span>
-                    <span className="admin-fulfillment-metadata">{Object.entries(item.publicMetadata).map(([key, value]) => `${key}: ${value}`).join(" · ") || "ไม่มี metadata ที่เปิดเผยได้"}</span>
+                    <span>{fulfillmentTypeOptions.find((option) => option.value === item.fulfillmentType)?.label} · {item.provider}</span>
+                    <span className="admin-fulfillment-metadata">{Object.entries(item.publicMetadata).map(([key, value]) => `${key}: ${value}`).join(" · ") || "ไม่มีข้อมูลทั่วไปที่แสดงได้"}</span>
                     <div className="admin-fulfillment-item-actions">
                       {revealed[item.id] ? (
                         <button
@@ -502,29 +625,31 @@ export function AdminFulfillmentConsole() {
                             delete next[item.id];
                             return next;
                           })}
-                          disabled={busy}
+                          disabled={busy || loading}
                         >ซ่อนข้อมูล</button>
-                      ) : <button type="button" className="secondary-button" onClick={() => revealItem(item)} disabled={busy} aria-label={`เปิดเผยข้อมูลรายการ ${item.id}`}>เปิดเผย</button>}
-                      {item.status === "AVAILABLE" ? <button type="button" className="text-button" onClick={() => quarantineItem(item)} disabled={busy}>กักกัน</button> : null}
-                      {(item.status === "AVAILABLE" || item.status === "QUARANTINED") ? <button type="button" className="text-button danger" onClick={() => revokeItem(item)} disabled={busy}>ยกเลิก</button> : null}
+                      ) : <button type="button" className="secondary-button" onClick={() => revealItem(item)} disabled={busy || loading} aria-label={`เปิดเผยข้อมูลรายการ ${item.id}`}>เปิดเผย</button>}
+                      {item.status === "AVAILABLE" ? <button type="button" className="text-button" onClick={() => confirmAction(`กักกัน SKU #${productId} · รายการ #${item.id} เพื่อหยุดการจัดสรรรายการนี้`, () => quarantineItem(item))} disabled={busy || loading}>กักกัน</button> : null}
+                      {(item.status === "AVAILABLE" || item.status === "QUARANTINED") ? <button type="button" className="text-button danger" onClick={() => confirmAction(`ยกเลิก SKU #${productId} · รายการ #${item.id} รายการนี้จะไม่พร้อมส่งมอบ`, () => revokeItem(item))} disabled={busy || loading}>ยกเลิก</button> : null}
                     </div>
-                    {revealed[item.id] ? <div className="admin-fulfillment-reveal" role="status"><span>เปิดเผยแบบ explicit แล้ว</span>{Object.entries(revealed[item.id].fields).map(([key, value]) => <div key={key}><b>{key}</b><code>{value}</code></div>)}</div> : null}
+                    {revealed[item.id] ? <div className="admin-fulfillment-reveal" role="status"><span>เปิดเผยตามคำขอแล้ว</span>{Object.entries(revealed[item.id].fields).map(([key, value]) => <div key={key}><b>{key}</b><code>{value}</code></div>)}</div> : null}
                   </article>
                 ))}
               </div>
+              </> : null}
+              </AdminDisclosure>
             </section>
           </aside>
+          </div>
         </div>
       ) : null}
 
-      <section className="admin-fulfillment-card admin-manual-ready-card" aria-labelledby="admin-manual-ready-title">
+      <AdminDisclosure title="เครื่องมือแก้ปัญหาการส่งมอบ"><section className="admin-fulfillment-card admin-manual-ready-card" aria-labelledby="admin-manual-ready-title">
         <div className="admin-card-heading">
           <div>
-            <span className="admin-eyebrow">MANUAL DELIVERY</span>
             <h3 id="admin-manual-ready-title">ส่งมอบรายการที่ต้องตรวจด้วยตนเอง</h3>
           </div>
         </div>
-        <p className="admin-fulfillment-muted">ใช้ fulfillment ID ของ order ที่ชำระเงินแล้วเท่านั้น ระบบจะตรวจ `PAID` และ `MANUAL` ฝั่ง API อีกครั้ง</p>
+        <p className="admin-fulfillment-muted">ใช้รหัสรายการส่งมอบ ไม่ใช่รหัสสินค้า สำหรับคำสั่งซื้อที่ชำระเงินแล้ว การยืนยันพร้อมส่งมอบใช้กับงานที่ผู้ดูแลตรวจสอบเท่านั้น ระบบจะตรวจสิทธิ์และสถานะอีกครั้ง</p>
         <label htmlFor="admin-manual-fulfillment-id">รหัส fulfillment สำหรับ manual</label>
         <input
           id="admin-manual-fulfillment-id"
@@ -534,10 +659,11 @@ export function AdminFulfillmentConsole() {
           placeholder="เช่น 88"
         />
         <div className="admin-fulfillment-item-actions">
-          <button type="button" className="primary-button" onClick={markManualFulfillmentReady} disabled={busy}>ยืนยันพร้อมส่งมอบ</button>
-          <button type="button" className="secondary-button" onClick={retryFulfillment} disabled={busy}>ลองส่งมอบซ้ำ</button>
+          <button type="button" className="primary-button" onClick={() => confirmAction(`ยืนยัน fulfillment #${fulfillmentId} พร้อมส่งมอบ ระบบจะตรวจสอบคำสั่งซื้ออีกครั้ง`, markManualFulfillmentReady)} disabled={busy || loading}>ยืนยันพร้อมส่งมอบ</button>
+          <button type="button" className="secondary-button" onClick={() => confirmAction(`ลองส่งมอบ fulfillment #${fulfillmentId} ซ้ำ ระบบจะตรวจสอบสถานะก่อนดำเนินการ`, retryFulfillment)} disabled={busy || loading}>ลองส่งมอบซ้ำ</button>
         </div>
-      </section>
+      </section></AdminDisclosure>
+      </fieldset>
     </section>
   );
 }

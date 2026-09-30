@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Pluto Shop full restore verification monthly
+Description=Run the Phuto Shop full restore verification monthly
 
 [Timer]
 OnCalendar=Sun *-*-01..07 04:30:00

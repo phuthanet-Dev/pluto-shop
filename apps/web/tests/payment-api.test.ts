@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { cancelPromptPayPayment, checkPromptPayPayment, createPromptPayPayment, isPromptPayAvailableAt } from "@/lib/payment-api";
+import {
+  cancelPromptPayPayment,
+  checkPromptPayPayment,
+  createPromptPayPayment,
+  createTrueWalletPayment,
+  fetchActivePayment,
+  isPromptPayAvailableAt,
+} from "@/lib/payment-api";
 
 const checkoutResponse = {
   orderId: 17,
@@ -73,6 +80,62 @@ describe("PromptPay client", () => {
     await expect(cancelPromptPayPayment("Market-test-payment", fetcher)).resolves.toEqual(cancelledResponse);
     expect(fetcher).toHaveBeenCalledWith("/api/v1/payments/promptpay/Market-test-payment/cancel", {
       method: "POST",
+      headers: { accept: "application/json" },
+    });
+  });
+});
+
+describe("TrueWallet client", () => {
+  it("redeems through the same-origin BFF with the documented voucher_link field", async () => {
+    const responseBody = {
+      orderId: 18,
+      transactionId: "tw-internal-test",
+      amountMinor: 1000,
+      currency: "THB",
+      providerAmountMinor: 1000,
+      status: "PAID",
+      message: "Payment completed",
+    };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(responseBody), { status: 200 }),
+    );
+    const voucherLink = "https://gift.truemoney.com/campaign/?v=synthetic-voucher";
+
+    await expect(createTrueWalletPayment(voucherLink, fetcher, "truewallet-idempotency-123")).resolves.toEqual(responseBody);
+    expect(fetcher).toHaveBeenCalledWith("/api/v1/checkout/truewallet", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "idempotency-key": "truewallet-idempotency-123",
+      },
+      body: JSON.stringify({ voucher_link: voucherLink }),
+    });
+  });
+});
+
+describe("active payment client", () => {
+  it("accepts safe active metadata and handles no active payment", async () => {
+    const activePayment = {
+      paymentMethod: "TRUEWALLET",
+      orderId: 18,
+      transactionId: "tw-internal-test",
+      amountMinor: 1000,
+      currency: "THB",
+      status: "REVIEW",
+      message: "Payment requires manual review",
+      qrUrl: null,
+      payload: null,
+      expiresAt: null,
+    };
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(activePayment), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(fetchActivePayment(fetcher)).resolves.toEqual(activePayment);
+    await expect(fetchActivePayment(fetcher)).resolves.toBeNull();
+    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/payments/active", {
+      method: "GET",
       headers: { accept: "application/json" },
     });
   });

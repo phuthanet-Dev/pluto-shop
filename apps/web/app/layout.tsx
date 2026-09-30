@@ -1,3 +1,4 @@
+import { SITE_BRAND_DISPLAY } from "@/lib/brand";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
@@ -8,15 +9,15 @@ const metadataBase = new URL(process.env.SITE_URL ?? "http://localhost:3000");
 
 export const metadata: Metadata = {
   metadataBase,
-  title: "Pluto Shop",
+  title: SITE_BRAND_DISPLAY,
   description:
-    "Explore creator-friendly digital assets with instant delivery at Pluto Shop.",
-  applicationName: "Pluto Shop",
+    `Explore creator-friendly digital assets with instant delivery at ${SITE_BRAND_DISPLAY}.`,
+  applicationName: SITE_BRAND_DISPLAY,
   icons: { icon: "/favicon.svg" },
   openGraph: {
     type: "website",
-    siteName: "Pluto Shop",
-    title: "Pluto Shop",
+    siteName: SITE_BRAND_DISPLAY,
+    title: SITE_BRAND_DISPLAY,
     description:
       "Curated digital goods for designers, developers, and visual storytellers.",
     images: [
@@ -24,13 +25,13 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Pluto Shop",
+        alt: SITE_BRAND_DISPLAY,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pluto Shop",
+    title: SITE_BRAND_DISPLAY,
     description: "Curated digital goods for creative people.",
     images: ["/og.png"],
   },

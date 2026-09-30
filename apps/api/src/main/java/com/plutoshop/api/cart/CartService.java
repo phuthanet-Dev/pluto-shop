@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.plutoshop.api.catalog.Product;
 import com.plutoshop.api.catalog.ProductRepository;
+import com.plutoshop.api.payment.PaymentCheckoutLock;
 import com.plutoshop.api.user.AppUser;
 import com.plutoshop.api.user.AppUserRepository;
 
@@ -46,15 +47,19 @@ public class CartService {
 
     @Transactional
     public CartResponse getCart(Jwt jwt) {
-        Cart cart = activeCart(resolveUser(jwt));
+        AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
+        Cart cart = activeCart(user);
         Map<Long, Integer> stored = cart.getItems().stream()
                 .collect(Collectors.toMap(CartItem::getProductId, CartItem::getQuantity, Integer::sum, LinkedHashMap::new));
+        if (hasActivePayment(user)) return snapshotCart(cart);
         return replaceItems(cart, stored);
     }
 
     @Transactional
     public CartResponse replace(Jwt jwt, CartWriteRequest request) {
         AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
         ensureCartEditable(user);
         Cart cart = activeCart(user);
         return replaceItems(cart, request.items().stream().collect(Collectors.toMap(
@@ -67,6 +72,7 @@ public class CartService {
     @Transactional
     public CartResponse merge(Jwt jwt, CartWriteRequest request) {
         AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
         ensureCartEditable(user);
         Cart cart = activeCart(user);
         Map<Long, Integer> merged = cart.getItems().stream()
@@ -81,6 +87,7 @@ public class CartService {
     @Transactional
     public void clear(Jwt jwt) {
         AppUser user = resolveUser(jwt);
+        PaymentCheckoutLock.acquire(jdbc, user.getId());
         ensureCartEditable(user);
         Cart cart = activeCart(user);
         cart.clearItems();
@@ -88,17 +95,32 @@ public class CartService {
     }
 
     private void ensureCartEditable(AppUser user) {
+        if (hasActivePayment(user)) throw new CartLockedException();
+    }
+
+    private boolean hasActivePayment(AppUser user) {
         Boolean pendingPayment = jdbc.queryForObject("""
                 SELECT EXISTS (
                     SELECT 1
                     FROM payment_transactions payment
                     JOIN shop_orders order_record ON order_record.id = payment.order_id
                     WHERE order_record.user_id = :userId
-                      AND payment.status = 'PENDING'
-                      AND order_record.status = 'PAYMENT_PENDING'
+                      AND (
+                          (payment.status = 'PENDING' AND order_record.status = 'PAYMENT_PENDING')
+                          OR (payment.status = 'REVIEW' AND order_record.status = 'PAYMENT_REVIEW')
+                      )
                 )
                 """, Map.of("userId", user.getId()), Boolean.class);
-        if (Boolean.TRUE.equals(pendingPayment)) throw new CartLockedException();
+        return Boolean.TRUE.equals(pendingPayment);
+    }
+
+    private CartResponse snapshotCart(Cart cart) {
+        return new CartResponse(
+                cart.getItems().stream()
+                        .map(item -> new CartItemResponse(item.getProductId(), item.getQuantity()))
+                        .toList(),
+                List.of(),
+                cart.getVersion());
     }
 
     private CartResponse replaceItems(Cart cart, Map<Long, Integer> requested) {
@@ -155,6 +177,6 @@ public class CartService {
         for (String value : values) {
             if (value != null && !value.isBlank()) return value;
         }
-        return "Unknown Pluto Shop user";
+        return "Unknown phutoshop user";
     }
 }

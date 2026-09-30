@@ -142,7 +142,7 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(CartLockedException.class)
     ResponseEntity<SanitizedProblemDetail> handleCartLocked(CartLockedException exception) {
-        return problem(HttpStatus.CONFLICT, "Cart is locked", "Cart is locked while a payment is pending");
+        return problem(HttpStatus.CONFLICT, "Cart is locked", "Cart is locked while a payment is pending or under review");
     }
 
     @ExceptionHandler(PaymentNotFoundException.class)

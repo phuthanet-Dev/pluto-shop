@@ -35,6 +35,7 @@ public class FulfillmentAllocationService {
     @Transactional
     public void reserveForPendingOrder(long orderId) {
         ensureOrder(orderId);
+        // ล็อก order แม่เพื่อ serialize การจอง โดยไม่เพิ่มสิทธิ์แก้ไข snapshot ของ order item
         List<OrderItemRow> items = jdbc.query("""
                 SELECT oi.id AS order_item_id,
                        oi.product_id,
@@ -42,11 +43,12 @@ public class FulfillmentAllocationService {
                        p.delivery_type,
                        COALESCE(fp.fulfillment_type, 'NONE') AS fulfillment_type
                 FROM shop_order_items oi
+                JOIN shop_orders o ON o.id = oi.order_id
                 JOIN products p ON p.id = oi.product_id
                 LEFT JOIN product_fulfillment_profiles fp ON fp.product_id = oi.product_id
                 WHERE oi.order_id = :orderId
                 ORDER BY oi.id
-                FOR UPDATE OF oi
+                FOR UPDATE OF o
                 """, Map.of("orderId", orderId), this::mapOrderItem);
 
         for (OrderItemRow item : items) {

@@ -235,7 +235,7 @@ class PromptPayPaymentApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[{\"productId\":2,\"quantity\":3}]}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.detail").value("Cart is locked while a payment is pending"));
+                .andExpect(jsonPath("$.detail").value("Cart is locked while a payment is pending or under review"));
 
         mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-paid/check")
                         .with(customer("payment-test-paid")))
@@ -257,7 +257,7 @@ class PromptPayPaymentApiIntegrationTest {
     }
 
     @Test
-    void ownerCanCancelPendingPaymentAndReleaseStockWithoutRemovingCart() throws Exception {
+    void ownerCancellationRequiresProviderReconciliationAndRetainsReservation() throws Exception {
         when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-cancel", 119000));
         addToCart("payment-test-cancel", 1);
 
@@ -270,27 +270,29 @@ class PromptPayPaymentApiIntegrationTest {
         mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-cancel/cancel")
                         .with(customer("payment-test-cancel")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CANCELLED"))
-                .andExpect(jsonPath("$.message").value("Payment cancelled"));
+                .andExpect(jsonPath("$.status").value("REVIEW"))
+                .andExpect(jsonPath("$.message").value("Cancellation requires provider reconciliation"));
+
+        when(gateway.check("Market-test-cancel"))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PENDING, ""));
 
         mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-cancel/check")
                         .with(customer("payment-test-cancel")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CANCELLED"));
+                .andExpect(jsonPath("$.status").value("REVIEW"));
         mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-cancel/cancel")
                         .with(customer("payment-test-cancel")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CANCELLED"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Payment cannot be cancelled"));
         mockMvc.perform(put("/api/v1/cart")
                         .with(customer("payment-test-cancel"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[{\"productId\":2,\"quantity\":2}]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].quantity").value(2));
+                .andExpect(status().isConflict());
         mockMvc.perform(get("/api/v1/cart").with(customer("payment-test-cancel")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].quantity").value(2));
+                .andExpect(jsonPath("$.items[0].quantity").value(1));
 
         String paymentStatus = jdbcTemplate.queryForObject(
                 "SELECT status FROM payment_transactions WHERE transaction_id = ?",
@@ -302,10 +304,10 @@ class PromptPayPaymentApiIntegrationTest {
                 "Market-test-cancel");
         Integer restoredStock = jdbcTemplate.queryForObject(
                 "SELECT stock_quantity FROM products WHERE id = 2", Integer.class);
-        org.junit.jupiter.api.Assertions.assertEquals("CANCELLED", paymentStatus);
-        org.junit.jupiter.api.Assertions.assertEquals("CANCELLED", orderStatus);
-        org.junit.jupiter.api.Assertions.assertEquals(88, restoredStock);
-        verify(gateway, never()).check("Market-test-cancel");
+        org.junit.jupiter.api.Assertions.assertEquals("REVIEW", paymentStatus);
+        org.junit.jupiter.api.Assertions.assertEquals("PAYMENT_REVIEW", orderStatus);
+        org.junit.jupiter.api.Assertions.assertEquals(87, restoredStock);
+        verify(gateway, times(1)).check("Market-test-cancel");
     }
 
     @Test
@@ -354,6 +356,8 @@ class PromptPayPaymentApiIntegrationTest {
                 "000201010212",
                 119000,
                 Instant.now().minusSeconds(1)));
+        when(gateway.check("Market-test-expired"))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.FAILED, ""));
         addToCart("payment-test-expired", 1);
 
         mockMvc.perform(post("/api/v1/checkout/promptpay")
@@ -372,13 +376,62 @@ class PromptPayPaymentApiIntegrationTest {
     }
 
     @Test
-    void expirySweepReleasesAbandonedPaymentReservations() throws Exception {
+    void expiredPaymentUsesProviderPaidResultBeforeReleasingReservation() throws Exception {
+        when(gateway.generate(any())).thenReturn(new InwcloudPaymentGatewayClient.GeneratedPayment(
+                "Market-test-expired-paid",
+                URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
+                "000201010212",
+                119000,
+                Instant.now().minusSeconds(1)));
+        when(gateway.check("Market-test-expired-paid"))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.PAID, ""));
+        addToCart("payment-test-expired-paid", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-expired-paid"))
+                        .header("Idempotency-Key", "payment-test-expired-paid-key"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-expired-paid/check")
+                        .with(customer("payment-test-expired-paid")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                87,
+                jdbcTemplate.queryForObject("SELECT stock_quantity FROM products WHERE id = 2", Integer.class));
+    }
+
+    @Test
+    void providerCheckFailureMovesPendingPaymentToReviewWithoutReleasingStock() throws Exception {
+        when(gateway.generate(any())).thenReturn(generatedPayment("Market-test-check-review", 119000));
+        when(gateway.check("Market-test-check-review"))
+                .thenThrow(new PaymentGatewayException("provider check failed"));
+        addToCart("payment-test-check-review", 1);
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-check-review"))
+                        .header("Idempotency-Key", "payment-test-check-review-key"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/payments/promptpay/Market-test-check-review/check")
+                        .with(customer("payment-test-check-review")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REVIEW"));
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                87,
+                jdbcTemplate.queryForObject("SELECT stock_quantity FROM products WHERE id = 2", Integer.class));
+    }
+
+    @Test
+    void expirySweepUsesProviderStatusBeforeReleasingReservation() throws Exception {
         when(gateway.generate(any())).thenReturn(new InwcloudPaymentGatewayClient.GeneratedPayment(
                 "Market-test-sweep",
                 URI.create("https://api.qrserver.com/v1/create-qr-code/?data=promptpay"),
                 "000201010212",
                 119000,
                 Instant.now().minusSeconds(1)));
+        when(gateway.check("Market-test-sweep"))
+                .thenReturn(new InwcloudPaymentGatewayClient.CheckedPayment(ProviderPaymentStatus.FAILED, ""));
         addToCart("payment-test-sweep", 1);
 
         mockMvc.perform(post("/api/v1/checkout/promptpay")
@@ -413,12 +466,127 @@ class PromptPayPaymentApiIntegrationTest {
         verify(gateway, never()).check("Market-test-owner");
     }
 
+    @Test
+    void promptPayEndpointsCannotInspectOrCancelTrueWalletTransactions() throws Exception {
+        addPendingTrueWalletPayment(
+                "payment-test-cross-provider",
+                "TrueWallet-test-cross-provider",
+                "payment-test-cross-provider-key");
+
+        mockMvc.perform(post("/api/v1/payments/promptpay/TrueWallet-test-cross-provider/check")
+                        .with(customer("payment-test-cross-provider")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/payments/promptpay/TrueWallet-test-cross-provider/cancel")
+                        .with(customer("payment-test-cross-provider")))
+                .andExpect(status().isNotFound());
+
+        verify(gateway, never()).check("TrueWallet-test-cross-provider");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "PENDING",
+                jdbcTemplate.queryForObject(
+                        "SELECT status FROM payment_transactions WHERE transaction_id = ?",
+                        String.class,
+                        "TrueWallet-test-cross-provider"));
+    }
+
+    @Test
+    void promptPayCannotStartWhileAnotherProviderPaymentIsActive() throws Exception {
+        addPendingTrueWalletPayment(
+                "payment-test-active-provider",
+                "TrueWallet-test-active-provider",
+                "truewallet-test-active-provider-key");
+
+        mockMvc.perform(post("/api/v1/checkout/promptpay")
+                        .with(customer("payment-test-active-provider"))
+                        .header("Idempotency-Key", "promptpay-test-active-provider-key"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Another payment is already pending or under review"));
+
+        verify(gateway, never()).generate(any());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                88,
+                jdbcTemplate.queryForObject("SELECT stock_quantity FROM products WHERE id = 2", Integer.class));
+    }
+
+    @Test
+    void activePaymentEndpointReturnsTrueWalletMetadataWithoutVoucherData() throws Exception {
+        addPendingTrueWalletPayment(
+                "payment-test-active-endpoint",
+                "TrueWallet-test-active-endpoint",
+                "truewallet-test-active-endpoint-key");
+
+        mockMvc.perform(get("/api/v1/payments/active")
+                        .with(customer("payment-test-active-endpoint")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentMethod").value("TRUEWALLET"))
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.transactionId").value("TrueWallet-test-active-endpoint"))
+                .andExpect(jsonPath("$.qrUrl").doesNotExist())
+                .andExpect(jsonPath("$.payload").doesNotExist())
+                .andExpect(jsonPath("$.voucher_link").doesNotExist())
+                .andExpect(jsonPath("$.voucherFingerprint").doesNotExist());
+    }
+
+    @Test
+    void cartReadsRetainReservedItemsAndCartWritesStayLocked() throws Exception {
+        addPendingTrueWalletPayment(
+                "payment-test-cart-lock",
+                "TrueWallet-test-cart-lock",
+                "truewallet-test-cart-lock-key");
+        jdbcTemplate.update("UPDATE products SET stock_quantity = 0 WHERE id = 2");
+
+        mockMvc.perform(get("/api/v1/cart").with(customer("payment-test-cart-lock")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].productId").value(2))
+                .andExpect(jsonPath("$.removedProductIds", hasSize(0)));
+        mockMvc.perform(put("/api/v1/cart")
+                        .with(customer("payment-test-cart-lock"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productId\":2,\"quantity\":1}]}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/cart/merge")
+                        .with(customer("payment-test-cart-lock"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productId\":2,\"quantity\":1}]}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/cart")
+                        .with(customer("payment-test-cart-lock")))
+                .andExpect(status().isConflict());
+    }
+
     private void addToCart(String subject, int quantity) throws Exception {
         mockMvc.perform(post("/api/v1/cart/merge")
                         .with(customer(subject))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[{\"productId\":2,\"quantity\":" + quantity + "}]}"))
                 .andExpect(status().isOk());
+    }
+
+    private void addPendingTrueWalletPayment(String subject, String transactionId, String idempotencyKey)
+            throws Exception {
+        addToCart(subject, 1);
+        Long userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM app_users WHERE subject = ?",
+                Long.class,
+                subject);
+        Long orderId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO shop_orders (user_id, status, payment_method, currency, total_minor, idempotency_key)
+                        VALUES (?, 'PAYMENT_PENDING', 'TRUEWALLET', 'THB', 119000, ?)
+                        RETURNING id
+                        """,
+                Long.class,
+                userId,
+                idempotencyKey);
+        jdbcTemplate.update(
+                """
+                        INSERT INTO payment_transactions (
+                            order_id, provider, transaction_id, status, amount_minor, voucher_fingerprint
+                        ) VALUES (?, 'INWCLOUD_TRUEWALLET', ?, 'PENDING', 119000, decode(repeat('ab', 32), 'hex'))
+                        """,
+                orderId,
+                transactionId);
     }
 
     private static InwcloudPaymentGatewayClient.GeneratedPayment generatedPayment(String transactionId, long amountMinor) {

@@ -14,6 +14,7 @@ export function buildLocalEnv(
   inspectorPassword = randomBytes(32).toString("base64url"),
   fulfillmentEncryptionKey = randomBytes(32).toString("base64url"),
   fulfillmentFingerprintKey = randomBytes(32).toString("base64url"),
+  trueWalletFingerprintKey = randomBytes(32).toString("base64url"),
 ) {
   return [
     "POSTGRES_DB=plutoshop",
@@ -29,6 +30,9 @@ export function buildLocalEnv(
     `FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64=${fulfillmentEncryptionKey}`,
     `FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64=${fulfillmentFingerprintKey}`,
     "FULFILLMENT_SECURITY_KEY_VERSION=1",
+    "INWCLOUD_TRUEWALLET_ENABLED=true",
+    "INWCLOUD_TRUEWALLET_AMOUNT_UNIT=BAHT",
+    `INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64=${trueWalletFingerprintKey}`,
     "OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto",
     "OIDC_INTERNAL_ISSUER=http://keycloak:8080/realms/pluto",
     "OIDC_CLIENT_ID=pluto-web",
@@ -79,6 +83,8 @@ export function validateLocalEnv(content) {
     "FULFILLMENT_SECURITY_ENCRYPTION_KEY_BASE64",
     "FULFILLMENT_SECURITY_FINGERPRINT_KEY_BASE64",
     "FULFILLMENT_SECURITY_KEY_VERSION",
+    "INWCLOUD_TRUEWALLET_AMOUNT_UNIT",
+    "INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64",
     "OIDC_ISSUER",
     "OIDC_INTERNAL_ISSUER",
     "OIDC_CLIENT_ID",
@@ -109,7 +115,7 @@ export function validateLocalEnv(content) {
     adminPassword.includes("replace-with") ||
     inspectorPassword.includes("replace-with")
   ) {
-    throw new Error("Replace the placeholder database passwords before starting Pluto Shop.");
+    throw new Error("Replace the placeholder database passwords before starting Phuto Shop.");
   }
   if (
     ownerPassword.length < 24 ||
@@ -145,6 +151,12 @@ export function validateLocalEnv(content) {
   if (values.get("FULFILLMENT_SECURITY_KEY_VERSION") !== "1") {
     throw new Error("FULFILLMENT_SECURITY_KEY_VERSION must be 1 for the initial key.");
   }
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(values.get("INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64"))) {
+    throw new Error("TrueWallet fingerprint key must be a base64url-encoded 32-byte value.");
+  }
+  if (values.get("INWCLOUD_TRUEWALLET_AMOUNT_UNIT") !== "BAHT") {
+    throw new Error("INWCLOUD_TRUEWALLET_AMOUNT_UNIT must be BAHT.");
+  }
 }
 
 export async function ensureLocalEnv(envPath, createPassword = () => randomBytes(32).toString("base64url")) {
@@ -177,6 +189,11 @@ export async function ensureLocalEnv(envPath, createPassword = () => randomBytes
     }
     if (!hasKey("FULFILLMENT_SECURITY_KEY_VERSION")) {
       additions.push("FULFILLMENT_SECURITY_KEY_VERSION=1");
+    }
+    if (!hasKey("INWCLOUD_TRUEWALLET_ENABLED")) additions.push("INWCLOUD_TRUEWALLET_ENABLED=true");
+    if (!hasKey("INWCLOUD_TRUEWALLET_AMOUNT_UNIT")) additions.push("INWCLOUD_TRUEWALLET_AMOUNT_UNIT=BAHT");
+    if (!hasKey("INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64")) {
+      additions.push(`INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64=${randomBytes(32).toString("base64url")}`);
     }
     if (!hasKey("OIDC_ISSUER")) {
       additions.push("OIDC_ISSUER=http://127.0.0.1:8081/realms/pluto");

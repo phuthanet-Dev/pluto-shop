@@ -25,6 +25,16 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   images: {
+    formats: ["image/webp"],
+    localPatterns: [
+      { pathname: "/api/v1/product-images/**" },
+      { pathname: "/api/v1/admin/products/*/image" },
+      { pathname: "/favicon.svg" },
+      { pathname: "/icons/**" },
+    ],
+    maximumResponseBody: 5 * 1024 * 1024,
+    minimumCacheTTL: 60,
+    qualities: [75],
     remotePatterns: [
       { protocol: "https", hostname: "api.qrserver.com", pathname: "/**" },
     ],

@@ -134,6 +134,7 @@ services:
     command: ["--spring.main.web-application-type=none"]
     environment:
       SPRING_MAIN_WEB_APPLICATION_TYPE: none
+      SPRING_TASK_SCHEDULING_ENABLED: "false"
       SPRING_FLYWAY_ENABLED: "true"
       INWCLOUD_PAYMENT_EXPIRY_SWEEP_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
@@ -190,6 +191,9 @@ services:
       FULFILLMENT_DELIVERY_ENABLED: ${FULFILLMENT_DELIVERY_ENABLED:-true}
       INWCLOUD_API_BASE_URL: ${INWCLOUD_API_BASE_URL:-https://api.inwcloud.shop}
       INWCLOUD_API_KEY: ${INWCLOUD_API_KEY-}
+      INWCLOUD_TRUEWALLET_ENABLED: ${INWCLOUD_TRUEWALLET_ENABLED:-false}
+      INWCLOUD_TRUEWALLET_AMOUNT_UNIT: ${INWCLOUD_TRUEWALLET_AMOUNT_UNIT-}
+      INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64: ${INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64-}
       PRODUCT_MEDIA_ROOT: /var/lib/plutoshop/product-media
       SERVER_PORT: 8080
     depends_on:
@@ -222,6 +226,7 @@ services:
     image: ${IMAGE_NAMESPACE:?Set IMAGE_NAMESPACE}-web:${IMAGE_TAG:?Set IMAGE_TAG}
     environment:
       INTERNAL_API_URL: http://api:8080
+      INWCLOUD_TRUEWALLET_ENABLED: ${INWCLOUD_TRUEWALLET_ENABLED:-false}
       OIDC_ISSUER: https://${AUTH_DOMAIN:?Set AUTH_DOMAIN}/realms/pluto
       OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/pluto
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-pluto-web}

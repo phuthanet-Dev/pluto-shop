@@ -46,7 +46,7 @@ send_alert() {
 cleanup() {
   local status=$?
   if (( status != 0 )); then
-    send_alert 'Pluto Shop restore verification failed'
+    send_alert 'Phuto Shop restore verification failed'
   fi
   if [[ -n "$TEMP_CONTAINER" ]]; then
     docker rm --force "$TEMP_CONTAINER" >/dev/null 2>&1 || true

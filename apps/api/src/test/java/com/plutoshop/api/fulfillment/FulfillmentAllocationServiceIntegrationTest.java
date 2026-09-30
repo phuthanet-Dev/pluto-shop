@@ -15,6 +15,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -65,6 +67,20 @@ class FulfillmentAllocationServiceIntegrationTest {
         allocationService = new FulfillmentAllocationService(jdbc, mapper);
     }
 
+    private void runAsApplicationRole(Runnable action) {
+        TransactionTemplate transaction = new TransactionTemplate(
+                new DataSourceTransactionManager(jdbc.getJdbcTemplate().getDataSource()));
+        transaction.executeWithoutResult(status -> {
+            jdbc.getJdbcTemplate().execute("SET LOCAL ROLE pluto_user");
+            assertThat(jdbc.queryForObject("SELECT current_user", Map.of(), String.class))
+                    .isEqualTo("pluto_user");
+            assertThat(jdbc.queryForObject(
+                    "SELECT has_any_column_privilege(current_user, 'shop_order_items', 'UPDATE')",
+                    Map.of(), Boolean.class)).isFalse();
+            action.run();
+        });
+    }
+
     @Test
     void reservesOneInventoryItemIdempotentlyAndMarksItReadyAfterPayment() {
         long productId = insertProduct("fulfillment-allocation-test");
@@ -96,8 +112,10 @@ class FulfillmentAllocationServiceIntegrationTest {
                 RETURNING id
                 """, Map.of("orderId", orderId, "productId", productId), Long.class);
 
-        allocationService.reserveForPendingOrder(orderId);
-        allocationService.reserveForPendingOrder(orderId);
+        runAsApplicationRole(() -> {
+            allocationService.reserveForPendingOrder(orderId);
+            allocationService.reserveForPendingOrder(orderId);
+        });
 
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM order_fulfillment_allocations WHERE order_fulfillment_id IN (SELECT id FROM order_fulfillments WHERE order_item_id = :orderItemId)",
@@ -106,7 +124,7 @@ class FulfillmentAllocationServiceIntegrationTest {
                 "SELECT status FROM digital_inventory_items WHERE product_id = :productId",
                 Map.of("productId", productId), String.class)).isEqualTo("RESERVED");
 
-        allocationService.markOrderPaid(orderId);
+        runAsApplicationRole(() -> allocationService.markOrderPaid(orderId));
 
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM order_fulfillments WHERE order_item_id = :orderItemId",
@@ -140,9 +158,11 @@ class FulfillmentAllocationServiceIntegrationTest {
                 RETURNING id
                 """, Map.of("orderId", orderId, "productId", productId), Long.class);
 
-        allocationService.reserveForPendingOrder(orderId);
-        allocationService.releaseForOrder(orderId);
-        allocationService.releaseForOrder(orderId);
+        runAsApplicationRole(() -> {
+            allocationService.reserveForPendingOrder(orderId);
+            allocationService.releaseForOrder(orderId);
+            allocationService.releaseForOrder(orderId);
+        });
 
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM digital_inventory_items WHERE id = :inventoryId",

@@ -85,6 +85,8 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     contentType: "application/json",
     body: JSON.stringify(productResponse),
   }));
+  // A fresh checkout has no recoverable payment; keep this UI test isolated from the API.
+  await page.route("**/api/v1/payments/active", (route) => route.fulfill({ status: 204 }));
   await page.route("**/api/v1/cart**", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -160,7 +162,7 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     }
     await chooser.getByRole("button", { name: "Pay with PromptPay" }).click();
 
-    const dialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    const dialog = page.getByRole("dialog", { name: "Phuto Shop PromptPay payment" });
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("img.payment-payee-logo")).toHaveAttribute("src", /favicon\.svg/u);
     const qrCode = dialog.getByRole("img", { name: "PromptPay QR code" });
@@ -222,7 +224,7 @@ test("keeps the PromptPay dialog themed and contained across device widths", asy
     await expect(lockedDrawer.getByRole("button", { name: "Remove Pluto Glyph Set from cart" })).toBeDisabled();
     await lockedDrawer.getByRole("button", { name: "Continue payment" }).click();
 
-    const resumedDialog = page.getByRole("dialog", { name: "Pluto Shop PromptPay payment" });
+    const resumedDialog = page.getByRole("dialog", { name: "Phuto Shop PromptPay payment" });
     await expect(resumedDialog).toBeVisible();
     await resumedDialog.getByRole("button", { name: "Cancel payment" }).click();
     const confirmation = page.getByRole("dialog", { name: "Cancel payment?" });

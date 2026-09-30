@@ -1,4 +1,4 @@
-# Pluto Shop
+# Phuto Shop
 
 Marketplace สำหรับ creative assets แบบไทย/อังกฤษ สร้างเป็น Git monorepo โดยแยก Next.js frontend และ Spring Boot API ชัดเจน ระบบ local ใช้ Docker และมี production deployment scaffold แยกต่างหาก โดยไม่แก้ไขหรือเผยแพร่ทับ Nebula Studio ซึ่งใช้เป็นเพียง reference แบบอ่านอย่างเดียว
 
@@ -110,7 +110,7 @@ Admin:  http://127.0.0.1:3000/admin
 
 Session ถูกเข้ารหัสใน HttpOnly cookie ด้วย `AUTH_SESSION_SECRET`; access token ไม่อยู่ใน localStorage และ route `/admin` ตรวจ `ADMIN` role ฝั่ง server ส่วน public catalog ยัง anonymous ได้ตามเดิม Spring API ตรวจ JWT issuer/JWK, audience `pluto-api` และตอบ `401/403` แบบ sanitized ที่ `/api/v1/admin/*` โดยไม่รับ token ที่ออกให้ audience อื่น
 
-หน้า credential ของ Keycloak ใช้ custom theme `pluto` ที่ `infra/keycloak/themes/pluto` เพื่อให้พื้นหลัง, card, focus state, button และโลโก้สอดคล้องกับ Pluto Shop โดยยังคงให้ Keycloak เป็นผู้จัดการ password, session และ OIDC security ทั้งหมด
+หน้า credential ของ Keycloak ใช้ custom theme `pluto` ที่ `infra/keycloak/themes/pluto` เพื่อให้พื้นหลัง, card, focus state, button และโลโก้สอดคล้องกับ Phuto Shop โดยยังคงให้ Keycloak เป็นผู้จัดการ password, session และ OIDC security ทั้งหมด
 
 ### Phase 2 cart sync slice
 
@@ -182,7 +182,7 @@ docker run --rm \
 
 ### PromptPay/TrueMoney payment-method selection
 
-หน้า checkout เปิด modal ให้เลือก PromptPay หรือ TrueMoney Wallet แต่ TrueMoney จะแสดงเป็นตัวเลือกที่ปิดใช้งานไว้ก่อนจนกว่าจะยืนยัน provider contract ครบถ้วน ระบบจึงยังไม่รับหรือส่ง voucher link ใด ๆ
+หน้า checkout เปิด modal ให้เลือก PromptPay หรือ TrueMoney Wallet โดย TrueMoney รับลิงก์ซองของขวัญผ่าน same-origin BFF เท่านั้น ระบบไม่เก็บลิงก์แบบ plaintext และไม่ส่ง provider credential ไปที่ browser
 
 PromptPay endpoints ที่เปิดใช้งาน:
 
@@ -190,28 +190,38 @@ PromptPay endpoints ที่เปิดใช้งาน:
 POST /api/v1/checkout/promptpay
 POST /api/v1/payments/promptpay/{transactionId}/check
 POST /api/v1/payments/promptpay/{transactionId}/cancel
+GET /api/v1/payments/active
+POST /api/v1/checkout/truewallet
 ```
 
-ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser และใช้ `Idempotency-Key` กับ PromptPay หน้า checkout ปิด PromptPay เวลา 23:30–01:30 ตามเวลา `Asia/Bangkok` พร้อม backend enforcement ซ้ำอีกชั้น โดยช่วงปิดยังเลือกช่องทาง TrueMoney ใน modal ได้ แต่ช่องทางนี้ยังไม่พร้อมใช้งาน
+ผู้ใช้ต้อง login และมี cart ฝั่ง account ก่อน checkout ระบบคำนวณยอดจากราคาสินค้าในฐานข้อมูล ไม่รับราคา/ยอดรวมจาก browser และใช้ `Idempotency-Key` กับทุกช่องทาง หน้า checkout ปิด PromptPay เวลา 23:30–01:30 ตามเวลา `Asia/Bangkok` พร้อม backend enforcement ซ้ำอีกชั้น ส่วน TrueMoney ใช้การ redeem แบบ synchronous ตาม contract ของ Inwcloud และไม่อยู่ใน blackout ของ PromptPay
 
 Inwcloud PromptPay อาจเพิ่ม random satang เพื่อใช้ระบุธุรกรรม เช่น order `฿210.00` อาจสร้าง QR ที่ต้องชำระ `฿210.62` ระบบจึงยอมรับยอด provider ที่มากกว่ายอด order ได้ไม่เกิน `99 satang` เท่านั้น โดยยอดสินค้าใน `shop_orders.total_minor` ยังคงเป็น source of truth และยอดที่ต้องชำระจริงของ QR จะเก็บใน `payment_transactions.amount_minor` แยกกัน หากยอดต่ำกว่าหรือเพิ่มเกินช่วงนี้ ระบบจะ rollback order/payment/stock และไม่สร้างรายการชำระเงินสำเร็จ
 
-เมื่อมี PromptPay payment สถานะ `PENDING` ของผู้ใช้ ระบบจะล็อกการแก้ไข cart ทั้งจากหน้าเว็บและ API (`PUT /api/v1/cart`, `POST /api/v1/cart/merge`, `DELETE /api/v1/cart`) เพื่อไม่ให้รายการที่กำลังรอชำระเปลี่ยนกลางทาง การแก้ไขจะกลับมาใช้ได้หลัง payment เป็น `CANCELLED`, `PAID` หรือ `EXPIRED` โดยผู้ใช้สามารถกด cancel QR ก่อนเพื่อปลดล็อกและสร้าง QR ใหม่จาก cart ล่าสุด
+เมื่อมี payment สถานะ `PENDING` หรือ `REVIEW` ของผู้ใช้ ระบบจะล็อกการแก้ไข cart ทั้งจากหน้าเว็บและ API (`PUT /api/v1/cart`, `POST /api/v1/cart/merge`, `DELETE /api/v1/cart`) และไม่เปิด checkout อีกช่องทาง เพื่อไม่ให้รายการที่กำลังตรวจสอบเปลี่ยนกลางทาง สำหรับ TrueMoney หาก provider ตอบไม่ชัดเจนหรือยอดไม่ตรง ระบบจะใช้สถานะ `REVIEW`/`PAYMENT_REVIEW` และคง stock reservation ไว้จนกว่าจะตรวจสอบโดยผู้ดูแล ห้ามกด redeem ซ้ำหรือยกเลิกแบบเดาสุ่ม
+หน้าเว็บจะเรียก `GET /api/v1/payments/active` ผ่าน same-origin BFF หลัง refresh เพื่อกู้สถานะ payment ที่ยังเป็น `PENDING`/`REVIEW` จาก server โดยไม่เก็บ payment หรือ voucher ใน browser storage หากการกู้สถานะล้มเหลว หน้าเว็บจะล็อก cart ไว้ก่อนเพื่อไม่ให้เกิด optimistic mutation
+
+
 
 ที่มาโลโก้ payment method: [Thai QR/PromptPay logo](https://upload.wikimedia.org/wikipedia/commons/2/28/Thai_QR_Logo.svg) ถูกเก็บเป็น local asset ที่ `apps/web/public/icons/promptpay-logo.svg`; TrueMoney Wallet ใช้ local asset ที่ `apps/web/public/icons/truemoney-wallet.svg` จากไฟล์ที่ผู้ใช้จัดเตรียมไว้ โดยควรตรวจสอบสิทธิ์การใช้เครื่องหมายการค้าก่อน production
 
-จาก contract ที่ตรวจสอบได้ของ TrueMoney ยืนยันเพียง request เบื้องต้นไปยัง `POST https://api.inwcloud.shop/v1/truewallet/redeem` ด้วย Bearer credential ฝั่ง server และ body ที่มี `voucher_link` เท่านั้น ยังไม่มีข้อมูลที่ยืนยันได้เรื่อง provider idempotency, redemption reference, amount unit/currency, status polling, callback, refund หรือ reconciliation จึงยังไม่สร้าง adapter หรือ live charge เพื่อป้องกันการตัด voucher แล้วบันทึก order ไม่ครบ
+TrueWallet ใช้ request ไปยัง `POST https://api.inwcloud.shop/v1/truewallet/redeem` ด้วย Bearer credential ฝั่ง server และ body รูปแบบ `{"voucher_link":"<one-time-voucher-link>"}` ตามเอกสาร Inwcloud เมื่อ response มี `status: "success"` ระบบอ่าน `data.amount` ตามหน่วย `BAHT` ที่ deployment ต้องตั้งค่าอย่างชัดเจนใน `INWCLOUD_TRUEWALLET_AMOUNT_UNIT` แล้วแปลงเป็นสตางค์ด้วย decimal arithmetic เพื่อตรวจเทียบกับยอด order ที่ server คำนวณเอง เนื่องจากตัวอย่าง response ของ provider ไม่ได้ส่ง currency/unit metadata ระบบจะไม่ credit หากค่าตั้งนี้ว่างหรือไม่ใช่ `BAHT`; ระบบจะ credit เป็น `PAID` เฉพาะเมื่อยอดตรงกันเท่านั้น; response metadata เช่น `data.voucher_link`, `rate_limit` และ `billing` จะถูกทิ้ง ไม่ส่งกลับ client และไม่เขียน log
 
-ระบบ PromptPay reserve stock ระหว่างรอชำระ และผู้ใช้สามารถยกเลิก pending payment ผ่าน cancel endpoint ได้ การยกเลิกจะเปลี่ยน payment/order เป็น `CANCELLED`, คืน stock reservation และคงสินค้าไว้ใน cart เพื่อให้ลอง checkout ใหม่ได้; การยกเลิกนี้เป็นการหยุดติดตาม QR ในระบบเท่านั้น ไม่ใช่ provider refund/cancel เพราะยังไม่มี contract provider สำหรับการยกเลิกที่ยืนยันได้ QR ที่ผู้ใช้ชำระไปแล้วก่อนกดยกเลิกต้องเข้าสู่กระบวนการ reconciliation แยกต่างหาก
+เนื่องจาก voucher เป็น one-shot ระบบจะ commit order/payment reservation และ HMAC fingerprint ก่อนเรียก provider, ใช้ claim marker กัน redeem ซ้ำ และเก็บเฉพาะ fingerprint ใน `payment_transactions.voucher_fingerprint` (migration V29) หากผลลัพธ์ใดไม่ใช่ success ที่ยืนยันยอดได้อย่างชัดเจน เช่น timeout, HTTP error, response status อื่น, response malformed หรือยอดไม่ตรง จะเปลี่ยนเป็น `REVIEW` โดยไม่คืน stock เพราะไม่สามารถสรุปได้ว่า provider ใช้ voucher แล้วหรือยัง รายการ stale จะถูกกู้เป็น `REVIEW` โดย recovery job; ไม่มีการ retry provider อัตโนมัติ
+
+ระบบ PromptPay จะ reserve stock ระหว่างรอชำระ การกด cancel endpoint ไม่ได้ยกเลิกที่ provider และจะไม่ปล่อย stock แบบเดาสุ่ม แต่จะย้าย payment/order จาก `PENDING` เป็น `REVIEW` เพื่อให้ตรวจสอบ provider ต่อได้ โดยคงสินค้าไว้ใน cart และคง reservation จนกว่าจะยืนยันผล การหมดอายุของ QR ก็จะเรียกตรวจ provider ก่อน หากผลไม่ชัดเจนจะใช้ `REVIEW` แทนการคืน stock
 
 ตั้งค่า key จาก Dashboard ของ inwcloud ใน `.env` เท่านั้น:
 
 ```text
 INWCLOUD_API_BASE_URL=https://api.inwcloud.shop
 INWCLOUD_API_KEY=[ใส่ key ใน .env เท่านั้น]
+INWCLOUD_TRUEWALLET_ENABLED=true
+INWCLOUD_TRUEWALLET_AMOUNT_UNIT=BAHT
+INWCLOUD_TRUEWALLET_FINGERPRINT_KEY_BASE64=[สุ่มค่า 32-byte base64url ใน .env เท่านั้น]
 ```
 
-API key ถูกส่งเข้าเฉพาะ container `api`; web container และ browser ไม่ได้รับ key การตรวจ payment ใช้ `transactionId` ที่ผูกกับ order/user เดิมเพื่อป้องกันการตรวจ transaction ของผู้ใช้อื่น
+API key และ fingerprint key ถูกส่งเข้าเฉพาะ container `api`; web container และ browser ไม่ได้รับ key ลิงก์ voucher จะอยู่ใน request body ชั่วคราวเท่านั้น ไม่อยู่ใน URL, cookie, localStorage, order list, response หรือ error message PromptPay ตรวจสถานะผ่าน `transactionId` ที่ผูกกับ order/user เดิม ส่วน TrueWallet ใช้ `Idempotency-Key` เดิมเพื่ออ่านผลของคำขอเดิมโดยไม่เรียก redeem ซ้ำ
 
 ## Public API
 
@@ -276,7 +286,7 @@ curl 'http://127.0.0.1:3000/api/v1/products?q=Aurora&maxPriceMinor=119000&inStoc
 
 ## ข้อมูลสินค้าและราคา
 
-Flyway migration สร้าง schema และ seed creative assets 36 รายการ เรียงตาม `sortOrder` โดยยึดชื่ออังกฤษ, slug, ราคา USD, จำนวน stock และลำดับจาก screenshot ต้นแบบแบบอ่านอย่างเดียว ส่วนชื่อไทยและคำอธิบายสองภาษาถูกเขียนใหม่สำหรับ Pluto Shop สินค้าดิจิทัลที่เคยเป็นชุดยังคงใช้ `stockQuantity=1` เป็น availability sentinel แต่ไม่เก็บจำนวนรายการชุดแยกอีกต่อไป
+Flyway migration สร้าง schema และ seed creative assets 36 รายการ เรียงตาม `sortOrder` โดยยึดชื่ออังกฤษ, slug, ราคา USD, จำนวน stock และลำดับจาก screenshot ต้นแบบแบบอ่านอย่างเดียว ส่วนชื่อไทยและคำอธิบายสองภาษาถูกเขียนใหม่สำหรับ Phuto Shop สินค้าดิจิทัลที่เคยเป็นชุดยังคงใช้ `stockQuantity=1` เป็น availability sentinel แต่ไม่เก็บจำนวนรายการชุดแยกอีกต่อไป
 
 ราคาเป็นค่าคงที่หน่วยสตางค์ตามสูตร:
 
