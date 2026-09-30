@@ -7,7 +7,8 @@ flock -n 9 || { echo 'Another deployment is active.' >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Commit work before deploying.' >&2; exit 1; }
 branch="$(git branch --show-current)"
 [[ "$branch" == hermes/* || "$branch" == codex/linux-dev-environment ]] || { echo 'Use hermes/* or the setup branch.' >&2; exit 1; }
-export IMAGE_TAG="$(git rev-parse HEAD)"
+IMAGE_TAG="$(git rev-parse HEAD)"
+export IMAGE_TAG
 [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || exit 1
 if [[ -f infra/dev/runtime/deployed-sha ]]; then
     previous="$(cat infra/dev/runtime/deployed-sha)"
