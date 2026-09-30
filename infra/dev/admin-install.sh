@@ -11,7 +11,10 @@ if id -nG hermes | tr ' ' '\n' | grep -Eq '^(sudo|docker)$'; then
     echo 'Hermes must not belong to sudo or production docker groups.'; exit 1
 fi
 apt-get update
-apt-get install -y uidmap dbus-user-session slirp4netns docker-ce-rootless-extras restic
+NEEDRESTART_MODE=l apt-get install -y --no-upgrade uidmap dbus-user-session slirp4netns restic
+if ! command -v dockerd-rootless-setuptool.sh >/dev/null; then
+    NEEDRESTART_MODE=l apt-get install -y docker-ce-rootless-extras
+fi
 # Allocate a free, non-overlapping subordinate ID range; preserve existing mappings.
 python3 - <<'PY'
 from pathlib import Path

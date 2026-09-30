@@ -26,6 +26,9 @@ os.setgroups([])
 os.setgid(user.pw_gid)
 os.setuid(user.pw_uid)
 os.umask(0o077)
-with open('/srv/hermes/dev-control/provider-import.json', 'x') as handle:
+target = Path('/srv/hermes/dev-control/provider-import.json')
+if target.exists() or target.is_symlink():
+    raise SystemExit('Existing provider-import.json preserved. Run configure.py next; no secrets were overwritten.')
+with target.open('x') as handle:
     json.dump(values, handle)
 print('Provider settings prepared privately for configure.py. No database or production encryption keys copied.')

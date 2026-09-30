@@ -39,8 +39,8 @@ Use its existing Telegram token and the owner's numeric Telegram ID in
 paired users. Verify with an unauthorized Telegram account before deployment.
 Set the terminal workspace to `/srv/hermes/pluto-shop`, the local terminal backend,
 and `DOCKER_HOST=unix:///run/user/$(id -u hermes)/docker.sock` in the gateway's
-environment. Load `infra/dev/HERMES.md` into the installed version's project
-instructions. Restart only the identified gateway service, preserving its other
+environment. The repository `AGENTS.md` points to `infra/dev/HERMES.md`; confirm
+the installed version loads these project instructions. Restart only the identified gateway service, preserving its other
 model/provider settings. Do not guess its service name or launch a second bot.
 
 Hermes must have neither `sudo` nor `docker` group membership. Verify that it
