@@ -51,6 +51,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang={locale}>
       <body>
+        {process.env.DEPLOYMENT_ENV === "dev" && (
+          <aside role="note" style={{ padding: "10px 16px", background: "#713f12", color: "#fff", textAlign: "center", fontSize: "14px" }}>
+            ระบบอยู่ระหว่างพัฒนา — การชำระเงินใช้เงินจริง
+          </aside>
+        )}
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -33,6 +33,8 @@ docker compose down
 
 ## Production deployment
 
+สำหรับ Linux dev, Hermes ผ่าน Telegram และการพัก production แบบเก็บข้อมูลเดิม อ่าน [คู่มือ dev server](docs/dev-server-runbook.md)
+
 Production ใช้ `compose.production.yaml` โดยเปิดสาธารณะผ่าน Caddy container เฉพาะพอร์ต 80/443, ใช้ Keycloak PostgreSQL database แยก, ดึง image แบบ immutable commit SHA จาก GHCR และทำ pre-migration backup ก่อน Flyway ทุกครั้ง
 
 อ่านขั้นตอน VPS, DNS, secrets, Restic backup/restore, monitoring, external acceptance และขอบเขต Hermes ได้ที่ [docs/production-runbook.md](docs/production-runbook.md) ตัวอย่างค่าผลิตจริงอยู่ที่ `.env.production.example`; ห้ามใช้ไฟล์ตัวอย่างเป็น secrets จริง

@@ -13,6 +13,10 @@ test-results/
 # Local configuration and secrets
 .env
 .env.production
+.env.dev-server
+.env.dev-server.*
+!.env.dev-server.example
+infra/dev/runtime/
 .env.local
 .env.*.local
 !.env.example

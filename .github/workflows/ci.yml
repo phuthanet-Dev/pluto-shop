@@ -32,6 +32,8 @@ jobs:
         run: npm run test:root
       - name: Verify production configuration renderer
         run: npm run test:production-config
+      - name: Verify isolated Linux dev configuration
+        run: npm run test:dev-server
       - name: Lint
         run: npm run lint
       - name: Type-check

@@ -1,0 +1,24 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+}
+
+phutoshop.com, auth.phutoshop.com {
+    header Retry-After "86400"
+    header Cache-Control "no-store"
+    header Content-Type "text/html; charset=utf-8"
+    respond "<!doctype html><html lang='th'><meta charset='utf-8'><meta name='viewport' content='width=device-width'><title>Phuto Shop</title><body style='font-family:sans-serif;text-align:center;padding:12vh 24px;background:#07070a;color:white'><h1>Phuto Shop</h1><p>เว็บไซต์อยู่ระหว่างปรับปรุง แล้วพบกันใหม่เร็ว ๆ นี้</p></body></html>" 503
+}
+
+dev.phutoshop.com {
+    encode zstd gzip
+    header X-Robots-Tag "noindex, nofollow, noarchive"
+    reverse_proxy 127.0.0.1:13000
+}
+
+auth-dev.phutoshop.com {
+    header X-Robots-Tag "noindex, nofollow, noarchive"
+    @blocked path /admin /admin/* /realms/master /realms/master/* /metrics /metrics/* /health /health/*
+    respond @blocked 404
+    reverse_proxy 127.0.0.1:18081
+}
