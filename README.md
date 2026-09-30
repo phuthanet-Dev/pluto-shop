@@ -67,7 +67,7 @@ docker compose --profile db-client up -d postgres-gui
 .
 ├── apps/
 │   ├── api/                 # Spring Boot 4.1.1 / Java 17 / Maven Wrapper
-│   └── web/                 # Next.js 16.3.2 App Router / React / TypeScript
+│   └── web/                 # Next.js 16.3.7 App Router / React / TypeScript
 ├── infra/postgres/init/     # สร้าง runtime DB role แบบ read-only
 ├── scripts/                 # secure local Compose bootstrap
 ├── .github/workflows/ci.yml # lint, tests, builds, Compose + Playwright

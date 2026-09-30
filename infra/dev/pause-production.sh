@@ -36,7 +36,10 @@ recover() {
     status=$?
     if (( status != 0 )); then
         "${edge[@]}" stop caddy || true
-        "${compose[@]}" up -d --no-deps --wait postgres keycloak api web caddy || true
+        "${compose[@]}" up -d --no-deps --wait --wait-timeout 180 postgres || true
+        "${compose[@]}" up -d --no-deps --wait --wait-timeout 300 keycloak || true
+        "${compose[@]}" up -d --no-deps --wait --wait-timeout 180 api web || true
+        "${compose[@]}" up -d --no-deps --wait --wait-timeout 90 caddy || true
         while read -r timer; do systemctl enable "$timer"; done < "$state/enabled-timers"
         while read -r timer; do systemctl start "$timer"; done < "$state/active-timers"
         echo 'Pause failed; attempted to restore original services. Inspect status before retrying.' >&2

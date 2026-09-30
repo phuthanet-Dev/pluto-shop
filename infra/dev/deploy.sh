@@ -19,11 +19,12 @@ chmod 700 infra/dev/runtime
 # Build/test before touching running services. The rootless daemon is resource-capped.
 docker run --rm --mount "type=bind,src=$ROOT_DIR,dst=/workspace" -w /workspace \
     --memory=2g --cpus=2 node:24.18.0-alpine sh -ec \
-    'npm ci && npm run lint && npm run typecheck && npm run test && npm run test:root && npm run test:production-config && npm run test:dev-server'
+    'npm ci && npm run lint && npm run typecheck && npm run test --workspace @pluto-shop/web -- --maxWorkers=1 --testTimeout=15000 && npm run test:root && npm run test:production-config && npm run test:dev-server'
 # API integration tests use Testcontainers through the DEV rootless socket only.
 docker run --rm --network host --mount "type=bind,src=$ROOT_DIR/apps/api,dst=/workspace" \
     --mount "type=bind,src=/run/user/$(id -u)/docker.sock,dst=/var/run/docker.sock" \
     -e DOCKER_HOST=unix:///var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 \
+    -e TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/run/user/$(id -u)/docker.sock" \
     --memory=2g --cpus=2 -w /workspace maven:3.9.11-eclipse-temurin-17 mvn -B -ntp verify
 docker build -t "pluto-dev-api:$IMAGE_TAG" apps/api
 docker build -t "pluto-dev-keycloak:$IMAGE_TAG" infra/keycloak

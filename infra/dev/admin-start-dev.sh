@@ -2,6 +2,9 @@
 # Run by the owner after initial installation and configure.py.
 set -Eeuo pipefail
 [[ "$EUID" == 0 ]] || exit 1
+if systemctl is-active --quiet pluto-dev-build.service; then
+    echo 'A dev build is already active. Wait for it to finish before updating the workspace.'; exit 1
+fi
 src="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$src/../.." && pwd)"
 uid="$(id -u hermes)"

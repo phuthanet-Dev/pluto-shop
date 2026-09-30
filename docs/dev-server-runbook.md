@@ -90,11 +90,12 @@ are enabled by the production parking step, not by this initial local build.
 ## Freeze production (only after backup/restore succeeds)
 
 ```bash
-sudo bash /opt/pluto-dev-ops/pause-production.sh
-sudo bash /opt/pluto-dev-ops/healthcheck.sh
+sudo bash /home/dev/pluto-dev-setup/infra/dev/admin-publish-dev.sh
 ```
 
-The pause script records rollback files and timer state, validates Caddy, stops
+The publication helper requires the latest setup commit to have deployed locally,
+refreshes the reviewed root-owned operations, and verifies a post-migration dev
+backup. The pause script records rollback files and timer state, validates Caddy, stops
 writers, captures both production databases/media/secrets/config/certificates,
 uploads a `pluto-freeze` snapshot, restores both databases in an isolated test
 container and checks media references. On failure it attempts to restart the
