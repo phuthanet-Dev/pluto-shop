@@ -22,7 +22,9 @@ for name in app.dump keycloak.dump media.tar runtime.env images.txt; do test -s 
 "${d[@]}" run -d --name "$container" --network none --memory=1g \
     -e POSTGRES_HOST_AUTH_METHOD=trust -v "$artifacts:/restore:ro" postgres:18.6 >/dev/null
 for attempt in $(seq 1 60); do
-    "${d[@]}" exec "$container" pg_isready -U postgres >/dev/null 2>&1 && break
+    # During initdb the official image briefly starts a socket-only server.
+    # Probe TCP so this cannot report ready before the final server is accepting clients.
+    "${d[@]}" exec "$container" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && break
     [[ "$attempt" != 60 ]] || exit 1
     sleep 2
 done

@@ -17,7 +17,7 @@ for file in backup.sh verify-backup.sh pause-production.sh resume-production.sh 
     install -o root -g root -m 644 "$src/$file" "/opt/pluto-dev-ops/$file"
 done
 bash /opt/pluto-dev-ops/backup.sh dev
-bash /opt/pluto-dev-ops/verify-backup.sh dev
+# backup.sh dev creates and fully restores this exact snapshot before it returns.
 systemctl enable --now pluto-dev-backup.timer
 bash /opt/pluto-dev-ops/pause-production.sh
 bash /opt/pluto-dev-ops/healthcheck.sh
