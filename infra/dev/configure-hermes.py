@@ -41,8 +41,24 @@ environment = dict(os.environ, HOME=str(home), HERMES_HOME=str(home / '.hermes')
 subprocess.run(cli + ['--version'], env=environment, check=True)
 for key, value in (
     ('terminal.backend', 'local'), ('terminal.cwd', '/srv/hermes/pluto-shop'),
-    ('GATEWAY_ALLOW_ALL_USERS', 'false'), ('TELEGRAM_ALLOW_ALL_USERS', 'false'),
-    ('DOCKER_HOST', f'unix:///run/user/{os.getuid()}/docker.sock'),
 ):
     subprocess.run(cli + ['config', 'set', key, value], env=environment, check=True)
+# Older installed versions route unknown uppercase config keys into YAML, not .env.
+# Update only these non-secret environment controls; preserve token and allowlist.
+controls = {
+    'GATEWAY_ALLOW_ALL_USERS': 'false',
+    'TELEGRAM_ALLOW_ALL_USERS': 'false',
+    'DOCKER_HOST': f'unix:///run/user/{os.getuid()}/docker.sock',
+}
+lines = [line for line in envfile.read_text().splitlines()
+         if line.split('=', 1)[0].strip().removeprefix('export ') not in controls]
+lines.extend(key + '=' + value for key, value in controls.items())
+temporary = envfile.with_name('.env.pluto-tmp')
+temporary.write_text('\n'.join(lines) + '\n')
+temporary.chmod(0o600)
+temporary.replace(envfile)
+yaml_path = home / '.hermes/config.yaml'
+yaml_text = yaml_path.read_text()
+yaml_text = re.sub(r'^(GATEWAY_ALLOW_ALL_USERS|TELEGRAM_ALLOW_ALL_USERS|DOCKER_HOST):[^\n]*\n?', '', yaml_text, flags=re.MULTILINE)
+yaml_path.write_text(yaml_text)
 print('Existing Telegram token and single-owner allowlist preserved; dev workspace configured.')
