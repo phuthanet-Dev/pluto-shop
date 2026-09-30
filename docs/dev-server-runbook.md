@@ -50,6 +50,21 @@ repository access; never a production SSH key or an unrestricted account token.
 
 ## Initial dev deployment
 
+For the existing default-profile `hermes-gateway.service`, after the owner confirms
+the single numeric allowlisted Telegram ID, the following helper keeps the gateway
+binary/model/token, configures the dev workspace, and starts an unprivileged build
+with a readable operator log:
+
+```bash
+sudo bash /home/dev/pluto-dev-setup/infra/dev/admin-start-dev.sh
+tail -n 50 /var/log/pluto-dev-build.log
+```
+
+It refuses an unrecognized gateway entrypoint or a multi-user/empty allowlist.
+Verify an unauthorized Telegram user is rejected; configuration alone does not
+replace this acceptance test. Do not start a second build while the service runs.
+If using the manual path instead:
+
 ```bash
 sudo -u hermes -H bash /srv/hermes/pluto-shop/infra/dev/deploy.sh
 sudo bash /opt/pluto-dev-ops/verify-backup.sh dev
