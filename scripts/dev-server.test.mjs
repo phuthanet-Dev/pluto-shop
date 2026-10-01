@@ -27,7 +27,7 @@ test("rendered dev Compose isolates data and publishes only loopback web/auth", 
     SHOP_DOMAIN: "dev.phutoshop.com", AUTH_DOMAIN: "auth-dev.phutoshop.com",
     IMAGE_NAMESPACE: "pluto-dev", IMAGE_TAG: "a".repeat(40),
     KEYCLOAK_REALM_FILE: "./infra/dev/runtime/realm-dev.json",
-    POSTGRES_DB: "plutoshop_dev", KEYCLOAK_DB_NAME: "keycloak_dev",
+    POSTGRES_DB: "plutoshop_dev", KEYCLOAK_DB_NAME: "keycloak_dev", POSTGRES_HERMES_PASSWORD: "fixture-only",
   });
   const result = spawnSync("docker", ["compose", "--env-file", ".env.production.example", "-f", "compose.dev-server.yaml", "config", "--format", "json"], { env, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
@@ -75,4 +75,74 @@ test("testPythonUnitBytecodeDoesNotDirtyDevDeployTree", () => {
 
   assert.match(ignoreRules, /^__pycache__\/$/m);
   assert.match(ignoreRules, /^\*\.py\[cod\]$/m);
+});
+
+test("Dev PostgreSQL and Hermes DB bootstrap remain private to the data network", (t) => {
+  const available = spawnSync("docker", ["compose", "version"], { encoding: "utf8" });
+  if (available.error?.code === "ENOENT") return t.skip("Docker CLI unavailable; run on the deployment host");
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+    /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|HOME|USERPROFILE|TEMP|TMP|DOCKER_CONFIG|APPDATA|LOCALAPPDATA|PROGRAMDATA|PROGRAMFILES|PROGRAMFILES\(X86\))$/i.test(key)));
+  Object.assign(env, {
+    SHOP_DOMAIN: "dev.phutoshop.com", AUTH_DOMAIN: "auth-dev.phutoshop.com",
+    IMAGE_NAMESPACE: "pluto-dev", IMAGE_TAG: "a".repeat(40),
+    KEYCLOAK_REALM_FILE: "./infra/dev/runtime/realm-dev.json",
+    POSTGRES_DB: "plutoshop_dev", POSTGRES_USER: "pluto",
+    KEYCLOAK_DB_NAME: "keycloak_dev", POSTGRES_HERMES_PASSWORD: "fixture-only",
+  });
+  const result = spawnSync("docker", ["compose", "--env-file", ".env.production.example", "-f", "compose.dev-server.yaml", "config", "--format", "json"], { env, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout);
+  const postgres = config.services.postgres;
+  const bootstrap = config.services["hermes-db-role-bootstrap"];
+
+  assert.equal(postgres.ports, undefined);
+  assert.deepEqual(Object.keys(postgres.networks), ["data"]);
+  assert.equal(config.networks.data.internal, true);
+  assert.ok(bootstrap);
+  assert.equal(bootstrap.ports, undefined);
+  assert.deepEqual(Object.keys(bootstrap.networks), ["data"]);
+  assert.equal(bootstrap.read_only, true);
+  assert.deepEqual(bootstrap.cap_drop, ["ALL"]);
+  assert.ok(bootstrap.security_opt.includes("no-new-privileges:true"));
+  assert.ok(bootstrap.environment.POSTGRES_OWNER_PASSWORD);
+  assert.ok(bootstrap.environment.POSTGRES_HERMES_PASSWORD);
+});
+
+test("Hermes role bootstrap runs after backup-gated migrations and before app services", () => {
+  const deploy = readFileSync("infra/dev/deploy.sh", "utf8");
+  const deployLock = deploy.indexOf("flock -n 9");
+  const credentialSetup = deploy.indexOf("ensure-hermes-db-password.py");
+  const backupGate = deploy.indexOf("Waiting for administrator-owned encrypted off-host backup");
+  const migration = deploy.indexOf("run --rm migrate");
+  const operatorBootstrap = deploy.indexOf("run --rm hermes-db-role-bootstrap");
+  const keycloak = deploy.indexOf("up -d --no-deps --wait --wait-timeout 300 keycloak");
+  const apiWeb = deploy.indexOf("up -d --no-deps --wait --wait-timeout 180 api web");
+
+  assert.ok(deployLock >= 0 && deployLock < credentialSetup);
+  assert.ok(backupGate >= 0 && backupGate < migration);
+  assert.ok(migration < operatorBootstrap);
+  assert.ok(operatorBootstrap < keycloak);
+  assert.ok(operatorBootstrap < apiWeb);
+});
+
+test("Hermes DB grants stop at application DML and deny schema and Flyway writes", () => {
+  const sql = readFileSync("infra/dev/hermes-db-role-bootstrap.sql", "utf8");
+
+  assert.match(sql, /REVOKE CREATE ON SCHEMA public FROM PUBLIC/i);
+  assert.match(sql, /GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO hermes_dev_operator/i);
+  assert.match(sql, /ALTER DEFAULT PRIVILEGES FOR ROLE :"owner_role" IN SCHEMA public/i);
+  assert.match(sql, /REVOKE INSERT, UPDATE, DELETE ON TABLE public\.flyway_schema_history FROM hermes_dev_operator/i);
+  assert.doesNotMatch(sql, /GRANT\s+CREATE\s+ON\s+SCHEMA\s+public\s+TO\s+hermes_dev_operator/i);
+  assert.match(sql, /NOSUPERUSER NOCREATEDB NOCREATEROLE/i);
+  assert.doesNotMatch(sql, /GRANT\s+ALL\s+ON\s+SCHEMA\s+public\s+TO\s+hermes_dev_operator/i);
+});
+test("Hermes database CLI fixes the database identity and uses the operator password", () => {
+  const database = readFileSync("infra/dev/db.sh", "utf8");
+
+  assert.match(database, /POSTGRES_DB" == plutoshop_dev/);
+  assert.match(database, /export PGPASSWORD="\$POSTGRES_HERMES_PASSWORD"/);
+  assert.match(database, /--env PGPASSWORD postgres/);
+  assert.match(database, /--username hermes_dev_operator --dbname plutoshop_dev/);
+  assert.match(database, /The database host, user, and database are fixed/);
+  assert.doesNotMatch(database, /POSTGRES_OWNER_PASSWORD|POSTGRES_PASSWORD/);
 });

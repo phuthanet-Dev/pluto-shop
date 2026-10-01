@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/common.sh"
 cd "$ROOT_DIR"
 exec 9>/srv/hermes/dev-control/deploy.lock
 flock -n 9 || { echo 'Another deployment is active.' >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Commit work before deploying.' >&2; exit 1; }
 branch="$(git branch --show-current)"
 [[ "$branch" == hermes/* || "$branch" == codex/linux-dev-environment ]] || { echo 'Use hermes/* or the setup branch.' >&2; exit 1; }
+python3 "$script_dir/ensure-hermes-db-password.py"
 IMAGE_TAG="$(git rev-parse HEAD)"
 export IMAGE_TAG
 [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || exit 1
@@ -50,6 +52,7 @@ for attempt in $(seq 1 600); do
     sleep 2
 done
 "${COMPOSE[@]}" run --rm migrate
+"${COMPOSE[@]}" run --rm hermes-db-role-bootstrap
 "${COMPOSE[@]}" up -d --no-deps --wait --wait-timeout 300 keycloak
 "${COMPOSE[@]}" up -d --no-deps --wait --wait-timeout 180 api web
 curl -fsS --max-time 20 http://127.0.0.1:13000/th >/dev/null
