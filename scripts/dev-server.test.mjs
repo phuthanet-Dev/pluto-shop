@@ -189,4 +189,7 @@ test("Hermes instructions require reviewed migrations for irreversible schema ch
   assert.match(instructions, /versioned Flyway migrations/);
   assert.match(instructions, /irreversible or data-removing migration requires owner review/);
   assert.match(instructions, /Do not run DDL directly through db\.sh/);
+  const runbook = readFileSync("docs/dev-server-runbook.md", "utf8");
+  assert.match(runbook, /expand-and-contract/);
+  assert.match(runbook, /src\/test\/resources\/db\/migration/);
 });

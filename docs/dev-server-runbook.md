@@ -121,11 +121,16 @@ needed for the owner's task; avoid table dumps and redact customer/payment data.
 The helper rejects options that change the host, database, or role. Do not use
 Production credentials or alternate connection paths.
 
-All schema changes remain versioned Flyway migrations. Run the API migration
-tests against disposable PostgreSQL, then use the normal Dev deployment. The
-existing off-host backup and restore-verification gate runs before each
-migration; the Hermes role is refreshed after migration and before API/web
-services start. Keep changes compatible with the running API. Ask the owner to
+All schema changes remain versioned Flyway migrations. Prefer expand-and-contract
+for changes that alter existing data: add a nullable replacement column or new
+table first, backfill data while the old shape remains available, and preserve
+compatibility with the currently running API. Remove the old column or table only
+in a later migration after no deployed application version uses it. The
+Testcontainers fixtures under apps/api/src/test/resources/db/migration stay
+outside the runtime API image. Run the API migration tests against disposable
+PostgreSQL, then use the normal Dev deployment. The existing off-host backup and
+restore-verification gate runs before each migration; the Hermes role is
+refreshed after migration and before API/web services start. Ask the owner to
 review irreversible migrations before deployment.
 ## Freeze production (only after backup/restore succeeds)
 
