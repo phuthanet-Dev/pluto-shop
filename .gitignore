@@ -38,3 +38,5 @@ npm-debug.log*
 
 # Local PostgreSQL data if bind-mounted
 data/
+__pycache__/
+*.py[cod]

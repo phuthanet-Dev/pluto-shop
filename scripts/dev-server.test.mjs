@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { buildProductionRealm } from "../infra/production/render-production-realm.mjs";
 
@@ -47,4 +48,31 @@ test("rendered dev Compose isolates data and publishes only loopback web/auth", 
   assert.equal(config.networks.data.internal, true);
   for (const volume of Object.values(config.volumes)) assert.ok(volume.name.startsWith("pluto-shop-dev_"));
   assert.equal(config.services.api.environment.INWCLOUD_TRUEWALLET_ENABLED, "false");
+});
+
+test("testSystemdDropInPreservesProductionIsolation", () => {
+  const unit = readFileSync("infra/dev/admin-start-dev.sh", "utf8");
+
+  assert.match(unit, /InaccessiblePaths=.*\/var\/run\/docker\.sock/);
+  assert.match(unit, /InaccessiblePaths=.*\/opt\/pluto-shop/);
+  assert.match(unit, /InaccessiblePaths=.*\/etc\/pluto-dev-backup\.env/);
+  assert.doesNotMatch(unit, /usermod\s+-aG\s+docker/);
+});
+
+test("testKeepsTelegramOwnerAllowlistEnabled", () => {
+  const configure = readFileSync("infra/dev/configure-hermes.py", "utf8");
+  const repair = readFileSync("infra/dev/admin-fix-gateway.sh", "utf8");
+
+  assert.match(configure, /values\.get\('TELEGRAM_ALLOWED_USERS'/);
+  assert.match(configure, /GATEWAY_ALLOW_ALL_USERS': 'false'/);
+  assert.match(configure, /TELEGRAM_ALLOW_ALL_USERS': 'false'/);
+  assert.match(configure, /Existing Telegram token and single-owner allowlist preserved/);
+  assert.match(repair, /original owner allowlist/);
+});
+
+test("testPythonUnitBytecodeDoesNotDirtyDevDeployTree", () => {
+  const ignoreRules = readFileSync(".gitignore", "utf8");
+
+  assert.match(ignoreRules, /^__pycache__\/$/m);
+  assert.match(ignoreRules, /^\*\.py\[cod\]$/m);
 });

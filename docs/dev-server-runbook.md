@@ -48,6 +48,18 @@ cannot read `/opt/pluto-shop/current/.env.production` or `/etc/pluto-dev-backup.
 and cannot use `/var/run/docker.sock`. Give any Git credential only the required
 repository access; never a production SSH key or an unrestricted account token.
 
+#### Diagnose the running Telegram session
+
+After the gateway is configured, ask Hermes from the owner-allowlisted Telegram
+conversation to run `python3 infra/dev/hermes_runtime_check.py` in
+`/srv/hermes/pluto-shop`. The command reports only fixed check names and `PASS` or
+`FAIL`; it captures Docker/systemd output and never prints environment values or
+file contents. Share only that redacted report when diagnosing a failure. The
+isolation check reads the service manager's `InaccessiblePaths` property; it does
+not open or connect to Production or backup paths. Do not repair a failed Dev
+socket check by granting sudo, Production Docker access, or broader filesystem
+permissions.
+
 ## Initial dev deployment
 
 For the existing default-profile `hermes-gateway.service`, after the owner confirms
