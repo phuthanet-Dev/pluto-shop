@@ -193,3 +193,14 @@ test("Hermes instructions require reviewed migrations for irreversible schema ch
   assert.match(runbook, /expand-and-contract/);
   assert.match(runbook, /src\/test\/resources\/db\/migration/);
 });
+test("API Testcontainers receive only the Dev database bootstrap source files", () => {
+  const deploy = readFileSync("infra/dev/deploy.sh", "utf8");
+  const apiTests = deploy.slice(
+    deploy.indexOf("# API integration tests"),
+    deploy.indexOf("docker build -t"),
+  );
+
+  assert.ok(apiTests.includes("src=$ROOT_DIR/infra/dev/bootstrap-hermes-db-role.sh,dst=/tmp/bootstrap-hermes-db-role.sh,readonly"));
+  assert.ok(apiTests.includes("src=$ROOT_DIR/infra/dev/hermes-db-role-bootstrap.sql,dst=/tmp/hermes-db-role-bootstrap.sql,readonly"));
+  assert.doesNotMatch(apiTests, /src=\$ROOT_DIR\/infra\/dev,dst=/);
+});

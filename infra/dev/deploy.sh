@@ -24,6 +24,8 @@ docker run --rm --mount "type=bind,src=$ROOT_DIR,dst=/workspace" -w /workspace \
     'npm ci && npm run lint && npm run typecheck && npm run test --workspace @pluto-shop/web -- --maxWorkers=1 --testTimeout=15000 && npm run test:root && npm run test:production-config && npm run test:dev-server'
 # API integration tests use Testcontainers through the DEV rootless socket only.
 docker run --rm --network host --mount "type=bind,src=$ROOT_DIR/apps/api,dst=/workspace" \
+    --mount "type=bind,src=$ROOT_DIR/infra/dev/bootstrap-hermes-db-role.sh,dst=/tmp/bootstrap-hermes-db-role.sh,readonly" \
+    --mount "type=bind,src=$ROOT_DIR/infra/dev/hermes-db-role-bootstrap.sql,dst=/tmp/hermes-db-role-bootstrap.sql,readonly" \
     --mount "type=bind,src=/run/user/$(id -u)/docker.sock,dst=/var/run/docker.sock" \
     -e DOCKER_HOST=unix:///var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 \
     -e TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/run/user/$(id -u)/docker.sock" \

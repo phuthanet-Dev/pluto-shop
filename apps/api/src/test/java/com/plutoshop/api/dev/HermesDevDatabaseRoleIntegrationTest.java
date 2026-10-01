@@ -3,6 +3,7 @@ package com.plutoshop.api.dev;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -51,10 +52,10 @@ class HermesDevDatabaseRoleIntegrationTest {
 
         Path repositoryRoot = Path.of("..", "..").toAbsolutePath().normalize();
         POSTGRES.copyFileToContainer(
-                MountableFile.forHostPath(repositoryRoot.resolve("infra/dev/bootstrap-hermes-db-role.sh")),
+                MountableFile.forHostPath(devBootstrapFile(repositoryRoot, "bootstrap-hermes-db-role.sh")),
                 "/tmp/bootstrap-hermes-db-role.sh");
         POSTGRES.copyFileToContainer(
-                MountableFile.forHostPath(repositoryRoot.resolve("infra/dev/hermes-db-role-bootstrap.sql")),
+                MountableFile.forHostPath(devBootstrapFile(repositoryRoot, "hermes-db-role-bootstrap.sql")),
                 "/tmp/hermes-db-role-bootstrap.sql");
 
         String bootstrap = """
@@ -149,5 +150,13 @@ class HermesDevDatabaseRoleIntegrationTest {
 
     private static Connection operatorConnection() throws SQLException {
         return DriverManager.getConnection(POSTGRES.getJdbcUrl(), OPERATOR_ROLE, OPERATOR_PASSWORD);
+    }
+
+    private static Path devBootstrapFile(Path repositoryRoot, String filename) {
+        Path mountedSource = Path.of("/tmp", filename);
+        if (Files.isRegularFile(mountedSource)) {
+            return mountedSource;
+        }
+        return repositoryRoot.resolve("infra/dev").resolve(filename);
     }
 }
