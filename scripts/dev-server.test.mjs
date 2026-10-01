@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { buildProductionRealm } from "../infra/production/render-production-realm.mjs";
 
@@ -157,4 +157,36 @@ test("Hermes instructions keep data and schema work on the guarded Dev path", ()
   assert.match(runbook, /hermes_dev_operator/);
   assert.match(runbook, /matching encrypted backup receipt/);
   assert.doesNotMatch(runbook, /POSTGRES_HERMES_PASSWORD=['"][^'"\r\n]+['"]/);
+});
+test("Hermes schema migration fixtures stay in test resources", () => {
+  const testResources = "apps/api/src/test/resources/db/migration/hermes-schema-test";
+  const runtimeResources = "apps/api/src/main/resources/db/migration/hermes-schema-test";
+
+  assert.ok(existsSync(testResources + "/V1__create_probe_table.sql"));
+  assert.ok(existsSync(testResources + "/V2__expand_probe_table.sql"));
+  assert.ok(existsSync(testResources + "/V3__contract_probe_table.sql"));
+  assert.ok(existsSync(testResources + "/V4__drop_related_probe_table.sql"));
+  assert.equal(existsSync(runtimeResources), false);
+});
+test("Dev deployment gates migration before replacing application services", () => {
+  const deploy = readFileSync("infra/dev/deploy.sh", "utf8");
+  const backupWait = deploy.indexOf("Waiting for administrator-owned encrypted off-host backup");
+  const migration = deploy.indexOf("run --rm migrate");
+  const operatorBootstrap = deploy.indexOf("run --rm hermes-db-role-bootstrap");
+  const keycloak = deploy.indexOf("up -d --no-deps --wait --wait-timeout 300 keycloak");
+  const apiWeb = deploy.indexOf("up -d --no-deps --wait --wait-timeout 180 api web");
+  const healthCheck = deploy.indexOf("curl -fsS --max-time 20 http://127.0.0.1:13000/th");
+
+  assert.ok(backupWait >= 0 && backupWait < migration);
+  assert.ok(migration < operatorBootstrap && operatorBootstrap < keycloak);
+  assert.ok(keycloak < apiWeb && apiWeb < healthCheck);
+  assert.doesNotMatch(deploy, /down\s+-v|docker\s+volume\s+(?:rm|prune)|dropdb|pg_restore/i);
+});
+
+test("Hermes instructions require reviewed migrations for irreversible schema changes", () => {
+  const instructions = readFileSync("infra/dev/HERMES.md", "utf8");
+
+  assert.match(instructions, /versioned Flyway migrations/);
+  assert.match(instructions, /irreversible or data-removing migration requires owner review/);
+  assert.match(instructions, /Do not run DDL directly through db\.sh/);
 });
