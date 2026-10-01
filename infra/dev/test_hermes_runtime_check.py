@@ -21,12 +21,18 @@ class HermesRuntimeCheckTests(unittest.TestCase):
             "-/opt/pluto-shop -/var/run/docker.sock "
             "-/etc/pluto-dev-backup.env"
         )
+        self.isolation_mountinfo = "\n".join(
+            f"36 25 0:32 / /{path.lstrip('/')} ro,nosuid,nodev - tmpfs /run/systemd/inaccessible/dir ro"
+            for path in runtime_check.PROTECTED_PATHS
+        )
 
     def successful_process(self, command, **_kwargs):
         if command[0] == "git":
             output = str(self.workspace)
         elif command[0] == "docker" and command[1] == "info":
             output = '["name=rootless"]'
+        elif command[0] == "systemctl" and "--property=MainPID" in command:
+            output = "1234"
         elif command[0] == "systemctl":
             output = self.isolation_output
         else:
@@ -43,6 +49,7 @@ class HermesRuntimeCheckTests(unittest.TestCase):
                 cwd=cwd or self.workspace,
                 env=self.environment if environment is None else environment,
                 run=run or self.successful_process,
+                read_mountinfo=lambda _pid: self.isolation_mountinfo,
             )
 
     def test_passes_expected_workspace_and_rootless_socket(self):
@@ -100,6 +107,29 @@ class HermesRuntimeCheckTests(unittest.TestCase):
         self.assertNotIn(sentinel, report)
         self.assertNotIn(self.environment["DOCKER_HOST"], report)
         self.assertTrue(all(line.endswith(("PASS", "FAIL")) for line in report.splitlines()))
+
+    def test_production_isolation_requires_an_active_service_process(self):
+        def inactive_process(command, **kwargs):
+            if command[0] == "systemctl" and "--property=MainPID" in command:
+                return subprocess.CompletedProcess(command, 0, stdout="0", stderr="")
+            return self.successful_process(command, **kwargs)
+
+        checks = self.collect(run=inactive_process)
+
+        self.assertFalse(checks["production_isolation"])
+
+    def test_production_isolation_requires_mounts_in_the_active_process(self):
+        stale_mountinfo = self.isolation_mountinfo.replace("/opt/pluto-shop", "/old/opt/pluto-shop")
+
+        checks = runtime_check.collect_checks(
+            uid=997,
+            cwd=self.workspace,
+            env=self.environment,
+            run=self.successful_process,
+            read_mountinfo=lambda _pid: stale_mountinfo,
+        )
+
+        self.assertFalse(checks["production_isolation"])
 
 
 if __name__ == "__main__":

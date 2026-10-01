@@ -95,12 +95,46 @@ def _workspace_write_probe(workspace: Path) -> bool:
                 pass
 
 
+def _read_mountinfo(pid: int) -> str | None:
+    """Read mount targets from one process namespace without reading app data."""
+    try:
+        return Path("/proc", str(pid), "mountinfo").read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _mountinfo_hides_protected_paths(mountinfo: str) -> bool:
+    """Require inaccessible-path mounts in the active gateway process."""
+    mounted_targets: set[str] = set()
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        if len(fields) > 4:
+            target = fields[4]
+            for escaped, decoded in (
+                (r"\040", " "),
+                (r"\011", "\t"),
+                (r"\012", "\n"),
+                (r"\134", "\\"),
+            ):
+                target = target.replace(escaped, decoded)
+            mounted_targets.add(target)
+
+    for protected_path in PROTECTED_PATHS:
+        aliases = {protected_path}
+        if protected_path.startswith("/var/run/"):
+            aliases.add(protected_path.replace("/var/run/", "/run/", 1))
+        if aliases.isdisjoint(mounted_targets):
+            return False
+    return True
+
+
 def collect_checks(
     *,
     uid: int,
     cwd: Path,
     env: Mapping[str, str],
     run: Callable[..., subprocess.CompletedProcess[str]],
+    read_mountinfo: Callable[[int], str | None] = _read_mountinfo,
 ) -> dict[str, bool]:
     """Collect fixed pass/fail checks; subprocess details and values stay private."""
     try:
@@ -176,10 +210,32 @@ def collect_checks(
         env=env,
     )
     if isolation_result is not None:
-        checks["production_isolation"] = all(
+        configured_paths = all(
             protected_path in isolation_result.stdout
             for protected_path in PROTECTED_PATHS
         )
+        main_pid_result = _run(
+            run,
+            [
+                "systemctl",
+                "--user",
+                "show",
+                "hermes-gateway",
+                "--property=MainPID",
+                "--value",
+            ],
+            cwd=current_workspace,
+            env=env,
+        )
+        try:
+            main_pid = int(main_pid_result.stdout.strip()) if main_pid_result is not None else 0
+        except ValueError:
+            main_pid = 0
+        if configured_paths and main_pid > 0:
+            mountinfo = read_mountinfo(main_pid)
+            checks["production_isolation"] = (
+                mountinfo is not None and _mountinfo_hides_protected_paths(mountinfo)
+            )
 
     return checks
 

@@ -156,6 +156,7 @@ test("Hermes instructions keep data and schema work on the guarded Dev path", ()
   assert.match(runbook, /SELECT current_user, current_database\(\)/);
   assert.match(runbook, /hermes_dev_operator/);
   assert.match(runbook, /matching encrypted backup receipt/);
+  assert.match(runbook, /active gateway process's mount namespace/);
   assert.doesNotMatch(runbook, /POSTGRES_HERMES_PASSWORD=['"][^'"\r\n]+['"]/);
 });
 test("Hermes schema migration fixtures stay in test resources", () => {
@@ -203,4 +204,14 @@ test("API Testcontainers receive only the Dev database bootstrap source files", 
   assert.ok(apiTests.includes("src=$ROOT_DIR/infra/dev/bootstrap-hermes-db-role.sh,dst=/tmp/bootstrap-hermes-db-role.sh,readonly"));
   assert.ok(apiTests.includes("src=$ROOT_DIR/infra/dev/hermes-db-role-bootstrap.sql,dst=/tmp/hermes-db-role-bootstrap.sql,readonly"));
   assert.doesNotMatch(apiTests, /src=\$ROOT_DIR\/infra\/dev,dst=/);
+});
+
+test("Dev deployment runs Hermes Python unit tests before building images", () => {
+  const deploy = readFileSync("infra/dev/deploy.sh", "utf8");
+  const pythonTests = deploy.indexOf(
+    "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s infra/dev -p 'test_hermes_*.py'",
+  );
+  const buildTests = deploy.indexOf("# Build/test before touching running services.");
+
+  assert.ok(pythonTests >= 0 && pythonTests < buildTests);
 });
