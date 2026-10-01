@@ -131,6 +131,13 @@ class HermesRuntimeCheckTests(unittest.TestCase):
 
         self.assertFalse(checks["production_isolation"])
 
+    def test_systemd_resolved_run_alias_satisfies_docker_socket_isolation(self):
+        mountinfo = self.isolation_mountinfo.replace(
+            "/var/run/docker.sock", "/run/docker.sock"
+        )
+
+        self.assertTrue(runtime_check._mountinfo_hides_protected_paths(mountinfo))
+
 
 if __name__ == "__main__":
     unittest.main()
