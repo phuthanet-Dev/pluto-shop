@@ -146,3 +146,15 @@ test("Hermes database CLI fixes the database identity and uses the operator pass
   assert.match(database, /The database host, user, and database are fixed/);
   assert.doesNotMatch(database, /POSTGRES_OWNER_PASSWORD|POSTGRES_PASSWORD/);
 });
+test("Hermes instructions keep data and schema work on the guarded Dev path", () => {
+  const instructions = readFileSync("infra/dev/HERMES.md", "utf8");
+  const runbook = readFileSync("docs/dev-server-runbook.md", "utf8");
+
+  assert.match(instructions, /bash infra\/dev\/db\.sh/);
+  assert.match(instructions, /versioned Flyway migrations/);
+  assert.match(instructions, /owner review/);
+  assert.match(runbook, /SELECT current_user, current_database\(\)/);
+  assert.match(runbook, /hermes_dev_operator/);
+  assert.match(runbook, /matching encrypted backup receipt/);
+  assert.doesNotMatch(runbook, /POSTGRES_HERMES_PASSWORD=['"][^'"\r\n]+['"]/);
+});

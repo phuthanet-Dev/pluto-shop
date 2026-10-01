@@ -99,6 +99,34 @@ slice to 4 CPU / 8 GiB. Watch memory pressure during first build; do not build j
 concurrently. Review limits after observing real workload. The public endpoints
 are enabled by the production parking step, not by this initial local build.
 
+## Hermes Dev database access
+
+The Dev deploy creates a one-time POSTGRES_HERMES_PASSWORD only when missing,
+keeps .env.dev-server mode 0600, and never rotates existing credentials.
+After Flyway succeeds and the matching encrypted backup receipt is present, the
+one-shot hermes-db-role-bootstrap service grants the Hermes operator role
+access to application tables and sequences in plutoshop_dev. PostgreSQL stays
+private on the internal data network. The role cannot connect to the
+Keycloak database, mutate Flyway history, or create schema objects.
+
+From the owner-allowlisted Telegram session, verify the fixed helper with a
+metadata-only query:
+
+~~~bash
+printf 'SELECT current_user, current_database();\n' | bash infra/dev/db.sh
+~~~
+
+It must report hermes_dev_operator and plutoshop_dev. Send only the result
+needed for the owner's task; avoid table dumps and redact customer/payment data.
+The helper rejects options that change the host, database, or role. Do not use
+Production credentials or alternate connection paths.
+
+All schema changes remain versioned Flyway migrations. Run the API migration
+tests against disposable PostgreSQL, then use the normal Dev deployment. The
+existing off-host backup and restore-verification gate runs before each
+migration; the Hermes role is refreshed after migration and before API/web
+services start. Keep changes compatible with the running API. Ask the owner to
+review irreversible migrations before deployment.
 ## Freeze production (only after backup/restore succeeds)
 
 ```bash
