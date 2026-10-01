@@ -21,10 +21,10 @@ verification.
 - The repository has a read-only `pluto_inspector` database role, with selected
   sensitive columns excluded. No dedicated broad Dev data-writer is configured
   for Hermes.
-- The deployed Dev Compose file and `.env.dev-server` are server-side runtime
-  configuration and are not present in this checkout. Implementation must
-  inspect those files locally on the server without copying secrets into Git,
-  logs, or chat.
+- `compose.dev-server.yaml` is tracked at the repository root. The runtime
+  `.env.dev-server` is server-side secret configuration and is not present in
+  this checkout. Implementation must inspect the runtime file locally on the
+  server without copying secrets into Git, logs, or chat.
 - The observed failures are that Hermes has been unable to do useful repository
   work and the Telegram session received `PermissionError` accessing the
   rootless Docker socket. The intended settings alone do not establish which
@@ -42,6 +42,8 @@ Hermes must be able to:
    records and fulfillment inventory, when working on an owner-requested task.
    This includes access to customer/order details and sensitive Dev fulfillment
    and payment metadata; it must not be copied to Git, logs, or Telegram.
+   Flyway's migration-history table is internal metadata, not an application
+   data table, and is excluded from direct DML.
 3. Change the Dev application schema, including adding and removing columns and
    tables, by creating versioned Flyway migrations and applying them through the
    existing Dev deployment workflow.
@@ -80,7 +82,10 @@ tables and sequences. Grant `CONNECT` to `plutoshop_dev` and `USAGE` on the
 application schema. The role must not be a superuser, database owner, role
 administrator, or schema owner. It must not have `CREATE`, `ALTER`, `DROP`, or
 privileges on the Keycloak database. Keep the existing restricted inspector
-role available for read-only tools and diagnostics.
+role available for read-only tools and diagnostics. Because PostgreSQL grants
+`CONNECT` to `PUBLIC` by default on a newly created database, the Dev-only
+bootstrap must revoke inherited `CONNECT` and `TEMPORARY` privileges from
+`PUBLIC` on `keycloak_dev` while preserving the Keycloak service account's access.
 
 Keep PostgreSQL private on the Dev Compose network; do not publish its port to
 the public interface or add a host-network database path. Access the dedicated
