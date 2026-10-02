@@ -43,6 +43,7 @@ Group=hermes
 WorkingDirectory=/srv/hermes/pluto-shop
 Environment=HOME=/srv/hermes
 Environment=HERMES_HOME=/srv/hermes/.hermes
+Environment=HERMES_WRITE_SAFE_ROOT=/srv/hermes/pluto-shop
 Environment=DOCKER_HOST=unix:///run/user/{uid}/docker.sock
 Environment=XDG_RUNTIME_DIR=/run/user/{uid}
 Environment=PATH=/srv/hermes/.local/bin:/srv/hermes/.hermes/hermes-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

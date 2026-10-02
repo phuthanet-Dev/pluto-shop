@@ -17,6 +17,7 @@ class HermesRuntimeCheckTests(unittest.TestCase):
         self.workspace = Path(self.temporary_directory.name)
         self.environment = {
             "DOCKER_HOST": "unix:///run/user/997/docker.sock",
+            "HERMES_WRITE_SAFE_ROOT": str(self.workspace),
             "TELEGRAM_BOT_TOKEN": "runtime-check-sentinel-secret",
         }
         self.protected_paths = (*runtime_check.PROTECTED_PATHS, "/run/user/997/bus")
@@ -65,6 +66,23 @@ class HermesRuntimeCheckTests(unittest.TestCase):
         self.assertTrue(checks["dev_compose"])
         self.assertTrue(checks["production_isolation"])
 
+    def test_reports_missing_or_overbroad_file_write_safe_root(self):
+        invalid_roots = (
+            None,
+            str(self.workspace.parent),
+            str(self.workspace / "other"),
+            str(self.workspace) + os.pathsep + str(self.workspace.parent),
+        )
+        for safe_root in invalid_roots:
+            with self.subTest(safe_root=safe_root):
+                environment = dict(self.environment)
+                if safe_root is None:
+                    environment.pop("HERMES_WRITE_SAFE_ROOT")
+                else:
+                    environment["HERMES_WRITE_SAFE_ROOT"] = safe_root
+                checks = self.collect(environment=environment)
+                self.assertFalse(checks.get("file_write_safe_root", False))
+
     def test_reports_wrong_workspace(self):
         checks = self.collect(cwd=self.workspace / "elsewhere")
 
@@ -105,6 +123,7 @@ class HermesRuntimeCheckTests(unittest.TestCase):
         checks = self.collect()
 
         self.assertTrue(checks["workspace_write"])
+        self.assertTrue(checks.get("file_write_safe_root", False))
         self.assertEqual(list(self.workspace.glob(".hermes-runtime-check-*")), [])
 
     def test_report_never_contains_environment_values(self):
@@ -121,6 +140,7 @@ class HermesRuntimeCheckTests(unittest.TestCase):
 
         self.assertNotIn(sentinel, report)
         self.assertNotIn(self.environment["DOCKER_HOST"], report)
+        self.assertNotIn(self.environment["HERMES_WRITE_SAFE_ROOT"], report)
         self.assertTrue(all(line.endswith(("PASS", "FAIL")) for line in report.splitlines()))
 
     def test_production_isolation_requires_an_active_service_process(self):

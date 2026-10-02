@@ -30,6 +30,7 @@ CHECK_NAMES = (
     "workspace",
     "git_root",
     "workspace_write",
+    "file_write_safe_root",
     "docker_host",
     "rootless_docker",
     "dev_compose",
@@ -147,6 +148,24 @@ def _path_is_inaccessible_to_current_user(path: str) -> bool:
     return not any(os.access(path, access_mode) for access_mode in access_modes)
 
 
+def _file_write_safe_root_matches(workspace: Path, env: Mapping[str, str]) -> bool:
+    """Require native Hermes file tools to be limited to the Dev repository."""
+    roots: set[Path] = set()
+    for configured_root in env.get("HERMES_WRITE_SAFE_ROOT", "").split(os.pathsep):
+        configured_root = configured_root.strip()
+        if not configured_root:
+            continue
+        try:
+            roots.add(Path(configured_root).expanduser().resolve())
+        except (OSError, RuntimeError, ValueError):
+            return False
+    try:
+        expected_root = workspace.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return roots == {expected_root}
+
+
 def collect_checks(
     *,
     uid: int,
@@ -167,6 +186,9 @@ def collect_checks(
     checks = {name: False for name in CHECK_NAMES}
     checks["effective_user"] = _username_for_uid(uid) == "hermes"
     checks["workspace"] = workspace_ok
+    checks["file_write_safe_root"] = _file_write_safe_root_matches(
+        expected_workspace, env
+    )
 
     git_result = _run(
         run,

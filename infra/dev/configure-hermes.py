@@ -49,6 +49,7 @@ controls = {
     'GATEWAY_ALLOW_ALL_USERS': 'false',
     'TELEGRAM_ALLOW_ALL_USERS': 'false',
     'DOCKER_HOST': f'unix:///run/user/{os.getuid()}/docker.sock',
+    'HERMES_WRITE_SAFE_ROOT': '/srv/hermes/pluto-shop',
 }
 lines = [line for line in envfile.read_text().splitlines()
          if line.split('=', 1)[0].strip().removeprefix('export ') not in controls]

@@ -18,6 +18,7 @@ Restart=always
         self.assertIn("Group=hermes", rendered)
         self.assertIn("ExecStart=/srv/hermes/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run", rendered)
         self.assertIn("DOCKER_HOST=unix:///run/user/997/docker.sock", rendered)
+        self.assertIn("HERMES_WRITE_SAFE_ROOT=/srv/hermes/pluto-shop", rendered)
         self.assertIn("ReadWritePaths=/srv/hermes /run/user/997/docker.sock", rendered)
         self.assertIn(
             "InaccessiblePaths=/var/run/docker.sock /opt/pluto-shop /etc/pluto-dev-backup.env /var/lib/pluto-dev-backup /run/user/997/bus",
