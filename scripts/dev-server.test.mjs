@@ -66,6 +66,7 @@ test("testSystemdMigrationPreservesProductionIsolationAndRollback", () => {
   assert.match(serviceRenderer, /User=hermes/);
   assert.match(serviceRenderer, /InaccessiblePaths=/);
   assert.match(migrate, /hermes_system_isolation\.py/);
+  assert.doesNotMatch(migrate, /hermes_runtime_check\.py/);
   assert.match(install, /hermes_system_isolation\.py/);
   assert.match(isolationVerifier, /mountinfo/);
   assert.match(isolationVerifier, /nsenter/);

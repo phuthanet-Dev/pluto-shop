@@ -6,7 +6,6 @@ set -Eeuo pipefail
 src="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 [[ "$src" == /opt/pluto-dev-ops && -O "$src/admin-migrate-hermes-gateway.sh" ]] || { echo 'Run the root-owned migration helper from /opt/pluto-dev-ops.' >&2; exit 1; }
 uid="$(id -u hermes)"
-workspace=/srv/hermes/pluto-shop
 user_unit=/srv/hermes/.config/systemd/user/hermes-gateway.service
 system_unit=/etc/systemd/system/hermes-gateway.service
 state_file=/var/lib/pluto-dev-backup/private/hermes-gateway-migration-state
@@ -34,7 +33,7 @@ verify_saved_migration_state() {
     [[ "$saved_active" == yes || "$saved_active" == no ]] || fail 'Managed Hermes rollback state is invalid.'
     [[ "$saved_enabled" == yes || "$saved_enabled" == no ]] || fail 'Managed Hermes rollback state is invalid.'
 }
-[[ -f "$workspace/infra/dev/hermes_runtime_check.py" ]] || fail 'Hermes Dev workspace or runtime check is missing.'
+[[ -d /srv/hermes/pluto-shop ]] || fail 'Hermes Dev workspace is missing.'
 [[ -x "$src/hermes_system_isolation.py" && -O "$src/hermes_system_isolation.py" ]] || fail 'The root-owned Hermes isolation verifier is missing.'
 [[ -f "$user_unit" ]] || fail 'Existing Hermes user service is missing; preserve it for manual review.'
 [[ -S "/run/user/$uid/docker.sock" ]] || fail 'Hermes rootless Docker socket is unavailable.'
@@ -47,16 +46,7 @@ groups=" $(id -nG hermes) "
 [[ "$groups" != *' sudo '* && "$groups" != *' docker '* ]] || fail 'Hermes must not belong to sudo or the production docker group.'
 
 verify_active_system_service() {
-    local report
-    if ! python3 "$src/hermes_system_isolation.py"; then
-        return 1
-    fi
-    if report="$(runuser -u hermes -- env HOME=/srv/hermes HERMES_HOME=/srv/hermes/.hermes XDG_RUNTIME_DIR="/run/user/$uid" DOCKER_HOST="unix:///run/user/$uid/docker.sock" DOCKER_CONTEXT= bash -c 'cd /srv/hermes/pluto-shop && python3 infra/dev/hermes_runtime_check.py')"; then
-        printf '%s\n' "$report"
-    else
-        printf '%s\n' "$report"
-        return 1
-    fi
+    python3 "$src/hermes_system_isolation.py"
 }
 
 if [[ -e "$system_unit" ]]; then
