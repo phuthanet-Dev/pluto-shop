@@ -52,10 +52,14 @@ test("rendered dev Compose isolates data and publishes only loopback web/auth", 
 
 test("testSystemdDropInPreservesProductionIsolation", () => {
   const unit = readFileSync("infra/dev/admin-start-dev.sh", "utf8");
+  const repair = readFileSync("infra/dev/admin-fix-gateway.sh", "utf8");
 
   assert.match(unit, /InaccessiblePaths=.*\/var\/run\/docker\.sock/);
   assert.match(unit, /InaccessiblePaths=.*\/opt\/pluto-shop/);
   assert.match(unit, /InaccessiblePaths=.*\/etc\/pluto-dev-backup\.env/);
+  assert.match(unit, /PrivateUsers=true/);
+  assert.match(repair, /PrivateUsers=true/);
+  assert.match(repair, /daemon-reload/);
   assert.doesNotMatch(unit, /usermod\s+-aG\s+docker/);
 });
 

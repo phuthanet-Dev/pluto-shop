@@ -213,7 +213,24 @@ def collect_checks(
         cwd=current_workspace,
         env=env,
     )
-    if isolation_result is not None:
+    private_users_result = _run(
+        run,
+        [
+            "systemctl",
+            "--user",
+            "show",
+            "hermes-gateway",
+            "--property=PrivateUsers",
+            "--value",
+        ],
+        cwd=current_workspace,
+        env=env,
+    )
+    private_users_enabled = (
+        private_users_result is not None
+        and private_users_result.stdout.strip().lower() in {"yes", "true"}
+    )
+    if isolation_result is not None and private_users_enabled:
         configured_paths = all(
             protected_path in isolation_result.stdout
             for protected_path in PROTECTED_PATHS

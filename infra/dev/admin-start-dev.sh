@@ -30,6 +30,7 @@ Environment=HERMES_HOME=/srv/hermes/.hermes
 Environment=DOCKER_HOST=unix:///run/user/$uid/docker.sock
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateUsers=true
 ProtectSystem=strict
 ReadWritePaths=/srv/hermes /run/user/$uid
 InaccessiblePaths=-/var/run/docker.sock -/opt/pluto-shop -/etc/pluto-dev-backup.env

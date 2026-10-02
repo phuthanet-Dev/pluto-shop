@@ -33,6 +33,8 @@ class HermesRuntimeCheckTests(unittest.TestCase):
             output = '["name=rootless"]'
         elif command[0] == "systemctl" and "--property=MainPID" in command:
             output = "1234"
+        elif command[0] == "systemctl" and "--property=PrivateUsers" in command:
+            output = "yes"
         elif command[0] == "systemctl":
             output = self.isolation_output
         else:
@@ -128,6 +130,16 @@ class HermesRuntimeCheckTests(unittest.TestCase):
             return self.successful_process(command, **kwargs)
 
         checks = self.collect(run=inactive_process)
+
+        self.assertFalse(checks["production_isolation"])
+
+    def test_production_isolation_requires_private_user_namespace(self):
+        def without_private_users(command, **kwargs):
+            if command[0] == "systemctl" and "--property=PrivateUsers" in command:
+                return subprocess.CompletedProcess(command, 0, stdout="no", stderr="")
+            return self.successful_process(command, **kwargs)
+
+        checks = self.collect(run=without_private_users)
 
         self.assertFalse(checks["production_isolation"])
 
