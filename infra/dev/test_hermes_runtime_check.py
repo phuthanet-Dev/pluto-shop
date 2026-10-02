@@ -76,6 +76,19 @@ class HermesRuntimeCheckTests(unittest.TestCase):
                 self.assertFalse(checks["rootless_docker"])
                 self.assertFalse(checks["dev_compose"])
 
+    def test_dev_compose_validation_uses_non_secret_operator_password_placeholder(self):
+        compose_passwords = []
+
+        def record_compose_environment(command, **kwargs):
+            if command[:2] == ["docker", "compose"]:
+                compose_passwords.append(kwargs["env"].get("POSTGRES_HERMES_PASSWORD"))
+            return self.successful_process(command, **kwargs)
+
+        checks = self.collect(run=record_compose_environment)
+
+        self.assertTrue(checks["dev_compose"])
+        self.assertEqual(compose_passwords, ["runtime-check-only"])
+
     def test_reports_docker_permission_failure(self):
         def denied_process(command, **_kwargs):
             if command[0] == "docker":

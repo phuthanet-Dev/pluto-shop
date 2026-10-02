@@ -179,6 +179,10 @@ def collect_checks(
         checks["rootless_docker"] = (
             docker_result is not None and "rootless" in docker_result.stdout.lower()
         )
+        # deploy.sh creates this credential before running Compose validation.
+        # Validate interpolation without generating or reading it in the probe.
+        compose_env = dict(docker_env)
+        compose_env["POSTGRES_HERMES_PASSWORD"] = "runtime-check-only"
         compose_result = _run(
             run,
             [
@@ -192,7 +196,7 @@ def collect_checks(
                 "--quiet",
             ],
             cwd=current_workspace,
-            env=docker_env,
+            env=compose_env,
         )
         checks["dev_compose"] = compose_result is not None
 
