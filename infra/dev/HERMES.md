@@ -4,7 +4,12 @@ Work only on owner-requested tasks from the existing allowlisted Telegram gatewa
 Workspace: /srv/hermes/pluto-shop. Base checkpoint: 33d04e9.
 Use hermes/* branches. Do not merge main or deploy production.
 Use only the rootless Docker socket at /run/user/<your uid>/docker.sock.
-Never access /var/run/docker.sock, production files, or backup credentials.
+Never access /var/run/docker.sock, production files, or /etc/pluto-dev-backup.env
+or /var/lib/pluto-dev-backup.
+The gateway runs as the Unix user hermes under the system service
+hermes-gateway.service so its filesystem restrictions are applied by the system
+manager. The owner manages gateway restarts with root-owned helpers under
+/opt/pluto-dev-ops; agent tasks use only the workspace and rootless Docker.
 After completing an assigned task: run relevant tests, commit, then run
 `bash infra/dev/deploy.sh`. Report the commit, test results, and
 https://dev.phutoshop.com through the existing Telegram conversation.

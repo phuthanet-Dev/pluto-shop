@@ -50,16 +50,53 @@ test("rendered dev Compose isolates data and publishes only loopback web/auth", 
   assert.equal(config.services.api.environment.INWCLOUD_TRUEWALLET_ENABLED, "false");
 });
 
-test("testSystemdDropInPreservesProductionIsolation", () => {
+test("testSystemdMigrationPreservesProductionIsolationAndRollback", () => {
   const unit = readFileSync("infra/dev/admin-start-dev.sh", "utf8");
   const repair = readFileSync("infra/dev/admin-fix-gateway.sh", "utf8");
+  const migrate = readFileSync("infra/dev/admin-migrate-hermes-gateway.sh", "utf8");
+  const rollback = readFileSync("infra/dev/admin-rollback-hermes-system-service.sh", "utf8");
+  const serviceRenderer = readFileSync("infra/dev/hermes_system_service.py", "utf8");
+  const isolationVerifier = readFileSync("infra/dev/hermes_system_isolation.py", "utf8");
+  const install = readFileSync("infra/dev/admin-install.sh", "utf8");
 
-  assert.match(unit, /InaccessiblePaths=.*\/var\/run\/docker\.sock/);
-  assert.match(unit, /InaccessiblePaths=.*\/opt\/pluto-shop/);
-  assert.match(unit, /InaccessiblePaths=.*\/etc\/pluto-dev-backup\.env/);
-  assert.match(unit, /PrivateUsers=true/);
-  assert.match(repair, /PrivateUsers=true/);
-  assert.match(repair, /daemon-reload/);
+  assert.match(unit, /admin-migrate-hermes-gateway\.sh/);
+  assert.match(repair, /admin-migrate-hermes-gateway\.sh/);
+  assert.match(migrate, /systemctl enable --now hermes-gateway\.service/);
+  assert.match(migrate, /render_hermes_system_service\.py/);
+  assert.match(serviceRenderer, /User=hermes/);
+  assert.match(serviceRenderer, /InaccessiblePaths=/);
+  assert.match(migrate, /hermes_system_isolation\.py/);
+  assert.match(install, /hermes_system_isolation\.py/);
+  assert.match(isolationVerifier, /mountinfo/);
+  assert.match(isolationVerifier, /nsenter/);
+  assert.match(isolationVerifier, /PATH_ACCESS_PROBE/);
+  assert.match(migrate, /rollback/);
+  assert.match(migrate, /admin-rollback-hermes-system-service\.sh" --leave-user-stopped/);
+  assert.match(migrate, /verify_saved_migration_state/);
+  assert.match(rollback, /--leave-user-stopped/);
+  assert.match(rollback, /systemctl disable hermes-gateway\.service/);
+  assert.match(rollback, /\$user_was_enabled/);
+  assert.match(rollback, /systemctl stop hermes-gateway\.service/);
+  assert.match(rollback, /systemctl is-active --quiet hermes-gateway\.service/);
+  assert.doesNotMatch(rollback, /systemctl stop hermes-gateway\.service[^\n]*\|\|/);
+  const rollbackStop = rollback.indexOf("    systemctl stop hermes-gateway.service");
+  const inactiveCheck = rollback.indexOf("if systemctl is-active --quiet hermes-gateway.service;", rollbackStop);
+  const removedUnit = rollback.indexOf('rm -f "$system_unit"');
+  assert.ok(rollbackStop >= 0 && inactiveCheck > rollbackStop && removedUnit > inactiveCheck);
+  assert.doesNotMatch(rollback, /disable --now hermes-gateway\.service[^\n]*\|\| true/);
+  assert.match(install, /stat -c '%u:%g:%a'/);
+  assert.match(install, /\[\[ "\$owner_mode" == "0:0:\$expected_mode" \]\]/);
+  assert.match(install, /install -o root -g root -m 755 -d \/opt\/pluto-dev-ops/);
+  assert.match(install, /assert_root_owned_directory \/var\/lib\/pluto-dev-backup\/private 700/);
+  assert.match(migrate, /is-enabled --quiet hermes-gateway\.service/);
+  assert.match(install, /admin-migrate-hermes-gateway\.sh/);
+  assert.match(install, /admin-rollback-hermes-system-service\.sh/);
+  assert.match(install, /assert_root_owned_directory/);
+  assert.match(install, /! -L/);
+  assert.match(migrate, /assert_root_owned_directory \/opt\/pluto-dev-ops/);
+  assert.match(migrate, /assert_root_owned_directory \/var\/lib\/pluto-dev-backup\/private/);
+  assert.match(rollback, /assert_root_owned_directory \/opt\/pluto-dev-ops/);
+  assert.match(rollback, /assert_root_owned_directory \/var\/lib\/pluto-dev-backup\/private/);
   assert.doesNotMatch(unit, /usermod\s+-aG\s+docker/);
 });
 

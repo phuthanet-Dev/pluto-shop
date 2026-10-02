@@ -10,6 +10,21 @@ id hermes >/dev/null
 if id -nG hermes | tr ' ' '\n' | grep -Eq '^(sudo|docker)$'; then
     echo 'Hermes must not belong to sudo or production docker groups.'; exit 1
 fi
+assert_root_owned_directory() {
+    local directory="$1" expected_mode="$2" owner_mode
+    [[ ! -L "$directory" ]] || { echo "Refusing symlinked protected directory: $directory" >&2; exit 1; }
+    if [[ -e "$directory" ]]; then
+        [[ -d "$directory" ]] || { echo "Protected path is not a directory: $directory" >&2; exit 1; }
+        owner_mode="$(stat -c '%u:%g:%a' -- "$directory")"
+        [[ "$owner_mode" == "0:0:$expected_mode" ]] || {
+            echo "Protected directory must be root:root mode $expected_mode: $directory" >&2
+            exit 1
+        }
+    fi
+}
+assert_root_owned_directory /opt/pluto-dev-ops 755
+assert_root_owned_directory /var/lib/pluto-dev-backup 755
+assert_root_owned_directory /var/lib/pluto-dev-backup/private 700
 apt-get update
 NEEDRESTART_MODE=l apt-get install -y --no-upgrade uidmap dbus-user-session slirp4netns restic
 if ! command -v dockerd-rootless-setuptool.sh >/dev/null; then
@@ -31,11 +46,18 @@ PY
 uid="$(id -u hermes)"
 loginctl enable-linger hermes
 systemctl start "user@$uid.service"
-install -d -m 755 /opt/pluto-dev-ops /var/lib/pluto-dev-backup
-install -d -m 700 /var/lib/pluto-dev-backup/private
+install -o root -g root -m 755 -d /opt/pluto-dev-ops /var/lib/pluto-dev-backup
+install -o root -g root -m 700 -d /var/lib/pluto-dev-backup/private
+assert_root_owned_directory /opt/pluto-dev-ops 755
+assert_root_owned_directory /var/lib/pluto-dev-backup 755
+assert_root_owned_directory /var/lib/pluto-dev-backup/private 700
 for file in backup.sh verify-backup.sh pause-production.sh resume-production.sh healthcheck.sh Caddyfile compose.edge.yaml; do
     install -o root -g root -m 644 "$src/$file" "/opt/pluto-dev-ops/$file"
 done
+for file in admin-migrate-hermes-gateway.sh admin-rollback-hermes-system-service.sh render_hermes_system_service.py hermes_system_isolation.py; do
+    install -o root -g root -m 755 "$src/$file" "/opt/pluto-dev-ops/$file"
+done
+install -o root -g root -m 644 "$src/hermes_system_service.py" /opt/pluto-dev-ops/hermes_system_service.py
 install -d -o hermes -g hermes -m 700 /srv/hermes/dev-control
 if [[ ! -d /srv/hermes/pluto-shop ]]; then
     # Clone only committed Git content, never local secrets or ignored artifacts.

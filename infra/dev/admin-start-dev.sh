@@ -21,28 +21,7 @@ if ! runuser -u hermes -- git -C /srv/hermes/pluto-shop config user.email >/dev/
     runuser -u hermes -- git -C /srv/hermes/pluto-shop config user.email hermes@localhost
 fi
 runuser -u hermes -- env HOME=/srv/hermes python3 /srv/hermes/pluto-shop/infra/dev/configure-hermes.py
-dropin=/srv/hermes/.config/systemd/user/hermes-gateway.service.d
-runuser -u hermes -- mkdir -p "$dropin"
-cat > "$dropin/pluto-dev.conf" <<UNIT
-[Service]
-WorkingDirectory=/srv/hermes/pluto-shop
-Environment=HERMES_HOME=/srv/hermes/.hermes
-Environment=DOCKER_HOST=unix:///run/user/$uid/docker.sock
-NoNewPrivileges=true
-PrivateTmp=true
-PrivateUsers=true
-ProtectSystem=strict
-ReadWritePaths=/srv/hermes /run/user/$uid
-InaccessiblePaths=-/var/run/docker.sock -/opt/pluto-shop -/etc/pluto-dev-backup.env
-CPUQuota=100%
-MemoryMax=1G
-TasksMax=512
-UNIT
-chown hermes:hermes "$dropin/pluto-dev.conf"
-userctl=(runuser -u hermes -- env XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" systemctl --user)
-"${userctl[@]}" daemon-reload
-"${userctl[@]}" restart hermes-gateway.service
-"${userctl[@]}" is-active --quiet hermes-gateway.service
+bash /opt/pluto-dev-ops/admin-migrate-hermes-gateway.sh
 if [[ ! -e /var/log/pluto-dev-build.log ]]; then
     install -m 640 -o root -g dev /dev/null /var/log/pluto-dev-build.log
 fi

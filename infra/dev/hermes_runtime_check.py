@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 import getpass
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -22,6 +23,7 @@ PROTECTED_PATHS = (
     "/opt/pluto-shop",
     "/var/run/docker.sock",
     "/etc/pluto-dev-backup.env",
+    "/var/lib/pluto-dev-backup",
 )
 CHECK_NAMES = (
     "effective_user",
@@ -103,7 +105,10 @@ def _read_mountinfo(pid: int) -> str | None:
         return None
 
 
-def _mountinfo_hides_protected_paths(mountinfo: str) -> bool:
+def _mountinfo_hides_protected_paths(
+    mountinfo: str,
+    protected_paths: tuple[str, ...] = PROTECTED_PATHS,
+) -> bool:
     """Require inaccessible-path mounts in the active gateway process."""
     mounted_targets: set[str] = set()
     for line in mountinfo.splitlines():
@@ -119,13 +124,27 @@ def _mountinfo_hides_protected_paths(mountinfo: str) -> bool:
                 target = target.replace(escaped, decoded)
             mounted_targets.add(target)
 
-    for protected_path in PROTECTED_PATHS:
+    for protected_path in protected_paths:
         aliases = {protected_path}
         if protected_path.startswith("/var/run/"):
             aliases.add(protected_path.replace("/var/run/", "/run/", 1))
         if aliases.isdisjoint(mounted_targets):
             return False
     return True
+
+
+def _path_is_inaccessible_to_current_user(path: str) -> bool:
+    """Confirm an ordinary Hermes process cannot use a protected path."""
+    try:
+        path_mode = os.stat(path).st_mode
+    except OSError:
+        return True
+    access_modes = (
+        (os.R_OK, os.W_OK)
+        if stat.S_ISSOCK(path_mode)
+        else (os.R_OK, os.W_OK, os.X_OK)
+    )
+    return not any(os.access(path, access_mode) for access_mode in access_modes)
 
 
 def collect_checks(
@@ -200,48 +219,46 @@ def collect_checks(
         )
         checks["dev_compose"] = compose_result is not None
 
+    protected_paths = (*PROTECTED_PATHS, f"/run/user/{uid}/bus")
     isolation_result = _run(
         run,
         [
             "systemctl",
-            "--user",
             "show",
-            "hermes-gateway",
+            "hermes-gateway.service",
             "--property=InaccessiblePaths",
             "--value",
         ],
         cwd=current_workspace,
         env=env,
     )
-    private_users_result = _run(
+    service_user_result = _run(
         run,
         [
             "systemctl",
-            "--user",
             "show",
-            "hermes-gateway",
-            "--property=PrivateUsers",
+            "hermes-gateway.service",
+            "--property=User",
             "--value",
         ],
         cwd=current_workspace,
         env=env,
     )
-    private_users_enabled = (
-        private_users_result is not None
-        and private_users_result.stdout.strip().lower() in {"yes", "true"}
+    service_runs_as_hermes = (
+        service_user_result is not None
+        and service_user_result.stdout.strip() == "hermes"
     )
-    if isolation_result is not None and private_users_enabled:
+    if isolation_result is not None and service_runs_as_hermes:
         configured_paths = all(
             protected_path in isolation_result.stdout
-            for protected_path in PROTECTED_PATHS
+            for protected_path in protected_paths
         )
         main_pid_result = _run(
             run,
             [
                 "systemctl",
-                "--user",
                 "show",
-                "hermes-gateway",
+                "hermes-gateway.service",
                 "--property=MainPID",
                 "--value",
             ],
@@ -255,7 +272,12 @@ def collect_checks(
         if configured_paths and main_pid > 0:
             mountinfo = read_mountinfo(main_pid)
             checks["production_isolation"] = (
-                mountinfo is not None and _mountinfo_hides_protected_paths(mountinfo)
+                mountinfo is not None
+                and _mountinfo_hides_protected_paths(mountinfo, protected_paths)
+                and all(
+                    _path_is_inaccessible_to_current_user(path)
+                    for path in protected_paths
+                )
             )
 
     return checks

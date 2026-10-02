@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+import stat
 import subprocess
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import hermes_runtime_check as runtime_check
@@ -17,13 +19,11 @@ class HermesRuntimeCheckTests(unittest.TestCase):
             "DOCKER_HOST": "unix:///run/user/997/docker.sock",
             "TELEGRAM_BOT_TOKEN": "runtime-check-sentinel-secret",
         }
-        self.isolation_output = (
-            "-/opt/pluto-shop -/var/run/docker.sock "
-            "-/etc/pluto-dev-backup.env"
-        )
+        self.protected_paths = (*runtime_check.PROTECTED_PATHS, "/run/user/997/bus")
+        self.isolation_output = " ".join(self.protected_paths)
         self.isolation_mountinfo = "\n".join(
             f"36 25 0:32 / /{path.lstrip('/')} ro,nosuid,nodev - tmpfs /run/systemd/inaccessible/dir ro"
-            for path in runtime_check.PROTECTED_PATHS
+            for path in self.protected_paths
         )
 
     def successful_process(self, command, **_kwargs):
@@ -33,8 +33,8 @@ class HermesRuntimeCheckTests(unittest.TestCase):
             output = '["name=rootless"]'
         elif command[0] == "systemctl" and "--property=MainPID" in command:
             output = "1234"
-        elif command[0] == "systemctl" and "--property=PrivateUsers" in command:
-            output = "yes"
+        elif command[0] == "systemctl" and "--property=User" in command:
+            output = "hermes"
         elif command[0] == "systemctl":
             output = self.isolation_output
         else:
@@ -133,13 +133,13 @@ class HermesRuntimeCheckTests(unittest.TestCase):
 
         self.assertFalse(checks["production_isolation"])
 
-    def test_production_isolation_requires_private_user_namespace(self):
-        def without_private_users(command, **kwargs):
-            if command[0] == "systemctl" and "--property=PrivateUsers" in command:
-                return subprocess.CompletedProcess(command, 0, stdout="no", stderr="")
+    def test_production_isolation_requires_hermes_system_service(self):
+        def wrong_service_user(command, **kwargs):
+            if command[0] == "systemctl" and "--property=User" in command:
+                return subprocess.CompletedProcess(command, 0, stdout="root", stderr="")
             return self.successful_process(command, **kwargs)
 
-        checks = self.collect(run=without_private_users)
+        checks = self.collect(run=wrong_service_user)
 
         self.assertFalse(checks["production_isolation"])
 
@@ -161,7 +161,47 @@ class HermesRuntimeCheckTests(unittest.TestCase):
             "/var/run/docker.sock", "/run/docker.sock"
         )
 
-        self.assertTrue(runtime_check._mountinfo_hides_protected_paths(mountinfo))
+        self.assertTrue(
+            runtime_check._mountinfo_hides_protected_paths(
+                mountinfo, self.protected_paths
+            )
+        )
+
+    def test_production_isolation_requires_access_to_protected_paths_to_be_denied(self):
+        with patch.object(runtime_check, "_path_is_inaccessible_to_current_user", return_value=False):
+            checks = self.collect()
+
+        self.assertFalse(checks["production_isolation"])
+
+    def test_path_probe_rejects_execute_only_directory(self):
+        with (
+            patch.object(
+                runtime_check.os,
+                "stat",
+                return_value=SimpleNamespace(st_mode=stat.S_IFDIR | 0o111),
+            ),
+            patch.object(
+                runtime_check.os,
+                "access",
+                side_effect=lambda _path, mode: mode == os.X_OK,
+            ),
+        ):
+            self.assertFalse(runtime_check._path_is_inaccessible_to_current_user("/protected"))
+
+    def test_path_probe_rejects_write_only_file(self):
+        with (
+            patch.object(
+                runtime_check.os,
+                "stat",
+                return_value=SimpleNamespace(st_mode=stat.S_IFREG | 0o200),
+            ),
+            patch.object(
+                runtime_check.os,
+                "access",
+                side_effect=lambda _path, mode: mode == os.W_OK,
+            ),
+        ):
+            self.assertFalse(runtime_check._path_is_inaccessible_to_current_user("/protected"))
 
 
 if __name__ == "__main__":
